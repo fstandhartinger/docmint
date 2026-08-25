@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const { render, inspect, toExcelSerial, rewriteFormula } = require('../src/render/xlsx');
 const { readZip } = require('../src/ooxml/zip');
 const {
-  fixture, writeOut, tinyPng, partText, partNames, cells, toCsvRows, toCsvSheets, money,
+  fixture, writeOut, tinyPng, partText, partBytes, partNames, cells, toCsvRows, toCsvSheets, money,
 } = require('./helpers/xlsx-fixtures');
 
 const INVOICE_DATA = (items) => ({
@@ -171,8 +171,10 @@ test('a row loop repeats its whole span and moves everything below it', async ()
   assert.match(xml, /<dimension ref="A1:D18"\/>/);
   // Row 3 is empty in the template and stays empty; the {^items} row existed and
   // rendered zero times, so it closes up instead of leaving a hole.
-  assert.ok(!Object.keys(c).some((r) => r.endsWith('3')));
-  assert.equal(c.A17, undefined, 'the inverted row leaves no blank line behind');
+  assert.ok(!Object.keys(c).some((r) => r === 'A3'), 'the blank template row 3 is still blank');
+  assert.equal(c.A17.text, 'Total');
+  assert.equal(c.A18.text, 'Prepared by Flo',
+    'the {^items} row rendered zero times and left no blank line behind');
 });
 
 test('merged ranges inside the loop are repeated, and ones below it move', async () => {
@@ -199,11 +201,12 @@ test('autofilter, conditional formatting, data validation and hyperlinks all fol
 test('a section that renders zero times leaves one blank row where a formula covered it', async () => {
   const { buffer } = await render(fixture('invoice.xlsx'), INVOICE_DATA([]), {});
   const c = cells(buffer);
-  assert.equal(c.A6, undefined, 'the loop body collapses to a single blank row');
-  assert.equal(c.A7.text, 'Subtotal');
-  assert.equal(c.D7.f, 'SUM(D5:D5)',
+  assert.deepEqual({ t: c.A5.t, v: c.A5.v }, { t: null, v: null },
+    'the two-row loop body collapses to one blank row');
+  assert.equal(c.A6.text, 'Subtotal');
+  assert.equal(c.D6.f, 'SUM(D5:D5)',
     'the SUM keeps a real range: pointing it at the row that moved up would be circular');
-  assert.equal(c.A10.text, 'No line items were supplied.', 'the {^items} branch fires');
+  assert.equal(c.A9.text, 'No line items were supplied.', 'the {^items} branch fires');
 
   const rows = toCsvRows(writeOut('invoice-empty.xlsx', buffer));
   assert.equal(money(rows.find((r) => r[0] === 'Subtotal')[3]), 0);
@@ -247,6 +250,15 @@ test('a formula below the loop follows the row it pointed at rather than sliding
   assert.match(partText(buffer, 'xl/workbook.xml'), /fullCalcOnLoad="1"/);
 });
 
+test('a print area follows the rows it was drawn around', async () => {
+  // Print areas and other defined names are written absolute as a matter of
+  // course, so the "leave $ rows alone" rule that protects a deliberate anchor in
+  // a formula would here mean every print area silently stops covering its table.
+  assert.match(partText(fixture('invoice.xlsx'), 'xl/workbook.xml'), /Invoice!\$A\$1:\$D\$9/);
+  const { buffer } = await render(fixture('invoice.xlsx'), INVOICE_DATA(LINES.slice(0, 3)), {});
+  assert.match(partText(buffer, 'xl/workbook.xml'), /Invoice!\$A\$1:\$D\$13/);
+});
+
 test('a formula on another sheet that points into the loop is rewritten too', async () => {
   const { buffer } = await render(fixture('invoice.xlsx'), INVOICE_DATA(LINES), {});
   assert.equal(cells(buffer, 'xl/worksheets/sheet2.xml').B2.f, 'Invoice!D17');
@@ -283,8 +295,8 @@ test('a subtotal inside an outer loop covers only its own iteration', async () =
     ],
   }, {});
   const c = cells(buffer);
-  assert.equal(c.B4.f, 'SUM(B2:B3)');
-  assert.equal(c.B6.f, 'SUM(B6:B6)');
+  assert.equal(c.B4.f, 'SUM(B2:B3)', 'Engineering sums its own two staff rows');
+  assert.equal(c.B7.f, 'SUM(B6:B6)', 'Operations sums only its own');
 
   const rows = toCsvRows(writeOut('nested.xlsx', buffer));
   const subtotals = rows.filter((r) => r[0] === 'Subtotal').map((r) => money(r[1]));
@@ -329,8 +341,7 @@ test('{%img} builds the media part, the drawing, both relationship parts and the
   assert.ok(names.includes('xl/drawings/_rels/drawing1.xml.rels'));
   assert.ok(names.includes('xl/worksheets/_rels/sheet1.xml.rels'));
 
-  const media = readZip(buffer).byName.get('xl/media/image1.png');
-  assert.equal(Buffer.compare(media.data, png), 0);
+  assert.equal(Buffer.compare(partBytes(buffer, 'xl/media/image1.png'), png), 0);
 
   assert.match(partText(buffer, '[Content_Types].xml'), /PartName="\/xl\/drawings\/drawing1.xml"/);
   assert.match(partText(buffer, 'xl/worksheets/sheet1.xml'), /<drawing r:id="rId\d+"\/><\/worksheet>/);

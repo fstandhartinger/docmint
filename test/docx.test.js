@@ -207,7 +207,10 @@ test('block section markers leave no empty paragraphs behind', async () => {
   // With no notes all three must be gone — not left behind as blank lines.
   assert.equal(outside(none.buffer), template - 3);
   assert.equal(outside(two.buffer), template - 3 + 2);
-  assert.ok(!/\n\s*\n\s*\n/.test(H.visibleText(none.buffer)), 'a run of blank paragraphs was left behind');
+  // The three note paragraphs sat between "Notes" and the closing line; with the
+  // list empty nothing at all should separate them.
+  assert.match(H.visibleText(none.buffer), /Notes\nDocMint GmbH/);
+  assert.match(H.visibleText(two.buffer), /Notes\n- Bank transfer only, no cheques\.\n- Late payment[^\n]*\nDocMint GmbH/);
 });
 
 test('an inline section repeats only the runs between its markers', async () => {

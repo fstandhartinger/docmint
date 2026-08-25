@@ -327,6 +327,13 @@ function assertPackageIsSound(buffer) {
   }
   assert.equal(new Set(ids).size, ids.length, 'slide ids must be unique');
 
+  // An Override naming a part that is not in the package is an OPC violation.
+  // LibreOffice writes one per .rels part, so deleting a slide has to take two.
+  for (const el of findElements(ct, 'Override')) {
+    const name = attr(el.openTag, 'PartName').replace(/^\//, '');
+    assert.ok(zip.byName.has(name), `[Content_Types].xml declares "${name}", which is not in the package`);
+  }
+
   for (const e of zip.entries) {
     if (!/^ppt\/(slides|notesSlides)\/[^/]+\.xml$/.test(e.name)) continue;
     assert.ok(ct.includes(`PartName="/${e.name}"`), `no content type for ${e.name}`);
@@ -409,12 +416,32 @@ test('an empty array deletes the looped slides and their parts', async () => {
   assert.equal(after.length, 2, 'the removed slide parts must leave the package too');
 });
 
-test('an inverted slide loop keeps the slides only when the array is empty', async () => {
+test('an empty slide loop deletes the slide and its notes part', async () => {
   const data = CARDS_DATA();
   data.cards = [];
   const { buffer } = await render(H.fixture('cards'), data, {});
   assert.equal(H.slideCount(buffer), 1);
+  assert.equal(H.partNames(buffer).filter((n) => n.includes('notesSlides/notesSlide')).length, 0);
   assertPackageIsSound(buffer);
+});
+
+test('{^x} works as a slide loop too: the slide appears only when x is empty', async () => {
+  const zip = readZip(H.fixture('cards'));
+  const marker = zip.byName.get('ppt/slides/slide2.xml');
+  const { writeEntry: we, writeZip: wz } = require('../src/ooxml/zip');
+  we(marker, readText(marker).replace('{#cards}', '{^cards}'));
+  const inverted = wz(zip);
+
+  // An inverted section pushes no loop metadata — there is no iteration to
+  // number — so the slide's {$index1} has nothing to resolve to here.
+  const opts = { onMissing: 'empty' };
+  const shown = await render(inverted, { title: 'T', cards: [], label: 'L', body: 'B' }, opts);
+  assert.equal(H.slideCount(shown.buffer), 2, 'an empty array shows the slide once');
+  assertPackageIsSound(shown.buffer);
+
+  const hidden = await render(inverted, { title: 'T', cards: [{ label: 'x', body: 'y' }] }, opts);
+  assert.equal(H.slideCount(hidden.buffer), 1, 'a non-empty array hides it');
+  assertPackageIsSound(hidden.buffer);
 });
 
 test('removing every slide is refused rather than emitting a deck a reader cannot open', async () => {

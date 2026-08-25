@@ -947,6 +947,23 @@ function renderPart(pkg, partName, xml, stack, ctx, locPrefix) {
     edits.push({ start: gf.start, end: gf.end, text: applyEdits(gfXml, inner) });
   }
 
+  // Anything with text that is neither a <p:sp> nor a table: a connector with a
+  // label, a caption on a <p:pic>. Rare, but silently leaving a tag unrendered
+  // in one is worse than the twelve lines it costs to catch them.
+  for (const tb of findElements(xml, 'p:txBody')) {
+    if (edits.some((e) => tb.start >= e.start && tb.end <= e.end)) continue;
+    const tbXml = xml.slice(tb.start, tb.end);
+    if (!scan(flatten(tbXml, 'a:t').text).length) continue;
+    const loc = `${locPrefix}, paragraph ${paraNo + 1}`;
+    ctx.location = loc;
+    edits.push({
+      start: tb.start,
+      end: tb.end,
+      text: renderTextBodyElement(tbXml, 'p:txBody', stack, ctx, sink, loc, paraNo),
+    });
+    paraNo += countParagraphs(tbXml);
+  }
+
   let out = edits.length ? applyEdits(xml, edits) : xml;
 
   if (sink.inlineImages.length) {
@@ -1380,8 +1397,10 @@ async function render(buffer, data, opts = {}) {
   for (const r of presRels) {
     if (r.type === REL_SLIDE) relByTarget.set(resolveRelTarget(PRESENTATION, r.target), r);
   }
-  const keptSlideParts = new Set(final.map((f) => f.part));
-  const kept = presRels.filter((r) => r.type !== REL_SLIDE || keptSlideParts.has(resolveRelTarget(PRESENTATION, r.target)));
+  // Keep a slide relationship when its part is still in the package. Filtering
+  // on the final list instead would strip the relationship off any slide the
+  // template had in the rels but not in p:sldIdLst, leaving an orphan part.
+  const kept = presRels.filter((r) => r.type !== REL_SLIDE || zip.byName.has(resolveRelTarget(PRESENTATION, r.target)));
 
   const entries = [];
   let sldId = SLD_ID_MIN;

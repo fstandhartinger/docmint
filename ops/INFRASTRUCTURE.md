@@ -36,17 +36,19 @@ not wanted.
 
 Measured, not assumed — see DECISIONS.md for the commands:
 
-- Filling a template is pure Node: single-digit milliseconds, a few MB.
-- Converting to PDF spawns LibreOffice: **1.02 s warm, 1.25 s cold, 219 MB peak
-  RSS**, every time.
+- Filling a template is pure Node. On production: **24-28 ms end to end**,
+  of which 8-11 ms is the fill itself and the rest is two database queries.
+- Converting to PDF spawns LibreOffice: **2.6 s on production**, 219 MB peak RSS,
+  every time. (The same conversion takes 1.02 s in local Docker on a full CPU;
+  Render Starter has half of one. The number to publish is 2.6 s.)
 
 219 MB is why `MAX_CONCURRENT_PDF` is 1. Two concurrent conversions in a 512 MB
 container is an OOM kill, and an OOM kill reaches the user as a dropped connection
 with no error at all — the worst failure mode available. The fill path is not
 throttled, so an account that never asks for PDFs is never queued behind one.
 
-**The threshold to watch:** sustained PDF demand above roughly 0.8 conversions per
-second. At that point the queue stops draining and `pdf_queue_full` starts being
+**The threshold to watch:** sustained PDF demand above roughly 0.38 conversions per
+second (one every 2.6 s). At that point the queue stops draining and `pdf_queue_full` starts being
 returned. The fix is the Standard plan (2 GB, $25/month) with
 `MAX_CONCURRENT_PDF=4`, not a second service — LibreOffice scales with memory, and
 memory is what the plan buys. Do not move up before the logs show it; the log line

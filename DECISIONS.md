@@ -260,3 +260,31 @@ silently misbehaves on leading whitespace, two loops on a line, or Shift+Enter
 breaks) or its `vm2`/`angular-expressions` dependency chain, because there is no
 expression evaluator: formatters are a fixed, audited list, so no user-supplied
 string is ever compiled or executed.
+
+## Measured on production, 2026-08-25 — these are the numbers copy may quote
+
+Render Starter (512 MB, 0.5 CPU, Frankfurt), Neon free tier (Frankfurt, pooled
+endpoint), a three-line-item invoice template, five consecutive requests, timings
+taken from the `stats.stages` object the API returns on every render.
+
+| Path | load | quota | fill | pdf | **total** |
+|---|---:|---:|---:|---:|---:|
+| Office file out | 7-9 ms | 4 ms | 8-11 ms | — | **24-28 ms** |
+| PDF out | 8-11 ms | 4 ms | 5-7 ms | 2.56-2.61 s | **2.58-2.63 s** |
+| PDF out, first after idle | | | | 4.10 s | **4.13 s** |
+
+Two things to be honest about:
+
+**LibreOffice on Render is 2.5x slower than in local Docker.** The probe image on
+this workstation converted the same document in 1.02 s; Render Starter takes
+2.56 s. Half a CPU is half a CPU. Any published latency number must be the 2.6 s
+one, because that is what a customer gets.
+
+**The database was accidentally 100x slower than it should have been, twice.**
+First because the Neon project was in `aws-us-west-2` while the service is in
+Frankfurt. Then — and this was the larger factor — because the connection string
+was Neon's **direct** compute endpoint rather than its **pooled** one. Direct
+measured about 450 ms per query from Render; pooled measures **3-4 ms**. That took
+the Office-file path from roughly 700 ms to 26 ms. `GET /healthz?db=1` reports a
+round trip and the pool counters so the question is answerable next time instead
+of guessable. **If a deploy ever feels slow, check that first.**

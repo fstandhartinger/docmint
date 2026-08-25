@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { execFileSync } = require('node:child_process');
-const { readZip, readText } = require('../../src/ooxml/zip');
+const { readZip, readText, readEntry } = require('../../src/ooxml/zip');
 const { findElements, attr, decodeXml } = require('../../src/ooxml/xml');
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -79,6 +79,12 @@ const partNames = (buffer) => readZip(buffer).entries.map((e) => e.name);
  */
 function cells(buffer, sheetPart = 'xl/worksheets/sheet1.xml') {
   const xml = partText(buffer, sheetPart);
+  // A cell that still points into the shared string table has no text of its
+  // own, so the table has to be read for the assertions to mean anything.
+  const sstXml = partText(buffer, 'xl/sharedStrings.xml') || '';
+  const sst = findElements(sstXml, 'si').map((el) => findElements(sstXml, 't')
+    .filter((t) => t.start >= el.start && t.end <= el.end)
+    .map((t) => decodeXml(sstXml.slice(t.contentStart, t.contentEnd))).join(''));
   const out = {};
   const sd = findElements(xml, 'sheetData')[0];
   const inner = xml.slice(sd.contentStart, sd.contentEnd);
@@ -93,7 +99,9 @@ function cells(buffer, sheetPart = 'xl/worksheets/sheet1.xml') {
         s: attr(cEl.openTag, 's'),
         v: v ? decodeXml(cInner.slice(v.contentStart, v.contentEnd)) : null,
         f: f && !f.selfClosing ? decodeXml(cInner.slice(f.contentStart, f.contentEnd)) : null,
-        text: findElements(cInner, 't').map((t) => decodeXml(cInner.slice(t.contentStart, t.contentEnd))).join(''),
+        text: attr(cEl.openTag, 't') === 's'
+          ? (sst[Number(decodeXml(cInner.slice(v.contentStart, v.contentEnd)))] ?? '')
+          : findElements(cInner, 't').map((t) => decodeXml(cInner.slice(t.contentStart, t.contentEnd))).join(''),
       };
     }
   }
@@ -160,7 +168,12 @@ function splitCsv(line) {
 /** "1,949.00 $" -> 1949 — LibreOffice writes the cell's *formatted* value. */
 const money = (s) => Number(String(s).replace(/[^0-9.\-]/g, ''));
 
+const partBytes = (buffer, name) => {
+  const entry = readZip(buffer).byName.get(name);
+  return entry ? readEntry(entry) : null;
+};
+
 module.exports = {
-  FIXTURES, OUT, fixture, outPath, writeOut, tinyPng, partText, partNames, cells,
+  FIXTURES, OUT, fixture, outPath, writeOut, tinyPng, partText, partBytes, partNames, cells,
   toCsvRows, toCsvSheets, money,
 };

@@ -34,7 +34,7 @@ function partNames(buffer) {
   return readZip(buffer).entries.map((e) => e.name);
 }
 
-const TOKEN = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:(br|tab|cr)\/>|<\/w:(p|tc)>/g;
+const TOKEN = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:(br|tab|cr)\/>|<\/w:(p)>/g;
 
 /**
  * The visible text of a part, in document order. Not a substitute for converting
