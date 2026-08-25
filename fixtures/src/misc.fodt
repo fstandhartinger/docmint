@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.text">
+<office:automatic-styles>
+  <style:style style:name="Bold" style:family="text">
+    <style:text-properties fo:font-weight="bold"/>
+  </style:style>
+</office:automatic-styles>
+<office:body><office:text>
+
+<text:h text:outline-level="1">Hello {user.first_name}</text:h>
+<text:p>Address: {address}</text:p>
+<text:p>Columns: A{tabbed}B</text:p>
+<text:p>{!this note never appears}Kept text.</text:p>
+<text:p>{@extra_xml}</text:p>
+<text:p>Inline: {#tags}&lt;{.}&gt; {/tags}done</text:p>
+<text:p>{^missing_thing}Shown when absent.{/missing_thing}</text:p>
+<text:p>Optional: {nope|default:n/a}</text:p>
+<text:p>Escaping: {tricky}</text:p>
+<text:p>Styled <text:span text:style-name="Bold">{bolded}</text:span> here.</text:p>
+<text:p>A code sample that is not a tag: { "total": 12 } and .a { color: red }</text:p>
+
+<table:table table:name="Grid">
+  <table:table-column table:number-columns-repeated="2"/>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{#rows}{name}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p>{value}{/rows}</text:p></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>Total</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p>{rows|sum:value}</text:p></table:table-cell>
+  </table:table-row>
+</table:table>
+
+</office:text></office:body></office:document>

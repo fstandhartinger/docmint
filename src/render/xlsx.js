@@ -129,7 +129,9 @@ function findWorkbookPath(zip) {
     const xml = readText(root);
     for (const el of findElements(xml, 'Relationship')) {
       const type = attr(el.openTag, 'Type') || '';
-      if (type.endsWith('/officeDocument')) return resolveRelTarget('_rels/.rels', attr(el.openTag, 'Target'));
+      // A relationship target is relative to the *owner* part's folder, and the
+      // owner of _rels/.rels is the package root, not the _rels folder.
+      if (type.endsWith('/officeDocument')) return resolveRelTarget('', attr(el.openTag, 'Target'));
     }
   }
   if (zip.byName.get('xl/workbook.xml')) return 'xl/workbook.xml';
@@ -354,7 +356,7 @@ function parseSheet(xml) {
         t: attr(cel.openTag, 't') || 'n',
       });
     }
-    rows.push({ r, openTag: rel.openTag, cells });
+    rows.push({ r, openTag: rel.openTag, cells, selfClosing: rel.selfClosing });
   }
   return {
     before: xml.slice(0, sd.start),
@@ -530,18 +532,9 @@ function renderCell(cell, row, stack, env) {
     && cell.tags[0].start === 0
     && cell.tags[0].end === src.text.length;
 
-  if (solo) {
-    const tag = cell.tags[0];
-    const text = resolveValue(tag, stack, env.ctx);
-    env.stats.resolved += 1;
-    const typed = typedValue(tag, stack, env.ctx, cell, text);
-    if (typed) { applyTyped(out, typed); return out; }
-    setStringCell(out, `<t xml:space="preserve">${escapeXml(stripInvalidXmlChars(text))}</t>`);
-    return out;
-  }
-
   const flat = flatten(src.inner, 't');
   const edits = [];
+  let soloText = null;
   for (const tag of cell.tags) {
     if (tag.kind === KIND.COMMENT) { edits.push({ start: tag.start, end: tag.end, text: '' }); continue; }
     if (tag.kind === KIND.OPEN_SECTION || tag.kind === KIND.OPEN_INVERTED || tag.kind === KIND.CLOSE) {
@@ -561,7 +554,17 @@ function renderCell(cell, row, stack, env) {
     }
     const text = resolveValue(tag, stack, env.ctx);
     env.stats.resolved += 1;
+    if (solo) soloText = text;
     edits.push({ start: tag.start, end: tag.end, text: escapeXml(stripInvalidXmlChars(text)) });
+  }
+
+  if (solo && soloText !== null) {
+    const typed = typedValue(cell.tags[0], stack, env.ctx, cell, soloText);
+    // Only a number, a boolean or a date changes the cell's type. Text falls
+    // through to the run-splicing path below so that a placeholder somebody made
+    // bold in half of the shared string keeps its formatting.
+    if (typed && typed.kind !== 'text') { applyTyped(out, typed); return out; }
+    if (typed) { setStringCell(out, `<t xml:space="preserve">${escapeXml(stripInvalidXmlChars(String(typed.value)))}</t>`); return out; }
   }
 
   const body = splice(src.inner, flat, edits, (s) => escapeXml(stripInvalidXmlChars(s)));
@@ -610,7 +613,11 @@ function typedValue(tag, stack, ctx, cell, text) {
       if (serial !== null) return { kind: 'number', value: serial };
     }
   }
-  if (raw instanceof Date && !dateAsked) return { kind: 'text', value: text };
+  // String(new Date()) is "Mon Feb 14 2026 00:00:00 GMT+0000 (UTC)", which nobody
+  // wants in a cell. A Date that could not become a serial goes in as ISO.
+  if (raw instanceof Date && !dateAsked) {
+    return { kind: 'text', value: Number.isNaN(raw.getTime()) ? text : raw.toISOString().slice(0, 10) };
+  }
   return null;
 }
 
@@ -684,6 +691,7 @@ function renderRows(rows, node, stack, outRows, group, env) {
     outRows.push({
       srcRow: row.r,
       openTag: row.openTag,
+      selfClosing: row.selfClosing,
       group,
       cells: row.cells.map((cell) => renderCell(cell, row, stack, env)),
     });
@@ -803,7 +811,6 @@ function fixSheetTail(xml, occ, mapRow) {
   out = mapAttrEverywhere(out, 'conditionalFormatting', 'sqref', occ, mapRow, false);
   out = mapAttrEverywhere(out, 'dataValidation', 'sqref', occ, mapRow, false);
   out = mapAttrEverywhere(out, 'autoFilter', 'ref', occ, mapRow, false);
-  out = mapAttrEverywhere(out, 'tableParts', 'ref', occ, mapRow, false);
   return out;
 }
 
@@ -830,6 +837,33 @@ function mapAttrEverywhere(xml, tag, attrName, occ, mapRow, duplicate) {
     edits.push({ start: el.start, end: el.end, text });
   }
   return applyEdits(xml, edits);
+}
+
+/**
+ * An Excel table (xl/tables/tableN.xml) names the range it covers and repeats it
+ * on its autoFilter. Leave those behind after inserting rows and Excel reports
+ * the workbook as damaged rather than just showing the wrong range.
+ */
+function fixTableParts(zip, sheet, occ, mapRow, touched) {
+  const rels = readRels(zip, sheet.path);
+  for (const rel of rels.values()) {
+    if (!rel.type.endsWith('/table')) continue;
+    const path = resolveRelTarget(sheet.path, rel.target);
+    const entry = zip.byName.get(path);
+    if (!entry) continue;
+    let xml = readText(entry);
+    const before = xml;
+    for (const tag of ['table', 'autoFilter']) {
+      const el = findElements(xml, tag)[0];
+      if (!el) continue;
+      const ref = attr(el.openTag, 'ref');
+      if (!ref) continue;
+      xml = xml.slice(0, el.start)
+        + setAttr(el.openTag, 'ref', mapRange(ref, occ, mapRow).slice(-1)[0])
+        + xml.slice(el.openEnd);
+    }
+    if (xml !== before) { writeEntry(entry, xml); touched.add(path); }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -878,7 +912,10 @@ function emitSheet(state, sheet, sheetMappers) {
   const body = outRows.map((row) => {
     const open = setAttr(row.openTag, 'r', row.newRow);
     const cells = row.cells.map((cell) => emitCell(cell, row, sheet, sheetMappers, mapRow)).join('');
-    return `${open}${cells}</row>`;
+    // A row the template wrote as <row r="3"/> has to stay self-closing; closing
+    // it with </row> would produce a stray end tag and an unreadable workbook.
+    if (!cells && row.selfClosing) return open;
+    return `${open.endsWith('/>') ? `${open.slice(0, -2)}>` : open}${cells}</row>`;
   }).join('');
 
   let before = parsed.before;
@@ -1347,6 +1384,7 @@ async function render(buffer, data, opts = {}) {
       const stack = [{ value: data, meta: {} }];
       if (renderDrawing(zip, path, sheet, state, stack, env)) touched.add(path);
     }
+    fixTableParts(zip, sheet, state.occ, makeRowMapper(state.occ, state.sortedSrc, state.tailDelta), touched);
   }
 
   // Images last: they add parts, and the anchors need the final row numbers.

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  office:version="1.2"
+  office:mimetype="application/vnd.oasis.opendocument.presentation">
+ <office:automatic-styles>
+  <style:style style:name="gr1" style:family="graphic"/>
+  <style:style style:name="Tbold" style:family="text">
+   <style:text-properties fo:font-weight="bold"/>
+  </style:style>
+  <style:style style:name="Tital" style:family="text">
+   <style:text-properties fo:font-style="italic"/>
+  </style:style>
+ </office:automatic-styles>
+ <office:body>
+  <office:presentation>
+   <draw:page draw:name="Cover">
+    <draw:frame draw:name="Title 1" draw:style-name="gr1" svg:x="1.5cm" svg:y="2cm" svg:width="22cm" svg:height="2.5cm">
+     <draw:text-box><text:p>{ti<text:span text:style-name="Tbold">tle</text:span>}</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Subtitle 2" draw:style-name="gr1" svg:x="1.5cm" svg:y="5cm" svg:width="22cm" svg:height="2cm">
+     <draw:text-box><text:p>{sub<text:span text:style-name="Tital">title</text:span>} for {client.name}</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Logo 3" draw:style-name="gr1" svg:x="20cm" svg:y="8cm" svg:width="4cm" svg:height="4cm">
+     <draw:text-box><text:p>{%logo}</text:p></draw:text-box>
+    </draw:frame>
+    <presentation:notes>
+     <draw:frame draw:name="Notes 1" svg:x="2cm" svg:y="10cm" svg:width="14cm" svg:height="6cm">
+      <draw:text-box><text:p>Talk track for {title}: {notes}</text:p></draw:text-box>
+     </draw:frame>
+    </presentation:notes>
+   </draw:page>
+   <draw:page draw:name="Numbers">
+    <draw:frame draw:name="Heading 4" draw:style-name="gr1" svg:x="1.5cm" svg:y="0.8cm" svg:width="22cm" svg:height="1.5cm">
+     <draw:text-box><text:p>Line items for {client.name}</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Items 5" svg:x="1.5cm" svg:y="2.5cm" svg:width="22cm" svg:height="6cm">
+     <table:table>
+      <table:table-column table:number-columns-repeated="3"/>
+      <table:table-row>
+       <table:table-cell office:value-type="string"><text:p>Item</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>Qty</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>Amount</text:p></table:table-cell>
+      </table:table-row>
+      <table:table-row>
+       <table:table-cell office:value-type="string"><text:p>{#rows}{sk<text:span text:style-name="Tbold">u</text:span>}</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>{qty}</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>{amount|currency:EUR}{/rows}</text:p></table:table-cell>
+      </table:table-row>
+      <table:table-row>
+       <table:table-cell office:value-type="string"><text:p>Total</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>{rows|count}</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>{rows|sum:amount|currency:EUR}</text:p></table:table-cell>
+      </table:table-row>
+     </table:table>
+    </draw:frame>
+   </draw:page>
+   <draw:page draw:name="Bullets">
+    <draw:frame draw:name="Body 6" draw:style-name="gr1" svg:x="1.5cm" svg:y="1.5cm" svg:width="22cm" svg:height="10cm">
+     <draw:text-box>
+      <text:p>Findings</text:p>
+      <text:p>{#findings}</text:p>
+      <text:p>{$index1}. {label} - {detail}</text:p>
+      <text:p>{/findings}</text:p>
+      <text:p>{^findings}Nothing to report.{/findings}</text:p>
+      <text:p>Owners: {#findings}{owner}{^$last}, {/}{/findings}</text:p>
+     </draw:text-box>
+    </draw:frame>
+   </draw:page>
+  </office:presentation>
+ </office:body>
+</office:document>

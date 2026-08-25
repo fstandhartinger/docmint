@@ -696,7 +696,9 @@ function renderTextBodyInner(inner, stack, ctx, sink, locBase, paraOffset) {
     };
   });
 
-  const blocks = planBlocks(items, ctx, () => false);
+  // Within a paragraph the sub-unit is the paragraph, so an open and close in
+  // the same one is an inline section and stays out of the block machinery.
+  const blocks = planBlocks(items, ctx, () => true);
   stripBlockMarkers(items, blocks);
 
   const renderItem = (item, s) => {
