@@ -86,7 +86,7 @@
   </tr>
   <tr>
     <td>Stripe customer and subscription ids</td>
-    <td>To connect an account to a subscription. These columns exist and are empty while checkout is not enabled on this deployment.</td>
+    <td>To connect an account to a subscription, and to let the Stripe customer portal find it. Only the identifiers — never a card number.</td>
     <td>Until the account is deleted.</td>
   </tr>
   <tr>
@@ -102,10 +102,11 @@
   enforce one signup per minute. It is never written to disk or to the database.</p>
 
 <h2>3. Card details</h2>
-<p><strong>Card numbers never reach this service.</strong> When paid checkout is enabled, payment is
-  handled entirely by Stripe on Stripe's own pages, and DocMint stores only the Stripe identifiers,
-  the plan and the credit limit. At the time of writing, checkout is not enabled on this deployment
-  and no payment data of any kind exists.</p>
+<p><strong>Card numbers never reach this service.</strong> Payment is handled entirely by Stripe on
+  Stripe's own pages: <code>POST /v1/billing/checkout</code> returns a Stripe URL and the browser goes
+  there. DocMint stores only the Stripe customer and subscription identifiers, the plan and the
+  credit limit. If you enter a VAT ID at checkout, Stripe holds it and puts it on the invoice; it is
+  not stored here.</p>
 
 <h2>4. Email</h2>
 <p>DocMint does not send email at all. There is no newsletter, no marketing mail and no transactional
@@ -118,12 +119,12 @@
   service to contact any other host.</p>
 
 <h2>6. Processors</h2>
-<p>Two companies process data on behalf of this service, and a third will when payments are enabled:</p>
+<p>Three companies process data on behalf of this service:</p>
 <table>
   <tr><th>Processor</th><th>What they do</th><th>Where</th></tr>
   <tr><td>Render Services, Inc.</td><td>Runs the application and keeps HTTP request logs, which include IP addresses.</td><td>Frankfurt, Germany</td></tr>
   <tr><td>Neon, Inc.</td><td>Hosts the PostgreSQL database in which everything in section 2 is stored.</td><td>Frankfurt, Germany (EU region)</td></tr>
-  <tr><td>Stripe, Inc.</td><td>Will take payments and store card details when checkout is enabled. Stripe is the controller for the card data itself.</td><td>Ireland / United States</td></tr>
+  <tr><td>Stripe, Inc.</td><td>Takes payments, stores card details and hosts the checkout and customer-portal pages. Stripe is the controller for the card data itself.</td><td>Ireland / United States</td></tr>
 </table>
 <p>LibreOffice, used for the optional PDF conversion, runs as a local process on the same server. It
   is not a processor and nothing leaves the machine for it.</p>

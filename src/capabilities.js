@@ -25,6 +25,22 @@ const DESCRIPTIONS = {
   reject: 'reject:archived drops rows where the field is truthy',
   sort: 'sort:due_date or sort:total:desc', reverse: 'reverse the order',
   limit: 'limit:10', skip: 'skip:5', unique: 'unique:sku', groupBy: 'groupBy:category gives {key, items, count}',
+
+  eq: 'true when equal: {#status|eq:shipped}Dispatched{/status}',
+  ne: 'true when not equal',
+  gt: 'true when greater: {#total|gt:1000}Free delivery{/total}',
+  gte: 'true when greater or equal',
+  lt: 'true when less',
+  lte: 'true when less or equal',
+  contains: 'text contains, or membership in a list',
+  empty: 'true for an empty list, empty text, null or false',
+  notEmpty: 'the inverse of empty',
+  past: 'true when the date is before now: {#due|past}OVERDUE{/due}',
+  future: 'true when the date is after now',
+  before: 'before a given date: {#issued|before:2026-01-01}',
+  after: 'after a given date',
+  daysUntil: 'whole days from now until the date',
+  daysSince: 'whole days from the date until now',
 };
 
 const formatterNames = () => names().map((n) => ({ name: n, does: DESCRIPTIONS[n] || null }));

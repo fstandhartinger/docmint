@@ -61,7 +61,8 @@ time of writing there are 28:
 **Absence** `default`
 **Lists, reducing** `join sum sumProduct count`
 **Lists, shaping** `filter reject sort reverse limit skip unique groupBy`
-**Conditions** `yesno`
+**Conditions** `yesno eq ne gt gte lt lte contains empty notEmpty`
+**Date tests** `past future before after daysUntil daysSince`
 
 `{items|sum:amount}` and `{items|sumProduct:qty:price}` are the ones that matter:
 a total in a template must be computed from the data, never typed in.
@@ -69,6 +70,24 @@ a total in a template must be computed from the data, never typed in.
 The list-shaping formatters work on a section too, so
 `{#items|filter:active|sort:due_date}` sorts and filters in the template rather
 than requiring the caller to do it before the data ever arrives.
+
+So do the condition formatters, which is what makes a real test possible:
+
+    {#due|past}OVERDUE{/due}
+    {#status|eq:shipped}Dispatched{/status}
+    {#total|gte:1000}Free delivery applies.{/total}
+    {#items|empty}Nothing to invoice this period.{/items}
+
+These exist because of a real failure in this repository's own first example
+invoice: it printed OVERDUE whenever the `paid` list was empty, regardless of the
+due date, and produced a document that was internally consistent and still said
+something untrue. A template that cannot compare two values pushes that logic
+into the workflow, and the workflow is not where the reader of the document
+looks when it says something wrong.
+
+`now` on the render request pins what "now" means, so a test asserting that an
+overdue invoice says OVERDUE does not silently stop testing anything on the day
+it comes true.
 
 A formatter that returns a NUMBER (`sum`, `sumProduct`, `round`, `count`, the
 arithmetic ones) lands in a spreadsheet as a real numeric cell, so `SUM()` over

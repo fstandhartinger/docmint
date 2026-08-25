@@ -46,7 +46,7 @@ const CREDITS = { document: 1, pdf: 2, both: 2 };
 
 const RENDER_FIELDS = [
   'template', 'template_base64', 'template_version', 'data', 'output', 'filename',
-  'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'images',
+  'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'images', 'now',
 ];
 
 router.post('/render', withAuth, asyncRoute(async (req, res) => {
@@ -64,6 +64,7 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
     timezone: input.checkTimezone(body.timezone),
     onMissing: input.enumOr(body.onMissing, ['error', 'empty', 'keep'], 'onMissing', '/docs#errors'),
     strictScope: body.strictScope === true,
+    now: body.now ? input.checkInstant(body.now) : null,
     images: body.images && typeof body.images === 'object' ? body.images : undefined,
   };
 

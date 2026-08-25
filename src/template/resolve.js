@@ -415,6 +415,10 @@ function makeContext(opts = {}) {
     locale: opts.locale || 'en-US',
     currency: opts.currency || 'USD',
     timezone: opts.timezone || 'UTC',
+    // What "now" means for {#due|past} and {x|daysUntil}. Overridable so a test
+    // asserting that an overdue invoice says OVERDUE keeps passing after the date
+    // it was written about, and so a caller can render as of a chosen day.
+    now: opts.now || null,
     onMissing,
     numberAsLocale: opts.numberAsLocale === true,
     // Refuse any outer-scope read inside a loop unless written as `../x`. Off by

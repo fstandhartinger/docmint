@@ -56,6 +56,7 @@
       <li><a href="#usage">GET /v1/usage</a></li>
       <li><a href="#capabilities">GET /v1/capabilities</a></li>
       <li><a href="#healthz">GET /healthz</a></li>
+      <li><a href="#pricing">Billing endpoints</a></li>
     </ul>
     <h2>Reference</h2>
     <ul>
@@ -110,14 +111,21 @@ Total due: {{total|currency:EUR}}</code></pre></div>
   -d "{\"name\":\"quote\",\"file_base64\":\"$(base64 -w0 quote.docx)\"}"</code></pre>
 <div class="cap">201 Created</div></div>
 <div class="code"><pre><code>{
-  "request_id": "dm_O2U2cUDlD7-_",
-  "id": "tpl_6G2UxfHtsmUu",
+  "request_id": "dm_4wtUEH44inC4",
+  "id": "tpl_6P2RxBHdMziH",
   "name": "quote",
   "format": "docx",
   "version": 1,
   "unchanged": false,
   "size": 1001,
-  "fields": ["customer", "total"],
+  "fields": [
+    { "name": "customer", "scope": "", "type": "string", "repeating": false,
+      "required": true, "formatters": [], "used": 1,
+      "locations": ["word/document.xml, paragraph 1"] },
+    { "name": "total", "scope": "", "type": "number", "repeating": false,
+      "required": true, "formatters": ["currency"], "used": 1,
+      "locations": ["word/document.xml, paragraph 2"] }
+  ],
   "macro_enabled": false
 }</code></pre></div>
 
@@ -125,17 +133,26 @@ Total due: {{total|currency:EUR}}</code></pre></div>
 <div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -H "Authorization: Bearer dm_live_xxx" \
   https://docmint-832s.onrender.com/v1/templates/quote/fields</code></pre></div>
 <div class="code"><pre><code>{
-  "id": "tpl_6G2UxfHtsmUu",
+  "id": "tpl_6P2RxBHdMziH",
   "name": "quote",
   "format": "docx",
   "version": 1,
-  "fields": ["customer", "total"],
+  "fields": [
+    { "name": "customer", "scope": "", "type": "string", "repeating": false,
+      "required": true, "formatters": [], "used": 1,
+      "locations": ["word/document.xml, paragraph 1"] },
+    { "name": "total", "scope": "", "type": "number", "repeating": false,
+      "required": true, "formatters": ["currency"], "used": 1,
+      "locations": ["word/document.xml, paragraph 2"] }
+  ],
+  "names": ["customer", "total"],
   "tags": [
     { "expr": "customer", "kind": "value",
       "location": "word/document.xml, paragraph 1" },
     { "expr": "total|currency:EUR", "kind": "value",
       "location": "word/document.xml, paragraph 2" }
-  ]
+  ],
+  "sample_data": { "customer": "customer", "total": 0 }
 }</code></pre></div>
 
 <div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/render \
@@ -718,38 +735,82 @@ x-ratelimit-remaining: 29</code></pre></div>
   -H "Content-Type: application/json" \
   -d "{\"template_base64\":\"$(base64 -w0 report.pptx)\"}"</code></pre></div>
 
-<div class="code"><div class="cap">200 OK — a real PowerPoint deck, trimmed to fit</div><pre><code>{
+<div class="code"><div class="cap">200 OK — a real PowerPoint deck, abridged: the full response has 13 fields and 26 tags</div><pre><code>{
   "request_id": "dm_UHkGNxmKNkIY",
   "format": "pptx",
-  "fields": ["title", "subtitle", "client.name", "logo", "notes", "rows",
-             "sku", "qty", "amount", "findings", "label", "detail", "owner"],
+  "fields": [
+    { "name": "client.name", "scope": "", "type": "string", "repeating": false,
+      "required": true, "formatters": [], "used": 4,
+      "locations": ["slide 1, shape \"Subtitle 2\"", "slide 2, shape \"Heading 4\""] },
+    { "name": "logo", "scope": "", "type": "image", "repeating": false,
+      "required": true, "formatters": [], "used": 2,
+      "locations": ["slide 1, shape \"Logo 3\""] },
+    { "name": "rows", "scope": "", "type": "array", "repeating": true,
+      "required": true, "formatters": ["count", "sum", "currency"], "used": 6,
+      "locations": ["slide 2, table \"Items 5\", row 1, cell 3",
+                    "slide 2, table \"Items 5\", row 3, cell 2",
+                    "slide 2, table \"Items 5\", row 3, cell 3"] },
+    { "name": "amount", "scope": "rows", "type": "number", "repeating": false,
+      "required": true, "formatters": ["currency"], "used": 1,
+      "locations": ["slide 2, table \"Items 5\", row 2, cell 3"] }
+  ],
+  "names": ["title", "subtitle", "client.name", "logo", "notes", "rows",
+            "sku", "qty", "amount", "findings", "label", "detail", "owner"],
   "tags": [
-    { "expr": "title",  "kind": "value",
-      "location": "slide 1, shape \"Title 1\"" },
-    { "expr": "logo",   "kind": "image",
+    { "expr": "logo", "kind": "image",
       "location": "slide 1, shape \"Logo 3\"" },
-    { "expr": "notes",  "kind": "value",
+    { "expr": "notes", "kind": "value",
       "location": "slide 1 notes, shape \"Notes 1\"" },
-    { "expr": "rows",   "kind": "section",
+    { "expr": "rows", "kind": "section",
       "location": "slide 2, table \"Items 5\", row 2, cell 1" },
-    { "expr": "amount|currency:EUR", "kind": "value",
-      "location": "slide 2, table \"Items 5\", row 2, cell 3" },
     { "expr": "rows|sum:amount|currency:EUR", "kind": "value",
       "location": "slide 2, table \"Items 5\", row 3, cell 3" },
     { "expr": "findings", "kind": "inverted",
       "location": "slide 3, shape \"Body 6\"" }
   ],
+  "sample_data": {
+    "title": "title", "subtitle": "subtitle", "client": { "name": "name" },
+    "logo": null, "notes": "notes",
+    "rows":     [{ "sku": "sku", "qty": "qty", "amount": 0 }],
+    "findings": [{ "label": "label", "detail": "detail", "owner": "owner" }]
+  },
   "template": null
 }</code></pre></div>
 
+<h3>How it knows the nesting</h3>
+<p>Not by parsing the tags a second time. The template is run through the <strong>real renderer</strong>, with no data and a probe attached to the template context, which records every lookup and the depth of the scope stack it happened at. A section with no data iterates zero times, so the first pass sees only the root; one empty object is then fed into every section that was found and the pass runs again, until nothing new appears. Five passes covers five levels of nesting.</p>
+<p>The point of doing it that way is that the answer is, by construction, exactly what a render would ask for: the same scope rules, the same section semantics, the same handling of each format's awkward cases. A second implementation would drift from the first, and the drift would land on you.</p>
+
+<h3>The response</h3>
 <div class="tw"><table>
-<thead><tr><th>Response field</th><th>Meaning</th></tr></thead>
+<thead><tr><th>Field</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td><code>format</code></td><td class="wrap"><code>docx</code>, <code>xlsx</code> or <code>pptx</code>, decided from the package's own content types rather than from a filename or a claimed MIME type.</td></tr>
-<tr><td><code>fields</code></td><td class="wrap">The distinct data paths the template needs, in the order they first appear. Comments and loop metadata are excluded, and <code>../</code> prefixes are stripped.</td></tr>
-<tr><td><code>tags</code></td><td class="wrap">Every tag, with its <code>expr</code> (including any formatter pipeline), its <code>kind</code> — <code>value</code>, <code>section</code>, <code>inverted</code>, <code>close</code>, <code>image</code>, <code>raw</code>, <code>comment</code> — and its <code>location</code>.</td></tr>
+<tr><td><code>fields</code></td><td class="wrap">The typed, nested field list. One entry per distinct field; see the table below.</td></tr>
+<tr><td><code>names</code></td><td class="wrap">Just the names, flat, in the order they first appear — for when a list of strings is all you want.</td></tr>
+<tr><td><code>tags</code></td><td class="wrap">Every tag as it is written in the document, with its <code>expr</code> (including the formatter pipeline), its <code>kind</code> — <code>value</code>, <code>section</code>, <code>inverted</code>, <code>close</code>, <code>image</code>, <code>raw</code>, <code>comment</code> — and its <code>location</code>. Where <code>fields</code> is what to send, <code>tags</code> is what is written.</td></tr>
+<tr><td><code>sample_data</code></td><td class="wrap">A correctly nested skeleton you can POST straight back, so your first render succeeds instead of being your first error.</td></tr>
 <tr><td><code>template</code></td><td class="wrap"><code>null</code> for an inline file; the id, name and version for a stored one.</td></tr>
 </tbody></table></div>
+
+<h4>Inside one field</h4>
+<div class="tw"><table>
+<thead><tr><th>Key</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>name</code></td><td class="wrap">The path, relative to its scope. <code>amount</code>, not <code>rows.amount</code>.</td></tr>
+<tr><td><code>scope</code></td><td class="wrap"><strong>The thing that makes it a tree.</strong> Empty string for the root, otherwise the path of the section this field lives inside. <code>{"name":"qty","scope":"items"}</code> means <code>qty</code> belongs to each element of <code>items</code>. Nest a form on this.</td></tr>
+<tr><td><code>type</code></td><td class="wrap"><code>string</code>, <code>number</code>, <code>boolean</code>, <code>date</code>, <code>array</code> or <code>image</code>, inferred from the formatters written on the tag. The <em>first</em> formatter decides, because it is the one that sees the raw value: <code>{total|sum:amount|currency:EUR}</code> needs a <strong>list</strong>, not a number. Where nothing says otherwise, <code>string</code>.</td></tr>
+<tr><td><code>repeating</code></td><td class="wrap">True when the field is a section — a list of rows rather than one value.</td></tr>
+<tr><td><code>required</code></td><td class="wrap">False when every place the field is written carries <code>|default:</code>, or when it is only ever an inverted section (<code>{^x}</code>, which is exactly the "may be absent" case). A field written once with a default and once without is <strong>required</strong>: the stricter reading is the one that stops a document going out with a hole in it.</td></tr>
+<tr><td><code>formatters</code></td><td class="wrap">Every formatter applied to this field anywhere in the template, so a form can hint at what shape the value should be in.</td></tr>
+<tr><td><code>used</code></td><td class="wrap">How many times the field is read.</td></tr>
+<tr><td><code>locations</code></td><td class="wrap">Where it appears, up to eight places.</td></tr>
+<tr><td><code>inferred</code></td><td class="wrap">True when the field is never written in the document but a formatter elsewhere proves every row must carry it. A template whose only mention of the line items is <code>{items|sumProduct:qty:price|currency:EUR}</code> reports <code>qty</code> and <code>price</code> as fields of <code>items</code>, typed <code>number</code>, with <code>"used": 0</code>, empty <code>locations</code> and <code>"inferred": true</code> — and puts them in <code>sample_data</code>, because a render without them fails.</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>The sample renders.</strong> Verified against the live API on 25 August 2026: <code>POST /v1/inspect</code> for a template with a line-item loop returned <code>{"invoice_no":"invoice no","customer":"customer","items":[{"description":"description","qty":0,"price":0}]}</code>, and posting exactly that back to <code>POST /v1/render</code> produced a 1,084-byte document with zero warnings. An <code>image</code> field comes back as <code>null</code>, because DocMint cannot invent a picture; supply one before rendering.</p>
+</div>
 </section>
 
 <!-- ============================================================= templates -->
@@ -779,7 +840,7 @@ x-ratelimit-remaining: 29</code></pre></div>
   "version": 1,
   "unchanged": false,
   "size": 1129,
-  "fields": ["invoice_no", "customer", "items", "description", "qty", "price"],
+  "fields": [ /* the same typed descriptors as GET …/fields, see below */ ],
   "macro_enabled": false
 }</code></pre></div>
 
@@ -792,10 +853,45 @@ x-ratelimit-remaining: 29</code></pre></div>
 <p>One template in full, including <code>versions</code>.</p>
 
 <h3 id="fields"><span class="pill get">GET</span><span class="path">/v1/templates/:name/fields</span><a class="anchor" href="#fields">#</a></h3>
-<p>The endpoint this product is built around. Same shape as <a href="#inspect">inspect</a>, for a stored template. Free. Accepts <code>?version=N</code>.</p>
+<p>The endpoint this product is built around. Same response as <a href="#inspect">inspect</a> — <code>fields</code>, <code>names</code>, <code>tags</code>, <code>sample_data</code> — for a stored template. Free. Accepts <code>?version=N</code>.</p>
 <p>The fields are re-derived from the stored bytes on every call rather than served from what was recorded at upload, so a template uploaded before a renderer improvement still reports accurately.</p>
 <div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -H "Authorization: Bearer dm_live_xxx" \
-  "https://docmint-832s.onrender.com/v1/templates/invoice/fields?version=1"</code></pre></div>
+  "https://docmint-832s.onrender.com/v1/templates/lines/fields"</code></pre></div>
+<div class="code"><div class="cap">200 OK — a Word invoice with a line-item table, verbatim apart from the elided tag list</div><pre><code>{
+  "id": "tpl_SGmNyoFTTGVf",
+  "name": "lines",
+  "format": "docx",
+  "version": 1,
+  "fields": [
+    { "name": "invoice_no", "scope": "", "type": "string", "repeating": false,
+      "required": true, "formatters": [], "used": 2,
+      "locations": ["word/document.xml, paragraph 1"] },
+    { "name": "customer", "scope": "", "type": "string", "repeating": false,
+      "required": true, "formatters": [], "used": 2,
+      "locations": ["word/document.xml, paragraph 1"] },
+    { "name": "items", "scope": "", "type": "array", "repeating": true,
+      "required": true, "formatters": ["sumProduct", "currency"], "used": 4,
+      "locations": ["word/document.xml, table 1 row 2",
+                    "word/document.xml, paragraph 8"] },
+    { "name": "description", "scope": "items", "type": "string", "repeating": false,
+      "required": true, "formatters": [], "used": 1,
+      "locations": ["word/document.xml, table 1 row 2, paragraph 5"] },
+    { "name": "qty", "scope": "items", "type": "number", "repeating": false,
+      "required": true, "formatters": [], "used": 1,
+      "locations": ["word/document.xml, table 1 row 2, paragraph 6"] },
+    { "name": "price", "scope": "items", "type": "number", "repeating": false,
+      "required": true, "formatters": ["currency"], "used": 1,
+      "locations": ["word/document.xml, table 1 row 2, paragraph 7"] }
+  ],
+  "names": ["invoice_no", "customer", "items", "description", "qty", "price"],
+  "tags": [ … ],
+  "sample_data": {
+    "invoice_no": "invoice no",
+    "customer": "customer",
+    "items": [{ "description": "description", "qty": 0, "price": 0 }]
+  }
+}</code></pre></div>
+<p>Three fields live at the root and three inside <code>items</code>, and the response says so with <code>scope</code> rather than leaving you to infer it from a flat list of six names. That is what a form builder — or n8n's <code>resourceMapper</code> — needs in order to render a repeating section instead of a JSON textarea.</p>
 
 <h3><span class="pill get">GET</span><span class="path">/v1/templates/:name/file</span></h3>
 <p>The stored bytes back, with the right content type and a <code>Content-Disposition</code>. Accepts <code>?version=N</code>. Free — downloading a file you already uploaded is not metered.</p>
@@ -1105,7 +1201,8 @@ x-ratelimit-remaining: 29</code></pre></div>
 </tbody></table></div>
 
 <div class="note">
-  <p>Three more codes — <code>billing_unavailable</code> (503), <code>unknown_plan</code> (400) and <code>no_subscription</code> (400) — exist in the codebase for the Stripe checkout endpoints. <strong>Those endpoints are not enabled on this deployment</strong>, so you will not see them today. See <a href="#pricing">Plans and pricing</a>.</p>
+  <p>Three further codes belong to the Stripe endpoints and are listed with them: <code>unknown_plan</code> (400), <code>no_subscription</code> (400) and <code>billing_unavailable</code> (503). See <a href="#pricing">Plans, pricing and billing</a>.</p>
+  <p><strong>Treat both lists as open.</strong> New error codes and new warning codes may be added; a client should switch on the codes it knows and fall back on the HTTP status and the <code>message</code> for the rest, rather than failing on an unfamiliar one.</p>
 </div>
 </section>
 
@@ -1153,7 +1250,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 </div>
 
 <h3>The month</h3>
-<p>Quotas are per calendar month, in UTC, and reset on the 1st. The window rolls forward lazily on your first request of the new month, so there is no cron job that can fail to run. <code>GET /v1/usage</code> reports <code>period_start</code>.</p>
+<p>Quotas are per calendar month, in UTC, and reset on the 1st. The window rolls forward lazily on your first request of the new month, so there is no cron job that can fail to run. <code>GET /v1/usage</code> reports <code>period_start</code>.</p><p><strong>Subscribing mid-month does not hand you a second quota.</strong> The window is the calendar month whatever day you subscribed on, and a renewal only resets the counter if the calendar month has actually turned over.</p>
 
 <h3>At the ceiling</h3>
 <div class="code"><div class="cap">402 Payment Required</div><pre><code>{
@@ -1170,7 +1267,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 
 <!-- =============================================================== pricing -->
 <section id="pricing">
-<h2>Plans and pricing<a class="anchor" href="#pricing">#</a></h2>
+<h2>Plans, pricing and billing<a class="anchor" href="#pricing">#</a></h2>
 <div class="tw"><table>
 <thead><tr><th>Plan</th><th>Price</th><th>Documents / month</th><th>Per document</th></tr></thead>
 <tbody>
@@ -1180,10 +1277,49 @@ x-ratelimit-remaining: 29</code></pre></div>
 <tr><td>Scale</td><td class="t">$99</td><td class="t">100,000</td><td class="t">$0.00099</td></tr>
 </tbody></table></div>
 
-<p>Every plan has every feature: all three formats, PDF output, images, the field list, the missing-field contract, the outer-scope warning, versioning and rollback, localisation, and the <a href="#limits">same limits</a>. There is no paid module and no per-feature licence, now or ever — the fill engine is written for this project and depends on nothing that could start charging for a feature later.</p>
+<p>Every plan has every feature: all three formats, PDF output, images, the typed field list, the missing-field contract, the outer-scope warning, versioning and rollback, localisation, and the <a href="#limits">same limits</a>. There is no paid module and no per-feature licence, now or ever — the fill engine is written for this project and depends on nothing that could start charging for a feature later.</p>
 
-<div class="note warn">
-  <p><strong>Self-serve checkout is not live on this deployment yet.</strong> The Free plan is fully self-serve over the API: <a href="#signup">sign up</a> and start. For a paid plan today, email <a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a>. This note will go when the checkout endpoints ship; until then it is the truth, checked against the running API.</p>
+<h3><span class="pill get">GET</span><span class="path">/v1/billing/plans</span></h3>
+<p><strong>No key needed.</strong> The plan list as the running code has it, so a page cannot show three plans while the API knows about four. A plan with no price configured is listed and marked <code>"purchasable": false</code> rather than hidden.</p>
+<div class="code"><div class="cap">200 OK — live, 25 August 2026</div><pre><code>{
+  "billing_available": true,
+  "plans": [
+    { "id": "free",    "name": "Free",    "price_usd": 0,  "documents_per_month": 30,     "purchasable": false },
+    { "id": "starter", "name": "Starter", "price_usd": 9,  "documents_per_month": 2000,   "purchasable": true },
+    { "id": "pro",     "name": "Pro",     "price_usd": 29, "documents_per_month": 20000,  "purchasable": true },
+    { "id": "scale",   "name": "Scale",   "price_usd": 99, "documents_per_month": 100000, "purchasable": true }
+  ],
+  "note": "One document costs one credit. Asking for a PDF costs one more, because
+           converting it costs about a hundred times the CPU. Downloading a file you
+           already made is free."
+}</code></pre></div>
+
+<h3><span class="pill post">POST</span><span class="path">/v1/billing/checkout</span></h3>
+<p>Starts a subscription. Send <code>{"plan": "starter"}</code>; you get back a Stripe Checkout URL to open in a browser. Card details never touch this service.</p>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/billing/checkout \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"plan":"pro"}'</code></pre></div>
+<div class="code"><pre><code>{ "url": "https://checkout.stripe.com/c/pay/cs_live_…",
+  "plan": "pro",
+  "expires_at": 1787735655 }</code></pre></div>
+<p>The session collects a billing address and offers an optional VAT ID, which Stripe then puts on the invoice — an EU business needs it there or its accountant will not accept the receipt. Promotion codes are accepted. Because there is no dashboard yet, Stripe returns you to <code>/docs#quota</code> afterwards.</p>
+
+<h3><span class="pill post">POST</span><span class="path">/v1/billing/portal</span></h3>
+<p>Returns a Stripe customer-portal URL for changing the plan, updating the card, downloading invoices, or cancelling. Takes no body.</p>
+<div class="code"><pre><code>{ "url": "https://billing.stripe.com/p/session?secret=…" }</code></pre></div>
+<p>Cancelling stops the next charge; it does not refund the current month. There is no overage billing at any point.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>unknown_plan</code></td><td class="wrap">No purchasable plan by that name. The hint lists the ones there are.</td></tr>
+<tr><td class="t">400</td><td><code>no_subscription</code></td><td class="wrap">A portal session for an account that has never had one. Start with checkout; the portal only exists once there is something to manage.</td></tr>
+<tr><td class="t">503</td><td><code>billing_unavailable</code></td><td class="wrap">Billing is not configured on the deployment you are talking to. <code>GET /v1/billing/plans</code> says so up front as <code>"billing_available": false</code>.</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p>Changing plan changes your <code>credits_limit</code> immediately; the credits you have already used this month stay used. A subscription ending returns the account to the Free plan's 30 documents a month rather than to zero.</p>
 </div>
 </section>
 

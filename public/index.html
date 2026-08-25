@@ -41,7 +41,7 @@
     <div class="hero-grid">
       <div>
         <span class="pill">30 documents a month, free, no card</span>
-        <h1 class="hero-title">Your template and your JSON in.<br><em>The filled document out.</em></h1>
+        <h1 class="hero-title">Your template, your JSON.<br><em>The filled document out.</em></h1>
         <p class="hero-sub">DocMint fills <strong>Word, Excel and PowerPoint</strong> templates from a JSON payload and returns the Office file, a PDF, or both — in one request. It will also tell you, before you ever send data, <strong>exactly which fields the template needs</strong>.</p>
         <div class="hero-cta">
           <a class="l-btn l-btn-primary l-btn-lg" href="/docs#signup">Get an API key</a>
@@ -63,7 +63,7 @@
           <button class="code-copy" type="button" id="copyBtn">Copy</button>
         </div>
 
-        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre><code><span class="tok-c"># A saved .docx template + your data. A PDF comes straight back.</span>
+        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre><code><span class="tok-c"># A saved .docx and your data. The PDF comes straight back.</span>
 curl -X POST https://docmint-832s.onrender.com/v1/render \
   -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
@@ -72,7 +72,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/render \
        "output":"pdf"}'</span> \
   --output quote.pdf</code></pre></div>
 
-        <div class="code-panel" role="tabpanel" id="panel-fields" hidden><pre><code><span class="tok-c"># "What does this template actually need?" - free, no render.</span>
+        <div class="code-panel" role="tabpanel" id="panel-fields" hidden><pre><code><span class="tok-c"># What does this template actually need? Free, no render.</span>
 curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   https://docmint-832s.onrender.com/v1/templates/lines/fields
 
@@ -92,7 +92,7 @@ curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
 <span class="tok-c">    "items": [{ "description": "description",</span>
 <span class="tok-c">                "qty": 0, "price": 0 }] } }</span></code></pre></div>
 
-        <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre><code><span class="tok-c"># No dashboard to click through. The key comes back in the response.</span>
+        <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre><code><span class="tok-c"># No dashboard to click through. The key is in the response.</span>
 curl -X POST https://docmint-832s.onrender.com/v1/signup \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
   -d <span class="tok-s">'{"email":"you@example.com",
@@ -102,7 +102,8 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
 <span class="tok-c">  "email": "you@example.com",</span>
 <span class="tok-c">  "api_key": "dm_live_…",</span>
 <span class="tok-c">  "plan": { "id": "free", "name": "Free", "credits": 30 },</span>
-<span class="tok-c">  "note": "This is the only time the key is shown. Store it now."</span>
+<span class="tok-c">  "note": "This is the only time the key is shown.
+           Store it now."</span>
 <span class="tok-c">}</span></code></pre></div>
 
         <div class="code-foot">
@@ -161,24 +162,30 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
   "format": "pptx",
   "fields": [
     { "name": "client.name", "scope": "", "type": "string",
-      "repeating": false, "required": true, "used": 4,
+      "repeating": false, "required": true,
+      "formatters": [], "used": 4,
       "locations": ["slide 1, shape \"Subtitle 2\"",
                     "slide 2, shape \"Heading 4\""] },
     { "name": "rows", "scope": "", "type": "array",
       "repeating": true, "required": true,
-      "formatters": ["count", "sum", "currency"],
-      "locations": ["slide 2, table \"Items 5\", row 2, cell 1"] },
+      "formatters": ["count", "sum", "currency"], "used": 6,
+      "locations": [
+        "slide 2, table \"Items 5\", row 1, cell 3",
+        "slide 2, table \"Items 5\", row 3, cell 2",
+        "slide 2, table \"Items 5\", row 3, cell 3"] },
     { "name": "amount", "scope": "rows", "type": "number",
-      "repeating": false, "required": true,
+      "repeating": false, "required": true, "used": 1,
       "formatters": ["currency"],
-      "locations": ["slide 2, table \"Items 5\", row 2, cell 3"] }
+      "locations": [
+        "slide 2, table \"Items 5\", row 2, cell 3"] }
   ],
   "names": ["title","subtitle","client.name","logo","notes",
             "rows","sku","qty","amount","findings","label",
             "detail","owner"],
   "sample_data": {
     "title": "title", "subtitle": "subtitle",
-    "client": { "name": "name" }, "logo": null, "notes": "notes",
+    "client": { "name": "name" },
+    "logo": null, "notes": "notes",
     "rows":     [{ "sku": "sku", "qty": "qty", "amount": 0 }],
     "findings": [{ "label": "label", "detail": "detail",
                    "owner": "owner" }]
@@ -207,14 +214,15 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
 <pre><code>{
   "error": {
     "code": "placeholder_unresolved",
-    "message": "The template uses {price|currency} but the data
-                has no \"price\".",
-    "hint": "Add \"price\" to the data, or write {price|default:}
-             to allow it to be absent.",
+    "message": "The template uses {price|currency} but
+                the data has no \"price\".",
+    "hint": "Add \"price\" to the data, or write
+             {price|default:} to allow it to be absent.",
     "docs": "https://docmint-832s.onrender.com/docs#errors",
     "details": {
       "field": "price",
-      "location": "word/document.xml, table 1 row 2, paragraph 7",
+      "location":
+        "word/document.xml, table 1 row 2, paragraph 7",
       "available": ["invoice_no","customer","items",
                     "description","qty"],
       "format": "docx"
@@ -262,10 +270,11 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
   {
     "code": "resolved_from_outer_scope",
     "field": "currency",
-    "location": "word/document.xml, table 1 row 2, paragraph 5",
-    "message": "{currency} is not a field of the loop item; it was
-                taken from 1 level further out, so it prints the
-                same value on every row.",
+    "location":
+      "word/document.xml, table 1 row 2, paragraph 5",
+    "message": "{currency} is not a field of the loop item;
+                it was taken from 1 level further out, so it
+                prints the same value on every row.",
     "item_fields": ["title", "amount"]
   }
 ]</code></pre>
@@ -275,11 +284,13 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
 <pre><code>{
   "code": "placeholder_outside_loop",
   "message": "{currency} is not a field of the loop item.",
-  "hint": "strictScope is on, so a tag inside a loop must name a
-           field of the item. Write {../currency} if you meant the
-           value from outside the loop.",
-  "details": { "field": "currency", "available": ["title","amount"],
-    "location": "word/document.xml, table 1 row 2, paragraph 5" }
+  "hint": "strictScope is on, so a tag inside a loop must
+           name a field of the item. Write {../currency} if
+           you meant the value from outside the loop.",
+  "details": {
+    "field": "currency", "available": ["title", "amount"],
+    "location":
+      "word/document.xml, table 1 row 2, paragraph 5" }
 }</code></pre>
         </div>
       </div>

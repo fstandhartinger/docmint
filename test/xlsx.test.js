@@ -2,11 +2,15 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
 
 const { render, inspect, toExcelSerial, rewriteFormula } = require('../src/render/xlsx');
-const { readZip } = require('../src/ooxml/zip');
+const { readZip, readText } = require('../src/ooxml/zip');
+const { decodeXml } = require('../src/ooxml/xml');
+const { scan } = require('../src/template/scan');
 const {
-  fixture, writeOut, tinyPng, partText, partBytes, partNames, cells, toCsvRows, toCsvSheets, money,
+  FIXTURES, fixture, writeOut, tinyPng, partText, partBytes, partNames, cells,
+  toCsvRows, toCsvSheets, money,
 } = require('./helpers/xlsx-fixtures');
 
 const INVOICE_DATA = (items) => ({
@@ -58,7 +62,7 @@ test('inspect reaches text inside a drawing and never throws on a field it canno
 // The shared string table
 // ---------------------------------------------------------------------------
 
-test('one shared string used by two cells renders differently in each, and the table is left alone', async () => {
+test('one shared string used by two cells renders differently in each, and the table keeps its numbering', async () => {
   const src = fixture('shared-cell.xlsx');
   // The premise of the test: LibreOffice really did store one entry for both cells.
   const sst = partText(src, 'xl/sharedStrings.xml');
@@ -66,12 +70,44 @@ test('one shared string used by two cells renders differently in each, and the t
   assert.match(sst, /count="4"/);
 
   const { buffer, stats } = await render(src, { name: 'Root', items: [{ name: 'One' }, { name: 'Two' }] }, {});
-  assert.equal(partText(buffer, 'xl/sharedStrings.xml'), sst,
-    'sharedStrings.xml must come through byte-for-byte; orphan entries are harmless, edits are not');
-  assert.ok(!stats.parts.includes('xl/sharedStrings.xml'));
+  const after = partText(buffer, 'xl/sharedStrings.xml');
+
+  // Every entry in this template holds a tag, so every one of them is blanked.
+  assert.ok(!after.includes('{'), 'the template text must not survive anywhere in the package');
+  assert.ok(stats.parts.includes('xl/sharedStrings.xml'));
+
+  // Blanked, not removed: a t="s" cell addresses the table by position, from
+  // every sheet at once, so the three <si> and the counts have to stay as they
+  // are or a reference this renderer did not recognise would point at the wrong
+  // text.
+  assert.equal((after.match(/<si>/g) || []).length, 3);
+  assert.match(after, /count="4" uniqueCount="3"/);
 
   const rows = toCsvRows(writeOut('shared-cell.xlsx', buffer));
   assert.deepEqual(rows, [['Hello Root', ''], ['', 'Hello One'], ['', 'Hello Two']]);
+});
+
+test('only the entries that held a tag are rewritten; the rest of the table is byte-identical', async () => {
+  const src = fixture('invoice.xlsx');
+  const { buffer } = await render(src, INVOICE_DATA(LINES), {});
+  const before = partText(src, 'xl/sharedStrings.xml');
+  const after = partText(buffer, 'xl/sharedStrings.xml');
+
+  const entries = (xml) => xml.match(/<si>[\s\S]*?<\/si>/g);
+  const was = entries(before);
+  const now = entries(after);
+  assert.equal(now.length, was.length, 'no entry is added or removed, so every index still resolves');
+  assert.match(after, /count="22" uniqueCount="22"/);
+
+  was.forEach((entry, i) => {
+    if (entry.includes('{')) {
+      assert.equal(now[i], '<si><t/></si>', `entry ${i} held template text and must be blank`);
+    } else {
+      assert.equal(now[i], entry, `entry ${i} holds no template text and must not be touched at all`);
+    }
+  });
+  assert.ok(was.some((e) => e.includes('{')) && was.some((e) => !e.includes('{')),
+    'the fixture has to contain both kinds or this proves nothing');
 });
 
 test('a placeholder split across rich-text runs is found, and keeps the run formatting', async () => {
@@ -439,7 +475,10 @@ test('parts that were not touched come through byte-for-byte', async () => {
   const { buffer, stats } = await render(src, INVOICE_DATA(LINES), {});
   assert.deepEqual(partNames(buffer), partNames(src), 'no part is added, dropped or reordered');
 
-  for (const name of ['xl/styles.xml', 'xl/sharedStrings.xml', 'docProps/app.xml', '[Content_Types].xml']) {
+  // sharedStrings.xml is not in this list: it holds the template's own text and
+  // is scrubbed on the way out. Its untouched entries are still byte-identical —
+  // that is asserted above, entry by entry.
+  for (const name of ['xl/styles.xml', 'docProps/app.xml', '[Content_Types].xml']) {
     assert.ok(!stats.parts.includes(name));
     assert.equal(partText(buffer, name), partText(src, name), name);
   }
@@ -455,4 +494,91 @@ test('cell styles survive the conversion to inline strings and numbers', async (
   assert.equal(after.A1.s, before.A1.s);
   assert.equal(after.C5.s, before.C5.s, 'the currency format on the unit price must not be lost');
   assert.equal(after.D1.s, before.D1.s, 'nor the date format on the invoice date');
+});
+
+// ---------------------------------------------------------------------------
+// Nothing of the template may survive in the delivered file
+// ---------------------------------------------------------------------------
+
+/**
+ * Data good enough to render each fixture cleanly. Keyed by file name rather
+ * than discovered, so adding a fixture without saying how to fill it fails the
+ * test below instead of quietly skipping it.
+ */
+const FIXTURE_DATA = () => ({
+  'images.xlsx': { logo: tinyPng(8, 8), company: 'Acme GmbH' },
+  'invoice.xlsx': INVOICE_DATA(LINES),
+  'invoice-extras.xlsx': INVOICE_DATA(LINES),
+  'nested.xlsx': {
+    depts: [
+      { name: 'Eng', staff: [{ name: 'A', salary: 100 }, { name: 'B', salary: 200 }] },
+      { name: 'Ops', staff: [{ name: 'C', salary: 50 }] },
+    ],
+  },
+  'shared-cell.xlsx': { name: 'Root', items: [{ name: 'One' }, { name: 'Two' }] },
+  'shared-formula.xlsx': { rows: [{ name: 'A', qty: 2, price: 3 }, { name: 'B', qty: 4, price: 5 }] },
+  'sharedf.xlsx': { rows: [{ name: 'A', qty: 2, price: 3 }, { name: 'B', qty: 4, price: 5 }] },
+  'textbox.xlsx': { title: 'Q1 report', shape: { line: 'Confidential' }, badge: tinyPng(8, 8) },
+  'types.xlsx': {
+    a: 10, b: 20.5, c: '30', price: 1234.567, active: true, when: '2026-02-14',
+    code: 'X-9', nothing: null, items: [{ amount: 1.5 }, { amount: 2.25 }],
+  },
+});
+
+/** The parts a reader — or a DLP scan — would find the template text in. */
+const isScannedPart = (name) => name === 'xl/sharedStrings.xml'
+  || name === 'xl/workbook.xml'
+  || /^xl\/worksheets\/sheet[^/]*\.xml$/.test(name)
+  || /^xl\/drawings\/[^/]+\.xml$/.test(name)
+  || /^docProps\//.test(name);
+
+test('no rendered workbook carries template text in any part a reader can see', async () => {
+  const names = fs.readdirSync(FIXTURES).filter((n) => n.endsWith('.xlsx')).sort();
+  const data = FIXTURE_DATA();
+  assert.deepEqual(names, Object.keys(data).sort(), 'every fixture needs data to render with');
+
+  for (const name of names) {
+    const src = fixture(name);
+    // The premise: the template really does carry its placeholders in the shared
+    // string table. Without this the whole test could pass by scanning nothing.
+    assert.ok(scan(partText(src, 'xl/sharedStrings.xml') || '').length,
+      `${name} should hold template text before rendering`);
+
+    const { buffer } = await render(src, data[name], {});
+    const leaks = [];
+    for (const entry of readZip(buffer).entries) {
+      if (!isScannedPart(entry.name)) continue;
+      // The raw XML, decoded — which is what `unzip -p` shows and what a scanner
+      // reads. Attribute values are searched too, so a sheet name or a table
+      // column that kept a placeholder would be caught as well.
+      for (const tag of scan(decodeXml(readText(entry)))) leaks.push(`${name} ${entry.name}: ${tag.raw}`);
+    }
+    assert.deepEqual(leaks, [], 'a delivered workbook must not contain the template it was made from');
+  }
+});
+
+test('a template tag left in a shared string is only kept when a cell is still showing it', async () => {
+  // The invariant the scrub rests on: once a sheet is rendered, nothing points
+  // at an entry that holds a tag. Asserted directly, because if it ever stops
+  // holding, blanking those entries would empty cells the reader can see.
+  const data = FIXTURE_DATA();
+  for (const name of Object.keys(data)) {
+    const { buffer } = await render(fixture(name), data[name], {});
+    const zip = readZip(buffer);
+    const sst = partText(buffer, 'xl/sharedStrings.xml') || '';
+    const blanked = new Set();
+    (sst.match(/<si>[\s\S]*?<\/si>|<si\/>/g) || []).forEach((si, i) => {
+      if (si === '<si><t/></si>') blanked.add(i);
+    });
+
+    for (const entry of zip.entries) {
+      if (!/^xl\/worksheets\/[^/]+\.xml$/.test(entry.name)) continue;
+      const xml = readText(entry);
+      for (const m of xml.matchAll(/<c\b[^>]*\bt="s"[^>]*>([\s\S]*?)<\/c>/g)) {
+        const idx = Number((/<v>([^<]*)</.exec(m[1]) || [])[1]);
+        assert.ok(!blanked.has(idx),
+          `${name} ${entry.name}: a cell still points at shared string ${idx}, which was blanked`);
+      }
+    }
+  }
 });

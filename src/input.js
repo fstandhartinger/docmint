@@ -168,6 +168,22 @@ function renderFilename(pattern, data, ext, opts) {
   return out.slice(0, 180);
 }
 
+/**
+ * "Render this as if it were this moment", for {#due|past} and friends. A test
+ * that asserts an overdue invoice says OVERDUE has to be able to pin the day, or
+ * it silently stops testing anything the moment that day arrives.
+ */
+function checkInstant(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) {
+    throw bad('bad_now', `"now" is not a date and time DocMint can read: ${JSON.stringify(value)}.`, {
+      hint: 'Send an ISO 8601 instant such as "2026-09-25T09:00:00Z". Leave it out to use the real current time.',
+      docs: '/docs#localisation',
+    });
+  }
+  return d.toISOString();
+}
+
 function checkDataSize(data) {
   const size = Buffer.byteLength(JSON.stringify(data ?? {}));
   if (size > config.maxDataBytes) {
@@ -180,4 +196,4 @@ function checkDataSize(data) {
   return size;
 }
 
-module.exports = { decodeBase64, rejectUnknown, enumOr, checkLocale, checkTimezone, checkCurrency, renderFilename, checkDataSize, ALIASES };
+module.exports = { decodeBase64, rejectUnknown, enumOr, checkLocale, checkTimezone, checkCurrency, checkInstant, renderFilename, checkDataSize, ALIASES };

@@ -23,9 +23,18 @@ const { TemplateError } = require('../template/errors');
  *    contain the same text share one entry. Editing that entry in place changes
  *    both cells. Repeating a loop row is not expressible at all, because every
  *    copy would need its own entry and the copies would fight over one index. So
- *    this renderer never edits sharedStrings: a cell whose text contains a tag is
- *    rewritten as an inline string (or a real number) and the shared entry is
- *    left where it is. Orphaned entries are harmless — Excel ignores them.
+ *    this renderer never *fills* sharedStrings: a cell whose text contains a tag
+ *    is rewritten as an inline string (or a real number) and the shared entry is
+ *    left where it is.
+ *
+ *    Excel ignores the entry nobody points at any more, so for a long time it
+ *    was left in the package untouched. That was wrong. The orphan still holds
+ *    the template text — `unzip -p invoice.xlsx xl/sharedStrings.xml` on a
+ *    delivered invoice printed the whole template back, {invoice.number} and
+ *    all — where a DLP or eDiscovery scan reads it, and where any customer who
+ *    opens the file with something other than Excel reads it too. So the last
+ *    thing a render does is blank every <si> that still holds template text and
+ *    that no cell is pointing at; see scrubSharedStrings.
  *
  * 2. TYPES. A cell holding the text "1234.5" is not a number. SUM() over a column
  *    of them returns 0, the chart is empty, and nothing warns anybody. This is the
@@ -1459,6 +1468,114 @@ function fixWorkbook(zip, workbookPath, sheets, mappers, touched, opts) {
 }
 
 // ---------------------------------------------------------------------------
+// The shared string table, once every sheet has been written
+// ---------------------------------------------------------------------------
+
+// `<c r="A5" s="3" t="s"><v>8</v></c>`, with the namespace prefix optional on
+// both tags. Deliberately a regex over the finished XML rather than a walk of
+// the parsed model: the model only covers the sheets this renderer understood,
+// and the one thing that must never happen below is blanking an entry that a
+// cell somewhere is still displaying. A workbook written as `<x:c t="s">` is one
+// this renderer cannot fill at all, but its strings are live all the same.
+const SHARED_CELL_RE = /<(?:[A-Za-z_][\w.-]*:)?c\b[^>]*\bt="s"[^>]*>([\s\S]*?)<\/(?:[A-Za-z_][\w.-]*:)?c>/g;
+const SHARED_INDEX_RE = /<(?:[A-Za-z_][\w.-]*:)?v\b[^>]*>([^<]*)</;
+
+/**
+ * Every shared-string index a finished worksheet still points at.
+ *
+ * `t="s"` cells in worksheet parts are the only index-based references to the
+ * table in the whole package: a table part names its columns in plain text, a
+ * pivot cache keeps its own literal copies of the values, and <is>, <f> and the
+ * drawing parts carry their text inline. Which is also why the table is scrubbed
+ * in place rather than compacted — see scrubSharedStrings.
+ */
+function liveSharedRefs(zip) {
+  const used = new Set();
+  for (const entry of zip.entries) {
+    if (!/^xl\/worksheets\/[^/]+\.xml$/i.test(entry.name)) continue;
+    const xml = readText(entry);
+    let m;
+    SHARED_CELL_RE.lastIndex = 0;
+    while ((m = SHARED_CELL_RE.exec(xml))) {
+      const v = SHARED_INDEX_RE.exec(m[1]);
+      if (!v) continue;
+      const idx = Number(decodeXml(v[1]).trim());
+      if (Number.isInteger(idx) && idx >= 0) used.add(idx);
+    }
+  }
+  return used;
+}
+
+/**
+ * Blanks every shared string that still holds template text.
+ *
+ * Filling a cell turns it into an inline string and leaves its old <si> behind
+ * with nobody pointing at it. Invisible in the grid, perfectly visible to
+ * `unzip -p`, to a DLP scan and to anyone opening the file in a text editor — so
+ * a delivered invoice was shipping the template it was made from.
+ *
+ * The entries are blanked in place rather than deleted. A `t="s"` cell addresses
+ * the table by position, from every sheet at once, so removing an <si> means
+ * renumbering every surviving reference in the package; one reference this
+ * renderer failed to recognise would then quietly point at somebody else's text,
+ * which is a worse defect than the one being fixed. Blanking keeps every index
+ * valid, which also means `count` and `uniqueCount` stay true — nothing is added
+ * or removed — and every entry that holds no template text stays byte-identical.
+ *
+ * Entries are found with the same scan() the renderer filled cells with, so a
+ * brace run that is not a tag — the `{ "a": 1 }` of a JSON sample pasted into a
+ * cell — is left alone here exactly as it was left alone there.
+ */
+function scrubSharedStrings(zip, touched, ctx, allSheetsParsed) {
+  const entry = zip.byName.get('xl/sharedStrings.xml');
+  if (!entry) return;
+  const xml = readText(entry);
+
+  const tagged = [];
+  findElements(xml, 'si').forEach((el, i) => {
+    if (el.selfClosing) return;
+    const text = flatten(stripPhonetics(textOf(xml, el)), 't').text;
+    if (scan(text).length) tagged.push({ i, el });
+  });
+  // Nothing in the table needed changing, so the part stays untouched — and an
+  // untouched part is re-emitted byte-for-byte, compression and CRC included.
+  if (!tagged.length) return;
+
+  // A sheet this renderer could not parse was also not filled, so its cells are
+  // still pointing into the table and still showing whatever the table says.
+  // Blanking would empty visible cells, which is worse than leaving the text in
+  // the package, so in that case the table is left exactly as it was.
+  if (!allSheetsParsed) { warnLeftBehind(ctx, tagged.length); return; }
+
+  const live = liveSharedRefs(zip);
+  const edits = [];
+  let kept = 0;
+  for (const { i, el } of tagged) {
+    // Should not happen: a cell whose text held a tag was rewritten inline. If
+    // one still points here it is showing the tag to the reader, and blanking it
+    // would change what they see — correctness first, so it stays and is
+    // reported instead.
+    if (live.has(i)) { kept += 1; continue; }
+    edits.push({ start: el.contentStart, end: el.contentEnd, text: '<t/>' });
+  }
+  if (kept) warnLeftBehind(ctx, kept);
+  if (!edits.length) return;
+
+  writeEntry(entry, applyEdits(xml, edits));
+  touched.add('xl/sharedStrings.xml');
+}
+
+function warnLeftBehind(ctx, count) {
+  if (!ctx || !ctx.warnings) return;
+  ctx.warnings.list.push({
+    code: 'template_text_in_shared_strings',
+    field: null,
+    location: 'xl/sharedStrings.xml',
+    message: `${count} shared string${count === 1 ? '' : 's'} still hold template text, because a cell that was not filled is still displaying ${count === 1 ? 'it' : 'them'}. Removing it would have blanked that cell.`,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Entry points
 // ---------------------------------------------------------------------------
 
@@ -1550,6 +1667,10 @@ async function render(buffer, data, opts = {}) {
   }
 
   fixWorkbook(zip, workbookPath, sheets, mappers, touched, opts);
+
+  // Last, because it reads the sheets back to see which shared strings anything
+  // still points at — and by now every sheet, drawing and image is final.
+  scrubSharedStrings(zip, touched, ctx, preps.length === sheets.length);
 
   stats.parts = [...touched].sort();
   return { buffer: writeZip(zip), stats };

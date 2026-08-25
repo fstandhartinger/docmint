@@ -32,6 +32,71 @@ function addMoney(a, b) {
   return Math.round((a + b) * 1e6) / 1e6;
 }
 
+/**
+ * Compares two values the way a template author expects: numerically when both
+ * read as numbers, as dates when both read as dates, otherwise as text. Anything
+ * cleverer than this becomes an expression language, and an expression language
+ * is a sandbox, and a sandbox in a document generator is a security surface we
+ * have deliberately not got.
+ */
+function looseCompare(a, b) {
+  const na = Number(a); const nb = Number(b);
+  if (a !== '' && b !== '' && !isNil(a) && !isNil(b) && Number.isFinite(na) && Number.isFinite(nb)) {
+    return na === nb ? 0 : (na < nb ? -1 : 1);
+  }
+  if (typeof a === 'boolean' || b === 'true' || b === 'false') {
+    const ba = Boolean(a); const bb = String(b) === 'true';
+    return ba === bb ? 0 : (ba ? 1 : -1);
+  }
+  const da = asDate(a); const db = asDate(b);
+  if (da && db) return da.getTime() === db.getTime() ? 0 : (da < db ? -1 : 1);
+  const sa = String(a ?? ''); const sb = String(b ?? '');
+  return sa === sb ? 0 : (sa < sb ? -1 : 1);
+}
+
+function asDate(v) {
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  // Only accept things that look deliberately like a date. Without this, {#qty|past}
+  // reads the number 12 as twelve milliseconds after 1970 and cheerfully answers
+  // "yes, that is in the past" - which is the sort of confidently wrong answer
+  // that puts OVERDUE on an invoice that is not.
+  if (typeof v === 'number') {
+    // A plausible epoch in milliseconds only: 1e11 ms is 1973. Anything smaller is
+    // a quantity, a line number or a price, not a date.
+    return Number.isFinite(v) && Math.abs(v) >= 1e11 ? new Date(v) : null;
+  }
+  if (typeof v !== 'string') return null;
+  if (!/\d{4}-\d{2}|\d{1,2}[/.]\d{1,2}[/.]\d{2,4}|[A-Za-z]{3}/.test(v)) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function compareDates(a, b) {
+  const da = asDate(a); const db = asDate(b);
+  if (!da || !db) {
+    throw new TemplateError('formatter_type', `A date comparison needs two dates, but got ${describe(a)} and ${describe(b)}.`, {
+      hint: 'Use ISO 8601 on both sides, e.g. {#due|before:2026-12-31}.',
+    });
+  }
+  return da.getTime() === db.getTime() ? 0 : (da < db ? -1 : 1);
+}
+
+/**
+ * `ctx.now` exists so a test can pin "today". Without it, a test asserting that
+ * an overdue invoice says OVERDUE passes until the date it was written about.
+ */
+function compareToNow(v, ctx, raw = false) {
+  const d = asDate(v);
+  if (!d) {
+    throw new TemplateError('formatter_type', `"past"/"future" needs a date, but got ${describe(v)}.`, {
+      hint: 'Send an ISO 8601 date such as "2026-09-24".',
+    });
+  }
+  const now = ctx && ctx.now ? new Date(ctx.now) : new Date();
+  const diff = d.getTime() - now.getTime();
+  return raw ? diff : (diff === 0 ? 0 : (diff < 0 ? -1 : 1));
+}
+
 function asList(v, name) {
   if (Array.isArray(v)) return v;
   throw new TemplateError('formatter_type', `"${name}" needs a list, but got ${describe(v)}.`, {
@@ -247,6 +312,53 @@ const FORMATTERS = {
     }
     return [...groups.entries()].map(([key, items]) => ({ key, items, count: items.length }));
   },
+
+
+  /* ------------------------------------------------- conditions, for sections
+
+     A section takes a formatter pipeline, so these turn one into a real test:
+
+       {#due|past}OVERDUE{/due}
+       {#status|eq:shipped}Dispatched{/status}
+       {#total|gte:1000}Free delivery applies.{/total}
+       {#items|empty}Nothing to invoice.{/items}
+
+     They exist because the alternative is what our own first example invoice did:
+     print OVERDUE whenever the paid list was empty, regardless of the due date,
+     producing a document that was internally consistent and still wrong. A
+     template that cannot compare two values pushes that logic back into the
+     workflow, and the workflow is not where the reader of the document looks when
+     it says something untrue.
+
+     Each returns a boolean, and a section renders once for true and never for
+     false, which is exactly mustache's rule for a scalar. */
+
+  eq: (v, args) => looseCompare(v, args[0]) === 0,
+  ne: (v, args) => looseCompare(v, args[0]) !== 0,
+  gt: (v, args) => looseCompare(v, args[0]) > 0,
+  gte: (v, args) => looseCompare(v, args[0]) >= 0,
+  lt: (v, args) => looseCompare(v, args[0]) < 0,
+  lte: (v, args) => looseCompare(v, args[0]) <= 0,
+
+  /** {#name|contains:Ltd} for text, or membership for a list. */
+  contains: (v, args) => {
+    const needle = String(args[0] ?? '');
+    if (Array.isArray(v)) return v.some((x) => String(x) === needle);
+    return String(v ?? '').toLowerCase().includes(needle.toLowerCase());
+  },
+
+  empty: (v) => (Array.isArray(v) ? v.length === 0 : isNil(v) || v === '' || v === false),
+  notEmpty: (v) => !(Array.isArray(v) ? v.length === 0 : isNil(v) || v === '' || v === false),
+
+  /** Date tests, against the request's "now". */
+  past: (v, args, ctx) => compareToNow(v, ctx) < 0,
+  future: (v, args, ctx) => compareToNow(v, ctx) > 0,
+  before: (v, args) => compareDates(v, args[0]) < 0,
+  after: (v, args) => compareDates(v, args[0]) > 0,
+
+  /** {due|daysUntil} and {issued|daysSince} - whole days, for "due in 5 days". */
+  daysUntil: (v, args, ctx) => Math.ceil(compareToNow(v, ctx, true) / 86400000),
+  daysSince: (v, args, ctx) => Math.floor(-compareToNow(v, ctx, true) / 86400000),
 
   count: (v) => (Array.isArray(v) ? v.length : (isNil(v) ? 0 : 1)),
 

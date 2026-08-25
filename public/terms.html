@@ -60,10 +60,13 @@
   nothing. When the quota is spent the API answers <code>402 quota_exceeded</code> until the next
   period; there is no overage billing and no surprise invoice. The details are in the
   <a href="/docs#quota">docs</a>.</p>
-<p>Paid plans are priced on the <a href="/#pricing">home page</a>. <strong>Self-serve checkout is not
-  enabled on this deployment yet</strong>; until it is, a paid plan is arranged by email. When it
-  ships, subscriptions will be monthly, taken through Stripe, and cancellable at any time;
-  cancelling stops the next charge and does not refund the current month.</p>
+<p>Paid plans are priced on the <a href="/#pricing">home page</a> and started with
+  <code>POST /v1/billing/checkout</code>, which returns a Stripe Checkout URL. Subscriptions are
+  monthly, taken through Stripe, and can be cancelled at any time from the customer portal
+  (<code>POST /v1/billing/portal</code>). Cancelling stops the next charge; it does not refund the
+  current month, and the account returns to the free allowance rather than to zero. At checkout you
+  may optionally supply a VAT ID, which Stripe then shows on the invoice. Subscribing part-way
+  through a month does not grant a second monthly quota.</p>
 
 <h2>5. What is not promised</h2>
 <div class="box">
