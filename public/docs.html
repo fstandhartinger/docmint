@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DocMint API reference</title>
+<meta name="description" content="The complete DocMint API reference: signup, authentication, the template language, the missing-field contract, render, output modes, template management and versioning, localisation, every error code, limits and quota.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span> <span class="muted" style="font-weight:500;font-size:.85rem">docs</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/#pricing">Pricing</a>
+    <a href="/privacy">Privacy</a>
+    <a class="cta" href="#signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>Start here</h2>
+    <ul>
+      <li><a href="#quickstart">Quickstart</a></li>
+      <li><a href="#signup">Sign up</a></li>
+      <li><a href="#authentication">Authentication</a></li>
+      <li><a href="#auth-more-keys" class="sub">More keys</a></li>
+    </ul>
+    <h2>Templates</h2>
+    <ul>
+      <li><a href="#syntax">Template syntax</a></li>
+      <li><a href="#formatters" class="sub">Formatters</a></li>
+      <li><a href="#images" class="sub">Images</a></li>
+      <li><a href="#missing">Missing fields</a></li>
+      <li><a href="#warnings" class="sub">Warnings</a></li>
+    </ul>
+    <h2>Endpoints</h2>
+    <ul>
+      <li><a href="#render">POST /v1/render</a></li>
+      <li><a href="#input" class="sub">Sending the template</a></li>
+      <li><a href="#data" class="sub">The data object</a></li>
+      <li><a href="#output" class="sub">Output modes</a></li>
+      <li><a href="#pdf" class="sub">PDF output</a></li>
+      <li><a href="#localisation" class="sub">Localisation</a></li>
+      <li><a href="#inspect">POST /v1/inspect</a></li>
+      <li><a href="#templates">Template management</a></li>
+      <li><a href="#fields" class="sub">Fields of a template</a></li>
+      <li><a href="#template-versions" class="sub">Versions and rollback</a></li>
+      <li><a href="#usage">GET /v1/usage</a></li>
+      <li><a href="#capabilities">GET /v1/capabilities</a></li>
+      <li><a href="#healthz">GET /healthz</a></li>
+    </ul>
+    <h2>Reference</h2>
+    <ul>
+      <li><a href="#formats">Formats and limitations</a></li>
+      <li><a href="#errors">Error codes</a></li>
+      <li><a href="#limits">Limits</a></li>
+      <li><a href="#quota">Quota and credits</a></li>
+      <li><a href="#pricing">Plans and pricing</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>DocMint API reference</h1>
+<p class="lede">Fill a Word, Excel or PowerPoint template with JSON and get the Office file, a PDF, or both. One base URL, one main endpoint, and an error that names the field it could not resolve.</p>
+
+<div class="note">
+  <p><strong>Base URL</strong> <code>https://docmint-832s.onrender.com</code> — every path below is relative to it.
+  All request and response bodies are JSON except where a file's bytes are being sent or returned.
+  Every response carries an <code>X-DocMint-Request-Id</code> header; quote it in any bug report and it finds the exact log line.</p>
+</div>
+
+<!-- ============================================================ quickstart -->
+<section id="quickstart">
+<h2>Quickstart<a class="anchor" href="#quickstart">#</a></h2>
+
+<p>Four calls: get a key, upload a template, ask what it needs, render it. The whole thing takes about a minute and costs one credit.</p>
+
+<h3>1. Get a key</h3>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"a-long-enough-password"}'</code></pre>
+<div class="cap">201 Created</div></div>
+<div class="code"><pre><code>{
+  "email": "you@example.com",
+  "api_key": "dm_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "plan": { "id": "free", "name": "Free", "credits": 30 },
+  "note": "This is the only time the key is shown. Store it now."
+}</code></pre></div>
+
+<h3>2. Author a template</h3>
+<p>Open Word and type a document with placeholders in it. This one has two:</p>
+<div class="code"><pre><code>Quote for {{customer}}
+Total due: {{total|currency:EUR}}</code></pre></div>
+<p>Save it as <code>quote.docx</code>. Nothing else about the file changes — it still opens in Word, and whoever owns the letterhead can keep editing it.</p>
+
+<h3>3. Upload it</h3>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/templates \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d "{\"name\":\"quote\",\"file_base64\":\"$(base64 -w0 quote.docx)\"}"</code></pre>
+<div class="cap">201 Created</div></div>
+<div class="code"><pre><code>{
+  "request_id": "dm_O2U2cUDlD7-_",
+  "id": "tpl_6G2UxfHtsmUu",
+  "name": "quote",
+  "format": "docx",
+  "version": 1,
+  "unchanged": false,
+  "size": 1001,
+  "fields": ["customer", "total"],
+  "macro_enabled": false
+}</code></pre></div>
+
+<h3>4. Ask what it needs, then render it</h3>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -H "Authorization: Bearer dm_live_xxx" \
+  https://docmint-832s.onrender.com/v1/templates/quote/fields</code></pre></div>
+<div class="code"><pre><code>{
+  "id": "tpl_6G2UxfHtsmUu",
+  "name": "quote",
+  "format": "docx",
+  "version": 1,
+  "fields": ["customer", "total"],
+  "tags": [
+    { "expr": "customer", "kind": "value",
+      "location": "word/document.xml, paragraph 1" },
+    { "expr": "total|currency:EUR", "kind": "value",
+      "location": "word/document.xml, paragraph 2" }
+  ]
+}</code></pre></div>
+
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/render \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template":"quote","data":{"customer":"Acme GmbH","total":1240.5},"output":"pdf"}' \
+  --output quote.pdf</code></pre>
+<div class="cap">200 OK — the response body is the PDF itself</div></div>
+<div class="code"><pre><code>HTTP/2 200
+content-type: application/pdf
+content-length: 13660
+content-disposition: attachment; filename="document.pdf"
+x-docmint-request-id: dm_o9shbTxzJCqW
+x-docmint-credits-remaining: 28
+x-docmint-warnings: 0
+x-ratelimit-limit: 120
+x-ratelimit-burst: 30
+x-ratelimit-remaining: 29</code></pre></div>
+
+<p>Leave <code>output</code> off and you get the filled <code>.docx</code> instead, for one credit rather than two.</p>
+</section>
+
+<!-- ================================================================ signup -->
+<section id="signup">
+<h2><span class="pill post">POST</span><span class="path">/v1/signup</span><a class="anchor" href="#signup">#</a></h2>
+<p>Self-serve signup over the API, deliberately rather than only through a web form. The buyer here is someone wiring up a workflow; making them leave the terminal before they can see whether the thing works is friction with no purpose.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>email</code></td><td class="t">string</td><td class="wrap">Required. Lower-cased and trimmed. Must look like an address.</td></tr>
+<tr><td><code>password</code></td><td class="t">string</td><td class="wrap">Required, at least 10 characters. Stored only as a bcrypt hash.</td></tr>
+</tbody></table></div>
+
+<p>The response contains the account's first API key. <strong>It is shown once and cannot be read back</strong> — not by support, not by the operator, because only a SHA-256 hash of it is stored.</p>
+
+<div class="note warn">
+  <p><strong>There is no password reset and no confirmation email,</strong> because this service sends no email at all. If you lose both the password and every key, the account cannot currently be recovered without the operator's help. Store the key.</p>
+</div>
+
+<h3>Errors</h3>
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>bad_email</code></td><td class="wrap">That does not look like an email address.</td></tr>
+<tr><td class="t">400</td><td><code>weak_password</code></td><td class="wrap">Shorter than 10 characters.</td></tr>
+<tr><td class="t">409</td><td><code>email_taken</code></td><td class="wrap">An account with that address exists. Make another key with <code>POST /v1/keys</code> using a key you already hold.</td></tr>
+<tr><td class="t">429</td><td><code>signup_rate_limited</code></td><td class="wrap">One signup per minute per IP address. Not security — just enough to stop a loop in a misconfigured workflow filling the accounts table overnight.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ======================================================== authentication -->
+<section id="authentication">
+<h2>Authentication<a class="anchor" href="#authentication">#</a></h2>
+<span id="auth"></span>
+<p>Every endpoint except <code>POST /v1/signup</code>, <code>GET /v1/capabilities</code> and <code>GET /healthz</code> needs a key.</p>
+
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>Authorization: Bearer dm_live_xxx</code></pre></div>
+
+<p><code>X-API-Key: dm_live_xxx</code> is accepted too, for clients that cannot set an <code>Authorization</code> header. Keys always start with <code>dm_live_</code>; a key that does not is rejected without a database lookup.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">401</td><td><code>missing_api_key</code></td><td class="wrap">No <code>Authorization</code> or <code>X-API-Key</code> header was sent.</td></tr>
+<tr><td class="t">401</td><td><code>invalid_api_key</code></td><td class="wrap">Not a DocMint key, or the key has been revoked. Revocation takes effect on the next request.</td></tr>
+</tbody></table></div>
+
+<h3 id="auth-more-keys">More keys<a class="anchor" href="#auth-more-keys">#</a></h3>
+<p>One key per environment is a good habit: a leaked key from a staging workflow can then be revoked without stopping production.</p>
+
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/keys \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"label":"ci"}'</code></pre>
+<div class="cap">201 Created</div></div>
+<div class="code"><pre><code>{ "key": "dm_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "note": "This is the only time the key is shown. Store it now." }</code></pre></div>
+
+<p>Revoke one by its first 16 characters — the prefix, which is the only part of a key that is stored in the clear:</p>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X DELETE https://docmint-832s.onrender.com/v1/keys/dm_live_X67fKwVY \
+  -H "Authorization: Bearer dm_live_xxx"</code></pre></div>
+<div class="code"><pre><code>{ "revoked": 1 }</code></pre></div>
+
+<p>Revoking the account's <em>only</em> key is refused, because a key you cannot replace without one is a lockout:</p>
+<div class="code"><div class="cap">409 Conflict</div><pre><code>{
+  "error": {
+    "code": "last_key",
+    "message": "This is the only key on the account, so revoking it would lock you out.",
+    "hint": "Create a replacement key first, then revoke this one.",
+    "docs": "https://docmint-832s.onrender.com/docs#auth-more-keys",
+    "request_id": "dm_ZNH9iIxUU9yx"
+  }
+}</code></pre></div>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">404</td><td><code>key_not_found</code></td><td class="wrap">No live key on this account starts with that prefix.</td></tr>
+<tr><td class="t">409</td><td><code>last_key</code></td><td class="wrap">Refusing to revoke the only key on the account.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ================================================================ syntax -->
+<section id="syntax">
+<h2>Template syntax<a class="anchor" href="#syntax">#</a></h2>
+
+<p>The same syntax works in all three formats. <strong>Both brace styles are accepted, always:</strong> <code>{name}</code> is the docxtemplater and Carbone style, <code>{{name}}</code> is the mustache and n8n style. Supporting both costs one branch in the scanner and removes the most common first-five-minutes failure, which is typing the other one. No third syntax was invented.</p>
+
+<div class="note">
+  <p><strong>Anything between braces that does not parse as a tag is left alone.</strong> A document containing <code>{ "total": 12 }</code>, <code>.a { color: red }</code>, <code>${HOME}</code> or an unclosed <code>{oops</code> renders unchanged. Real documents contain JSON samples, CSS and shell snippets, and erroring on them would make the product unusable for the people who write them.</p>
+</div>
+
+<h3>Every tag form</h3>
+<div class="tw"><table>
+<thead><tr><th>Form</th><th>Meaning</th><th>Worked example</th></tr></thead>
+<tbody>
+<tr><td><code>{name}</code></td><td class="wrap">A value.</td><td class="wrap"><code>{customer}</code> with <code>{"customer":"Acme GmbH"}</code> gives <code>Acme GmbH</code>.</td></tr>
+<tr><td><code>{{name}}</code></td><td class="wrap">The same value, other braces.</td><td class="wrap">Identical in every way.</td></tr>
+<tr><td><code>{a.b.c}</code></td><td class="wrap">A dotted path.</td><td class="wrap"><code>{customer.name}</code> with <code>{"customer":{"name":"Acme GmbH"}}</code> gives <code>Acme GmbH</code>.</td></tr>
+<tr><td><code>{items.0.sku}</code><br><code>{items[1].sku}</code></td><td class="wrap">Numeric index, either notation.</td><td class="wrap">With <code>{"items":[{"sku":"A-1"},{"sku":"B-2"}]}</code> those give <code>A-1</code> and <code>B-2</code>.</td></tr>
+<tr><td><code>{{[Customer Name]}}</code></td><td class="wrap">A bracket-quoted key, for a field name containing spaces. This is the Docupilot form and it works here for that reason.</td><td class="wrap">With <code>{"Customer Name":"Acme GmbH"}</code> gives <code>Acme GmbH</code>.</td></tr>
+<tr><td><code>{#items} … {/items}</code></td><td class="wrap">A section: once per array element; once for an object; once for a truthy scalar; never for an empty array or a falsy value.</td><td class="wrap"><code>{#items}{sku} {/items}</code> over two items gives <code>A-1 B-2 </code>.</td></tr>
+<tr><td><code>{^items} … {/items}</code></td><td class="wrap">An inverted section: renders only when the value is absent, empty or falsy. Absence is normal here, not an error.</td><td class="wrap"><code>{^missing_list}nothing here{/missing_list}</code> with no such key gives <code>nothing here</code>.</td></tr>
+<tr><td><code>{/}</code></td><td class="wrap">Closes the innermost open section. Convenient inside table cells where repeating the name is noise.</td><td class="wrap"><code>{#items}{sku}{/}</code> gives <code>A-1B-2</code>.</td></tr>
+<tr><td><code>{.}</code></td><td class="wrap">The current scope itself, for arrays of scalars.</td><td class="wrap"><code>{#colours}{.} {/colours}</code> with <code>["red","green","blue"]</code> gives <code>red green blue </code>.</td></tr>
+<tr><td><code>{../x}</code></td><td class="wrap">One scope outwards. An explicit jump: it looks only in that frame's chain.</td><td class="wrap"><code>{#items}{../company} {/items}</code> gives <code>Meridian Meridian </code>.</td></tr>
+<tr><td><code>{$index}</code> <code>{$index1}</code><br><code>{$first}</code> <code>{$last}</code><br><code>{$length}</code></td><td class="wrap">Loop metadata. <code>$index</code> is zero-based, <code>$index1</code> one-based.</td><td class="wrap"><code>{#items}{$index}:{$index1}:{$first}:{$last}:{$length} {/items}</code> over two items gives <code>0:1:true:false:2 1:2:false:true:2 </code>.</td></tr>
+<tr><td><code>{%logo}</code></td><td class="wrap">An image. See <a href="#images">Images</a>.</td><td class="wrap">Works in DOCX, XLSX and PPTX.</td></tr>
+<tr><td><code>{@rawXml}</code></td><td class="wrap">Raw OOXML, inserted unescaped. Powerful and unguarded — malformed markup here produces a file the Office app refuses to open.</td><td class="wrap"><code>{@custom}</code> with <code>"&lt;w:r&gt;&lt;w:rPr&gt;&lt;w:b/&gt;&lt;/w:rPr&gt;&lt;w:t&gt;bold&lt;/w:t&gt;&lt;/w:r&gt;"</code> inserts a genuinely bold run.</td></tr>
+<tr><td><code>{!note}</code></td><td class="wrap">A comment. Removed from the output.</td><td class="wrap"><code>before{!a note}after</code> gives <code>beforeafter</code>.</td></tr>
+<tr><td><code>{price|currency:EUR}</code></td><td class="wrap">A formatter pipeline. See <a href="#formatters">Formatters</a>.</td><td class="wrap">Chains left to right: <code>{items|sum:amount|currency:EUR}</code>.</td></tr>
+</tbody></table></div>
+
+<h3>Scopes</h3>
+<p>Inside a section the outer scopes stay visible, so <code>{currency}</code> from the invoice root resolves inside <code>{#items}</code> without writing <code>{../currency}</code>. That is a convenience with a sharp edge, and DocMint tells you about it every time — see <a href="#warnings">Warnings</a>.</p>
+
+<h3>Where a loop repeats</h3>
+<p>What "repeat" means depends on where the two markers sit, and this is what makes an invoice line-item table work:</p>
+<div class="tw"><table>
+<thead><tr><th>Markers are…</th><th>What repeats</th></tr></thead>
+<tbody>
+<tr><td class="wrap">In one paragraph</td><td class="wrap">The runs between them. Runs are split at the marker positions first, so a section body is always a whole number of runs.</td></tr>
+<tr><td class="wrap">In different cells of one table row (Word, PowerPoint)</td><td class="wrap">The whole row. This is the invoice line-item case: <code>{#items}</code> in the first cell, <code>{/items}</code> in the last.</td></tr>
+<tr><td class="wrap">In one row of a worksheet (Excel)</td><td class="wrap">The whole row, and everything below it moves down: row indices, cell references, merged ranges, the dimension, conditional formatting, data validation, hyperlinks, autofilter, defined names, drawing anchors, and formulas.</td></tr>
+<tr><td class="wrap">Across several block-level children (paragraphs, tables)</td><td class="wrap">The children strictly between the markers. A marker paragraph that holds nothing else is deleted, so a loop leaves no blank lines behind.</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>Split runs are handled.</strong> Word stores <code>{{name}}</code> as two runs the moment someone edits the middle of the word, or spellcheck runs, or the file comes back from Google Docs. Every paragraph's runs are concatenated into one string, scanned, and written back by slicing — a tag's replacement goes entirely into the run that held its <em>first</em> character, so it inherits that run's formatting. A renderer that scans run by run misses every real-world template; this one does not.</p>
+</div>
+</section>
+
+<!-- ============================================================ formatters -->
+<section id="formatters">
+<h2>Formatters<a class="anchor" href="#formatters">#</a></h2>
+<p>28 of them, applied left to right with <code>|</code>. There is no expression evaluator: formatters are a fixed, audited list, so no string you send is ever compiled or executed. The canonical list is served by <a href="#capabilities"><code>GET /v1/capabilities</code></a>, read straight out of the module — a formatter cannot be documented into existence.</p>
+
+<div class="note">
+  <p><strong>Arguments are separated by <code>:</code> and are trimmed.</strong> <code>{n|number:2}</code>, <code>{total|currency:EUR}</code>, <code>{rows|sort:total:desc}</code>. An argument may contain spaces in the middle (<code>{note|default:not given}</code>) but leading and trailing spaces are removed, so a separator such as <code>", "</code> currently arrives as <code>","</code>.</p>
+</div>
+
+<h3>Text</h3>
+<div class="tw"><table>
+<thead><tr><th>Formatter</th><th>Does</th><th>Worked example</th></tr></thead>
+<tbody>
+<tr><td><code>upper</code></td><td class="wrap">UPPER CASE</td><td class="wrap"><code>{name|upper}</code> of <code>"acme gmbh b.v."</code> gives <code>ACME GMBH B.V.</code></td></tr>
+<tr><td><code>lower</code></td><td class="wrap">lower case</td><td class="wrap"><code>{name|lower}</code> of <code>"ACME GmbH"</code> gives <code>acme gmbh</code></td></tr>
+<tr><td><code>title</code></td><td class="wrap">Title Case, word by word</td><td class="wrap"><code>{name|title}</code> of <code>"acme gmbh b.v."</code> gives <code>Acme Gmbh B.v.</code></td></tr>
+<tr><td><code>trim</code></td><td class="wrap">Removes surrounding spaces</td><td class="wrap"><code>[{padded|trim}]</code> of <code>"  spaced  "</code> gives <code>[spaced]</code></td></tr>
+<tr><td><code>join</code></td><td class="wrap">Joins a list into text; the separator defaults to <code>", "</code></td><td class="wrap"><code>{tags|join:,}</code> of <code>["alpha","beta","gamma"]</code> gives <code>alpha,beta,gamma</code></td></tr>
+<tr><td><code>yesno</code></td><td class="wrap">Two words for a boolean</td><td class="wrap"><code>{paid|yesno:Paid:Unpaid}</code> of <code>true</code> gives <code>Paid</code></td></tr>
+<tr><td><code>default</code></td><td class="wrap">Supplies a value when the field is absent, null or empty. The sanctioned way to let a field be missing.</td><td class="wrap"><code>[{nothere|default:not given}]</code> gives <code>[not given]</code></td></tr>
+<tr><td><code>ordinal</code></td><td class="wrap">1st, 2nd, 3rd. <strong>English only</strong>, and documented as such.</td><td class="wrap"><code>{three|ordinal}</code> of <code>3</code> gives <code>3rd</code></td></tr>
+</tbody></table></div>
+
+<h3>Numbers that produce text</h3>
+<p>These format for the request's <a href="#localisation">locale</a> and return a string. In a spreadsheet that means a text cell — see the note below.</p>
+<div class="tw"><table>
+<thead><tr><th>Formatter</th><th>Does</th><th>Worked example (locale <code>en-US</code>)</th></tr></thead>
+<tbody>
+<tr><td><code>number</code></td><td class="wrap">Groups digits; the argument is 0 to 20 decimal places</td><td class="wrap"><code>{n|number:2}</code> of <code>1234.5678</code> gives <code>1,234.57</code>; <code>{n|number:0}</code> gives <code>1,235</code></td></tr>
+<tr><td><code>currency</code></td><td class="wrap">A 3-letter ISO code, defaulting to the request's <code>currency</code></td><td class="wrap"><code>{n|currency:EUR}</code> gives <code>€1,234.57</code>; <code>{n|currency}</code> with the default gives <code>$1,234.57</code></td></tr>
+<tr><td><code>percent</code></td><td class="wrap">Multiplies by 100 and appends the locale's percent sign</td><td class="wrap"><code>{rate|percent:1}</code> of <code>0.075</code> gives <code>7.5%</code></td></tr>
+<tr><td><code>date</code></td><td class="wrap">A pattern, or one of <code>short</code> / <code>medium</code> / <code>long</code> / <code>full</code>. Accepts an ISO string, an epoch number, or anything <code>Date</code> can parse; refuses what it cannot rather than printing "Invalid Date" into a contract. Pattern tokens: <code>YYYY YY MMMM MMM MM DD dddd ddd HH hh mm ss A a</code>.</td><td class="wrap">Of <code>"2026-07-14"</code>: <code>date:DD MMMM YYYY</code> gives <code>14 July 2026</code>; <code>date:YYYY-MM-DD</code> gives <code>2026-07-14</code>; <code>date:long</code> gives <code>July 14, 2026</code>; <code>date:ddd DD MMM YY</code> gives <code>Tue 14 Jul 26</code></td></tr>
+</tbody></table></div>
+
+<h3>Numbers that produce numbers</h3>
+<p>These return a real number. That distinction is load-bearing in a spreadsheet: a numeric result becomes a numeric cell and <code>SUM()</code> over the column works, whereas text lands as text and <code>SUM()</code> silently returns zero. Arithmetic is done in cents-safe form, so <code>0.1 + 0.2</code> never appears on an invoice.</p>
+<div class="tw"><table>
+<thead><tr><th>Formatter</th><th>Does</th><th>Worked example</th></tr></thead>
+<tbody>
+<tr><td><code>round</code></td><td class="wrap">Rounds to N decimal places</td><td class="wrap"><code>{n|round:1}</code> of <code>1234.5678</code> gives <code>1234.6</code></td></tr>
+<tr><td><code>multiply</code></td><td class="wrap">Multiplies by the argument</td><td class="wrap"><code>{n|multiply:1.19|round:2}</code> of <code>1234.5678</code> gives <code>1469.14</code></td></tr>
+<tr><td><code>add</code></td><td class="wrap">Adds the argument</td><td class="wrap"><code>{n|add:100}</code> of <code>1234.5678</code> gives <code>1334.5678</code></td></tr>
+<tr><td><code>subtract</code></td><td class="wrap">Subtracts the argument</td><td class="wrap"><code>{n|subtract:34.567}</code> gives <code>1200.0008</code></td></tr>
+<tr><td><code>divide</code></td><td class="wrap">Divides; dividing by zero is an error, not an infinity</td><td class="wrap"><code>{n|divide:2}</code> gives <code>617.2839</code></td></tr>
+<tr><td><code>sum</code></td><td class="wrap">Adds a field over a list, or adds a list of numbers. Every item must carry the field.</td><td class="wrap"><code>{items|sum:amount}</code> over amounts <code>39, 16, 88, 19.5</code> gives <code>162.5</code></td></tr>
+<tr><td><code>sumProduct</code></td><td class="wrap">Multiplies two or more fields per row, then adds. Line totals, computed once.</td><td class="wrap"><code>{items|sumProduct:qty:price}</code> over <code>2×19.5, 5×3.2, 1×88, 1×19.5</code> gives <code>162.5</code></td></tr>
+<tr><td><code>count</code></td><td class="wrap">How many items (1 for a non-null scalar, 0 for null)</td><td class="wrap"><code>{items|count}</code> over four items gives <code>4</code></td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>The invoice-total rule.</strong> <code>{items|sumProduct:qty:price|currency:EUR}</code> is the one to reach for. A template that has its total typed into it is a template that is wrong the first time a line item changes.</p>
+</div>
+
+<h3>List shaping, for sections</h3>
+<p>These take a list and give back a list, so they belong on a section tag: <code>{#items|filter:active|sort:due_date}</code>. The alternative is telling you to sort and filter the array in your workflow before it arrives — which is fine until the same array has to be rendered twice in one document in two different orders.</p>
+<div class="tw"><table>
+<thead><tr><th>Formatter</th><th>Does</th><th>Worked example over <code>A-1(hw,active) B-2(hw) C-3(sw,active) A-1(sw,active)</code></th></tr></thead>
+<tbody>
+<tr><td><code>filter</code></td><td class="wrap"><code>filter:field</code> keeps rows whose field is truthy; <code>filter:field:value</code> keeps rows where it equals the value</td><td class="wrap"><code>{#items|filter:active}{sku} {/items}</code> gives <code>A-1 C-3 A-1 </code></td></tr>
+<tr><td><code>reject</code></td><td class="wrap">The inverse of <code>filter</code></td><td class="wrap"><code>{#items|reject:active}{sku} {/items}</code> gives <code>B-2 </code></td></tr>
+<tr><td><code>sort</code></td><td class="wrap"><code>sort:field</code> or <code>sort:field:desc</code>. Numbers sort numerically; strings use the request locale's collator.</td><td class="wrap"><code>sort:sku</code> gives <code>A-1 A-1 B-2 C-3 </code>; <code>sort:amount:desc</code> gives <code>C-3 A-1 A-1 B-2 </code></td></tr>
+<tr><td><code>reverse</code></td><td class="wrap">Reverses the order</td><td class="wrap">gives <code>A-1 C-3 B-2 A-1 </code></td></tr>
+<tr><td><code>limit</code></td><td class="wrap">Keeps the first N</td><td class="wrap"><code>limit:2</code> gives <code>A-1 B-2 </code></td></tr>
+<tr><td><code>skip</code></td><td class="wrap">Drops the first N</td><td class="wrap"><code>skip:2</code> gives <code>C-3 A-1 </code></td></tr>
+<tr><td><code>unique</code></td><td class="wrap">Keeps the first row for each distinct value of the field</td><td class="wrap"><code>unique:sku</code> gives <code>A-1 B-2 C-3 </code></td></tr>
+<tr><td><code>groupBy</code></td><td class="wrap">Groups into <code>{key, items, count}</code>, preserving order of first appearance. Loop the groups, then loop <code>{#items}</code> inside each.</td><td class="wrap"><code>{#items|groupBy:cat}{key}={count} {/items}</code> gives <code>hw=2 sw=2 </code></td></tr>
+</tbody></table></div>
+
+<h3>Formatter errors</h3>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>unknown_formatter</code></td><td class="wrap">No formatter by that name. The error lists every one that does exist.</td></tr>
+<tr><td><code>formatter_type</code></td><td class="wrap">Wrong kind of value — <code>sum</code> on something that is not an array, <code>number</code> on something that is not a number, <code>date</code> on something unparseable.</td></tr>
+<tr><td><code>formatter_arg</code></td><td class="wrap">Missing or nonsensical argument — <code>divide:0</code>, <code>number:99</code>, <code>groupBy</code> with no field.</td></tr>
+<tr><td><code>sum_missing_field</code></td><td class="wrap"><code>sum</code> or <code>sumProduct</code> hit an item without the field, naming the item's position.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ================================================================ images -->
+<section id="images">
+<h2>Images<a class="anchor" href="#images">#</a></h2>
+<p><code>{%logo}</code> places a picture, in Word, Excel and PowerPoint. The value it resolves to may be:</p>
+<div class="tw"><table>
+<thead><tr><th>Value</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="wrap">A base64 string, or a <code>data:image/png;base64,…</code> URI</td><td class="wrap">The image bytes. Sized from the file's own dimensions.</td></tr>
+<tr><td class="wrap"><code>{"data": "&lt;base64&gt;", "width": 120, "height": 40, "alt": "Logo"}</code></td><td class="wrap">Bytes plus an explicit size in pixels at 96 DPI. Give one of width/height and the other is derived from the aspect ratio. <code>base64</code>, <code>bytes</code> and <code>content</code> are accepted as aliases for <code>data</code>.</td></tr>
+<tr><td class="wrap"><code>{"url": "https://…"}</code></td><td class="wrap"><strong>Not fetched.</strong> DocMint never makes an outbound HTTP request on your behalf. Supply the bytes for that URL through the request's <code>images</code> object, keyed by the URL or by the tag path, or the render fails with <code>image_url_unsupported</code>.</td></tr>
+</tbody></table></div>
+
+<p>Formats: PNG, JPEG, GIF and BMP in Word and Excel; PNG, JPEG and GIF in PowerPoint, which are the formats PowerPoint embeds without conversion. An image may be at most 24 MB.</p>
+
+<div class="code"><div class="cap">the images option, verified against the live API</div><pre><code>{
+  "template": "deck",
+  "data": { "title": "Q3 review", "logo": { "url": "https://example.com/logo.png" } },
+  "images": { "https://example.com/logo.png": { "data": "iVBORw0KGgo…" } }
+}</code></pre></div>
+
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>image_unresolved</code></td><td class="wrap">The template places an image but the data has no such key.</td></tr>
+<tr><td><code>image_invalid</code> / <code>image_bad_data</code></td><td class="wrap">Not something readable as an image.</td></tr>
+<tr><td><code>image_not_base64</code></td><td class="wrap">A <code>data:</code> URI that is not base64-encoded.</td></tr>
+<tr><td><code>image_empty</code></td><td class="wrap">Decoded to zero bytes.</td></tr>
+<tr><td><code>image_bad_size</code></td><td class="wrap">A non-numeric width or height.</td></tr>
+<tr><td><code>image_unsupported_format</code></td><td class="wrap">The first bytes match no format DocMint can embed.</td></tr>
+<tr><td><code>image_too_large</code></td><td class="wrap">Over 24 MB.</td></tr>
+<tr><td><code>image_url_unsupported</code></td><td class="wrap">A URL was given and no bytes were supplied for it.</td></tr>
+</tbody></table></div>
+</section>
