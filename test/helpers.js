@@ -55,11 +55,26 @@ async function account() {
 const fixture = (name) => fs.readFileSync(path.join(__dirname, '..', 'fixtures', name));
 const b64 = (name) => fixture(name).toString('base64');
 
-/** Is a server actually up? Used to skip rather than fail when it is not. */
+/**
+ * Is DOCMINT actually up at BASE?
+ *
+ * Checking only that /healthz answers 200 is not enough, and that is not a
+ * hypothetical: another project on this machine serves /healthz on port 3000, so
+ * the suite happily pointed itself at a completely different service and reported
+ * fourteen failures that had nothing to do with this code. Ask a question only
+ * DocMint can answer.
+ */
 async function serverUp() {
   try {
-    const res = await fetch(`${BASE}/healthz`, { signal: AbortSignal.timeout(5000) });
-    return res.ok;
+    const res = await fetch(`${BASE}/v1/capabilities`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return false;
+    const body = await res.json();
+    const formats = (body.formats || []).map((f) => f.id).sort().join(',');
+    if (formats !== 'docx,pptx,xlsx') {
+      process.stderr.write(`\n[helpers] something is listening at ${BASE} but it is not DocMint; skipping\n`);
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }

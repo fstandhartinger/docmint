@@ -8,6 +8,7 @@ const { ApiError } = require('./errors');
 const { migrate } = require('./migrate');
 const { query, pool } = require('./db');
 const api = require('./api');
+const jobs = require('./jobs');
 const pdf = require('./pdf');
 const billing = require('./billing');
 const log = require('./log');
@@ -77,6 +78,43 @@ app.get('/healthz', async (req, res) => {
     };
   }
   res.json(body);
+});
+
+/**
+ * Downloading what an asynchronous job produced.
+ *
+ * The token is the capability: 144 bits of randomness, unguessable, and it
+ * expires. There is deliberately no API key on this route, because the whole
+ * point is that the URL can be handed to a browser, an email or an n8n HTTP node
+ * that has no credentials - the same reason the link is useless once the TTL
+ * passes. Downloading a file you already paid to generate is free.
+ */
+app.get('/f/:token', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT filename, content_type, bytes, size FROM files WHERE token = $1 AND expires_at > now()`,
+      [String(req.params.token)],
+    );
+    if (!rows.length) {
+      return res.status(404).json({
+        error: {
+          code: 'file_expired',
+          message: 'This download link has expired, or there was never a file behind it.',
+          hint: 'Job files are kept for a limited time. Run the job again, or fetch GET /v1/jobs/{id} to see whether the job is still there.',
+          docs: `${config.publicUrl}/docs#async`,
+          request_id: req.id,
+        },
+      });
+    }
+    const f = rows[0];
+    res.set({
+      'Content-Type': f.content_type,
+      'Content-Length': String(f.size),
+      'Content-Disposition': `attachment; filename="${f.filename.replace(/"/g, '')}"`,
+      'Cache-Control': 'private, max-age=300',
+    });
+    return res.end(f.bytes);
+  } catch (e) { return next(e); }
 });
 
 app.use('/v1', api.router);
@@ -150,12 +188,22 @@ async function start() {
   const lo = await pdf.probe();
   loStatus = { ...lo, checkedAt: Date.now() };
   if (config.databaseUrl) await billing.healStaleCustomers().catch((e) => log.warn('stripe.heal_failed', { err: e }));
+
+  // The queue lives in the database, so any process pointed at that database
+  // would otherwise pick up production's jobs - including a developer's laptop,
+  // which has no LibreOffice and would fail every PDF job it stole.
+  if (config.databaseUrl) {
+    jobs.startReapers();
+    if (config.jobsWorker) jobs.startWorker(api.loadTemplate);
+  }
   log.info('start', {
     port: config.port,
     origin: config.origin,
     pdf_available: lo.available,
     pdf_engine: lo.version,
     max_concurrent_pdf: config.maxConcurrentPdf,
+    max_batch_items: config.maxBatchItems,
+    jobs_worker: config.databaseUrl ? config.jobsWorker : false,
     billing: billing.enabled(),
     node: process.version,
   });

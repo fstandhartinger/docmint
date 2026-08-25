@@ -154,3 +154,18 @@ h2:hover .anchor,h3:hover .anchor,h4:hover .anchor{opacity:.55}
   .tw table{min-width:660px;font-size:.83rem}
   .tw th,.tw td{padding:.5rem .6rem}
 }
+
+/* Legal pages (imprint, privacy, terms) share these tokens but not the docs
+   shell. Their tables are the only thing on those pages wide enough to push a
+   phone sideways, so they get to shrink rather than the page. */
+@media (max-width: 600px) {
+  .legal { padding: 32px 16px 72px !important; }
+  .legal h1 { font-size: 30px !important; }
+  .legal h2 { font-size: 20px !important; }
+  .legal table { font-size: 13px !important; table-layout: fixed; }
+  .legal th, .legal td { padding: 7px 6px !important; overflow-wrap: anywhere; }
+}
+
+/* A long inline snippet in a paragraph is the one thing that can push the page
+   sideways on a phone; block code has its own scroller, inline code does not. */
+.content p code, .note code, .legal p code { overflow-wrap: anywhere; }

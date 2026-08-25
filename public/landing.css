@@ -312,3 +312,12 @@ table.cmp thead .us{color:var(--accent-ink);background:var(--l-tint-strong)}
 .steps b{display:block;font-size:.98rem;font-weight:650;margin-bottom:.25rem}
 .steps p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.55}
 .steps code{font-size:.82em;word-break:break-word}
+
+/* Grid items default to min-width:auto, so a wide code block inside one widens
+   the whole track and the page scrolls sideways on a phone. The code block does
+   its own horizontal scrolling; the track must not grow to fit it. */
+.split > *,
+.hero-grid > *,
+.steps > li { min-width: 0; }
+.evidence { max-width: 100%; }
+.evidence pre { overflow-x: auto; -webkit-overflow-scrolling: touch; }

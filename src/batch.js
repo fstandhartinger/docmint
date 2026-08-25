@@ -26,7 +26,7 @@ const log = require('./log');
 
 const BATCH_FIELDS = [
   'template', 'template_base64', 'template_version', 'items', 'output',
-  'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'on_error', 'images',
+  'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'on_error', 'images', 'now',
 ];
 
 const ITEM_FIELDS = ['data', 'filename'];
@@ -69,6 +69,9 @@ function parseBatch(body, { docs = '/docs#batch' } = {}) {
     timezone: input.checkTimezone(body.timezone),
     onMissing: input.enumOr(body.onMissing, ['error', 'empty', 'keep'], 'onMissing', '/docs#errors'),
     strictScope: body.strictScope === true,
+    // One instant for the whole batch. Letting each item read the clock would
+    // mean two documents in the same run disagreeing about what "today" is.
+    now: body.now ? input.checkInstant(body.now) : null,
     images: body.images && typeof body.images === 'object' ? body.images : undefined,
   };
 

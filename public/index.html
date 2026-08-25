@@ -328,7 +328,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
         <p><code>{name}</code> and <code>{{name}}</code> both work in all three formats. A template written for docxtemplater and one written for Docupilot both render unchanged; no third syntax was invented.</p>
       </div>
       <div class="tile">
-        <span class="kicker">28 formatters</span>
+        <span class="kicker">43 formatters</span>
         <h3>Totals computed, not typed</h3>
         <p><code>{items|sumProduct:qty:price|currency}</code>. An invoice template that writes its own total is an invoice template that is wrong the first time a line changes.</p>
       </div>
@@ -461,7 +461,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
     </div>
 
     <div class="plan-all">
-      <b>Every plan has every feature.</b> All three formats, PDF output, images, the field list, the missing-field contract, the outer-scope warning, template versioning and rollback, localisation, and the same limits: 25 MB per template, 8 MB of data per request, 20 versions kept per template, 120 requests a minute with a burst of 30. There is no feature ladder and no paid module — <a href="/docs#limits">the limits are all here</a>.
+      <b>Every plan has every feature.</b> All three formats, PDF output, images, the typed field list, the missing-field contract, the outer-scope warning, template versioning and rollback, localisation, and the same limits: 25 MB per template, 8 MB of data per request, 20 versions kept per template, 120 requests a minute with a burst of 30. There is no feature ladder and no paid module — <a href="/docs#limits">the limits are all here</a>.
     </div>
     <p class="price-foot">Quotas are per calendar month and reset on the 1st. A failed render is refunded, so a 422 on a missing field costs nothing. <a href="/docs#quota">How quota works</a>.</p>
   </div>
@@ -483,7 +483,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
       </div>
       <div class="gap">
         <b>Carbone's formatter library is larger than ours</b>
-        <span>Theirs includes aggregates such as <code>aggSum</code> and <code>cumSum</code>, an i18n system, currency conversion at live rates, and <code>drop</code>/<code>keep</code> block operators. Ours is 28 formatters covering the common cases.</span>
+        <span>Theirs includes aggregates such as <code>aggSum</code> and <code>cumSum</code>, an i18n system, currency conversion at live rates, and <code>drop</code>/<code>keep</code> block operators. Ours is 43 formatters covering the common cases.</span>
       </div>
       <div class="gap">
         <b>LibreOffice is the only PDF converter</b>

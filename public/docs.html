@@ -57,6 +57,9 @@
       <li><a href="#capabilities">GET /v1/capabilities</a></li>
       <li><a href="#healthz">GET /healthz</a></li>
       <li><a href="#pricing">Billing endpoints</a></li>
+      <li><a href="#notyet">Not available yet</a></li>
+      <li><a href="#async" class="sub">Asynchronous</a></li>
+      <li><a href="#batch" class="sub">Batch</a></li>
     </ul>
     <h2>Reference</h2>
     <ul>
@@ -309,7 +312,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 <!-- ============================================================ formatters -->
 <section id="formatters">
 <h2>Formatters<a class="anchor" href="#formatters">#</a></h2>
-<p>28 of them, applied left to right with <code>|</code>. There is no expression evaluator: formatters are a fixed, audited list, so no string you send is ever compiled or executed. The canonical list is served by <a href="#capabilities"><code>GET /v1/capabilities</code></a>, read straight out of the module — a formatter cannot be documented into existence.</p>
+<p>43 of them, applied left to right with <code>|</code>. There is no expression evaluator: formatters are a fixed, audited list, so no string you send is ever compiled or executed. The canonical list is served by <a href="#capabilities"><code>GET /v1/capabilities</code></a>, read straight out of the module — a formatter cannot be documented into existence.</p>
 
 <div class="note">
   <p><strong>Arguments are separated by <code>:</code> and are trimmed.</strong> <code>{n|number:2}</code>, <code>{total|currency:EUR}</code>, <code>{rows|sort:total:desc}</code>. An argument may contain spaces in the middle (<code>{note|default:not given}</code>) but leading and trailing spaces are removed, so a separator such as <code>", "</code> currently arrives as <code>","</code>.</p>
@@ -373,6 +376,39 @@ x-ratelimit-remaining: 29</code></pre></div>
 <tr><td><code>unique</code></td><td class="wrap">Keeps the first row for each distinct value of the field</td><td class="wrap"><code>unique:sku</code> gives <code>A-1 B-2 C-3 </code></td></tr>
 <tr><td><code>groupBy</code></td><td class="wrap">Groups into <code>{key, items, count}</code>, preserving order of first appearance. Loop the groups, then loop <code>{#items}</code> inside each.</td><td class="wrap"><code>{#items|groupBy:cat}{key}={count} {/items}</code> gives <code>hw=2 sw=2 </code></td></tr>
 </tbody></table></div>
+
+<h3>Conditions, for sections</h3>
+<p>These return <code>true</code> or <code>false</code>, which makes them section tests rather than value formatters: a section over <code>true</code> renders once, and a section over <code>false</code> renders not at all. Pair one with <code>{^…}</code> for the else branch.</p>
+<div class="tw"><table>
+<thead><tr><th>Formatter</th><th>Does</th><th>Worked example</th></tr></thead>
+<tbody>
+<tr><td><code>eq</code></td><td class="wrap">True when equal (compared as text)</td><td class="wrap"><code>{#status|eq:shipped}Dispatched{/status}[{^status|eq:shipped}not{/}]</code> with <code>"shipped"</code> gives <code>Dispatched[]</code></td></tr>
+<tr><td><code>ne</code></td><td class="wrap">True when not equal</td><td class="wrap"><code>{#status|ne:draft}not a draft{/status}</code> with <code>"shipped"</code> gives <code>not a draft</code></td></tr>
+<tr><td><code>gt</code></td><td class="wrap">True when greater</td><td class="wrap"><code>{#total|gt:1000}Free delivery{/total}</code> with <code>1240.5</code> gives <code>Free delivery</code></td></tr>
+<tr><td><code>gte</code></td><td class="wrap">True when greater or equal</td><td class="wrap"><code>{#total|gte:1240.5}…{/total}</code> with <code>1240.5</code> renders</td></tr>
+<tr><td><code>lt</code></td><td class="wrap">True when less</td><td class="wrap"><code>{#total|lt:1000}small{/total}[{^total|lt:1000}not small{/}]</code> with <code>1240.5</code> gives <code>[not small]</code></td></tr>
+<tr><td><code>lte</code></td><td class="wrap">True when less or equal</td><td class="wrap"><code>{#qty|lte:3}three or fewer{/qty}</code> with <code>2</code> renders</td></tr>
+<tr><td><code>contains</code></td><td class="wrap">Substring of a string, or membership of a list</td><td class="wrap"><code>{#note|contains:urgent}URGENT{/note}</code> with <code>"please treat as urgent"</code>, and <code>{#tags|contains:beta}has beta{/tags}</code> with <code>["alpha","beta"]</code>, both render</td></tr>
+<tr><td><code>empty</code></td><td class="wrap">True for an empty list, empty text, <code>null</code> or <code>false</code></td><td class="wrap"><code>{#nothing|empty}nothing here{/nothing}</code> with <code>[]</code> gives <code>nothing here</code>. Note that <code>{#nothing}</code> alone would render zero times — <code>empty</code> is how you say something <em>because</em> the list is empty.</td></tr>
+<tr><td><code>notEmpty</code></td><td class="wrap">The inverse of <code>empty</code></td><td class="wrap"><code>{#tags|notEmpty}has tags{/tags}</code> with two tags gives <code>has tags</code></td></tr>
+</tbody></table></div>
+
+<h3>Dates, as conditions and as counts</h3>
+<p>All six read the value as a date, exactly as <code>date</code> does, and compare it against now in the request's <a href="#localisation">time zone</a>.</p>
+<div class="tw"><table>
+<thead><tr><th>Formatter</th><th>Does</th><th>Worked example (run on 25 August 2026, UTC)</th></tr></thead>
+<tbody>
+<tr><td><code>past</code></td><td class="wrap">True when the date is before now</td><td class="wrap"><code>{#due|past}OVERDUE{/due}</code> with <code>"2020-01-01"</code> gives <code>OVERDUE</code></td></tr>
+<tr><td><code>future</code></td><td class="wrap">True when the date is after now</td><td class="wrap"><code>{#renews|future}still to come{/renews}</code> with <code>"2030-01-01"</code> renders</td></tr>
+<tr><td><code>before</code></td><td class="wrap">True when the date is before the argument</td><td class="wrap"><code>{#issued|before:2026-01-01}issued before 2026{/issued}</code> with <code>"2025-06-15"</code> renders</td></tr>
+<tr><td><code>after</code></td><td class="wrap">True when the date is after the argument</td><td class="wrap"><code>{#issued|after:2020-01-01}issued after 2020{/issued}</code> with <code>"2025-06-15"</code> renders</td></tr>
+<tr><td><code>daysSince</code></td><td class="wrap">Whole days from the date until now, as a <strong>number</strong></td><td class="wrap"><code>{issued|daysSince}</code> with <code>"2025-06-15"</code> gave <code>436</code></td></tr>
+<tr><td><code>daysUntil</code></td><td class="wrap">Whole days from now until the date, as a <strong>number</strong></td><td class="wrap"><code>{renews|daysUntil}</code> with <code>"2030-01-01"</code> gave <code>1225</code></td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>Why conditions are formatters rather than an expression language.</strong> There is no evaluator here on purpose: nothing you send is ever compiled or executed, which is the entire reason this service does not carry a sandbox with published escape CVEs. The price is that a condition has to be written as a pipeline — <code>{#total|gt:1000}</code> rather than <code>{#if total &gt; 1000}</code> — and that is the trade being made deliberately.</p>
+</div>
 
 <h3>Formatter errors</h3>
 <div class="tw"><table>
@@ -809,7 +845,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 </tbody></table></div>
 
 <div class="note">
-  <p><strong>The sample renders.</strong> Verified against the live API on 25 August 2026: <code>POST /v1/inspect</code> for a template with a line-item loop returned <code>{"invoice_no":"invoice no","customer":"customer","items":[{"description":"description","qty":0,"price":0}]}</code>, and posting exactly that back to <code>POST /v1/render</code> produced a 1,084-byte document with zero warnings. An <code>image</code> field comes back as <code>null</code>, because DocMint cannot invent a picture; supply one before rendering.</p>
+  <p><strong>The sample renders.</strong> Verified against the live API on 25 August 2026: <code>POST /v1/inspect</code> for a template with a line-item loop returned <code>{"invoice_no": "invoice no", "customer": "customer", "items": [{"description": "description", "qty": 0, "price": 0}]}</code>, and posting exactly that back to <code>POST /v1/render</code> produced a 1,084-byte document with zero warnings. An <code>image</code> field comes back as <code>null</code>, because DocMint cannot invent a picture; supply one before rendering.</p>
 </div>
 </section>
 
@@ -990,9 +1026,9 @@ x-ratelimit-remaining: 29</code></pre></div>
 <!-- ========================================================== capabilities -->
 <section id="capabilities">
 <h2><span class="pill get">GET</span><span class="path">/v1/capabilities</span><a class="anchor" href="#capabilities">#</a></h2>
-<p><strong>No key needed.</strong> What this build can actually do, published so that the documentation and any client can be checked against the running code rather than against a README that drifted. The formatter list is read out of the module, so a formatter cannot be documented into existence.</p>
+<p><strong>No key needed.</strong> What this build can actually do, published so that the documentation and any client can be checked against the running code rather than against a README that drifted. The formatter list is read out of the module, so a formatter cannot be documented into existence — and the list on this page is checked against this endpoint, in both directions, before the page ships.</p>
 <div class="code"><button class="copy" type="button">Copy</button><pre><code>curl https://docmint-832s.onrender.com/v1/capabilities</code></pre></div>
-<div class="code"><div class="cap">200 OK — abridged; there are 28 formatters and 3 formats</div><pre><code>{
+<div class="code"><div class="cap">200 OK — abridged; there are 43 formatters and 3 formats</div><pre><code>{
   "formats": [
     { "id": "docx", "name": "Word document",   "mime": "application/vnd.openxml…" },
     { "id": "xlsx", "name": "Excel workbook",  "mime": "application/vnd.openxml…" },
@@ -1025,6 +1061,21 @@ x-ratelimit-remaining: 29</code></pre></div>
   "db": { "first_ms": 3.4, "second_ms": 2.5,
           "pool": { "total": 1, "idle": 1, "waiting": 0 }, "error": null }
 }</code></pre></div>
+</section>
+
+<!-- ========================================================== not yet live -->
+<section id="notyet">
+<h2>Not available yet<a class="anchor" href="#notyet">#</a></h2>
+<p>Two things are being built and are <strong>not reachable on this deployment</strong>. They have sections here because the code that will emit them already links to these anchors, and a documentation link in an error message that 404s is worse than no link at all.</p>
+<p>Every one of these answered <code>404 unknown_endpoint</code> when this page was written, on 25 August 2026: <code>POST /v1/jobs</code>, <code>GET /v1/jobs</code>, <code>GET /v1/jobs/:id</code>, <code>POST /v1/jobs/:id/cancel</code>, <code>POST /v1/render/batch</code>, <code>GET /v1/webhooks</code>. Nothing about their behaviour is described here, because nothing about their behaviour has been observed.</p>
+
+<h3 id="async">Asynchronous rendering<a class="anchor" href="#async">#</a></h3>
+<p>Not available yet. Every render today is synchronous: you POST, and the response body is the file. That is the right shape for one document and the wrong shape for five hundred, so a queued mode with a webhook callback is in progress.</p>
+<p><strong>Until it ships:</strong> render one document per request. A PDF takes about 2.7 s and conversions are serialised per instance, so pace a large run rather than firing it all at once — the <a href="#limits">rate limit</a> is 120 requests a minute with a burst of 30, and a full conversion queue answers <code>503 pdf_queue_full</code> rather than dropping the request silently.</p>
+<p>When it ships, this section is replaced by its reference. If you have arrived here from an error message naming <code>/docs#async</code> and this is still the text you see, the feature is newer than this page — please report it, because that is exactly the drift this page is built to avoid.</p>
+
+<h3 id="batch">Batch rendering<a class="anchor" href="#batch">#</a></h3>
+<p>Not available yet. One template, many data rows, one call. Same status as above, and the same advice: loop over <a href="#render"><code>POST /v1/render</code></a> in your workflow tool for now, which is what an n8n or Make loop does naturally, and which keeps a failure attributable to a single row.</p>
 </section>
 
 <!-- =============================================================== formats -->
