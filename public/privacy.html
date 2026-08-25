@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Privacy policy — DocMint</title>
+<meta name="description" content="What DocMint stores, for how long, and who else touches it. Written from the database schema and the code, not from a template.">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+<style>
+  .legal { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  .legal h1 { font-size: 40px; letter-spacing: -.02em; margin: 0 0 8px; }
+  .legal .sub { color: var(--muted); margin: 0 0 40px; }
+  .legal h2 { font-size: 24px; margin: 40px 0 12px; }
+  .legal h3 { font-size: 18px; margin: 28px 0 8px; }
+  .legal p, .legal li { line-height: 1.65; }
+  .legal table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 15px; }
+  .legal th, .legal td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  .legal th { background: var(--panel); font-weight: 600; }
+  .legal code { font-family: var(--mono); font-size: .9em; }
+  .legal .box { border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 22px 0; background: var(--panel); }
+  .legal .foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="legal">
+
+<h1>Privacy policy</h1>
+<p class="sub">What DocMint stores, for how long, and who else touches it. This was written from the
+  database schema and the code that writes to it, not from a template.</p>
+
+<h2>1. Controller</h2>
+<p>The controller for the processing described here is:</p>
+<table>
+  <tr><th>Company</th><td>productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG</td></tr>
+  <tr><th>Address</th><td>Reichenbergerstr. 2, 94036 Passau, Germany</td></tr>
+  <tr><th>Represented by</th><td>Florian Standhartinger</td></tr>
+  <tr><th>Email</th><td><a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a></td></tr>
+  <tr><th>Telephone</th><td>+49 178 1981631</td></tr>
+</table>
+<p>See also the <a href="/legal">imprint</a>.</p>
+
+<h2>2. What is stored, and for how long</h2>
+<p>Everything below is in one PostgreSQL database. There is <strong>no analytics product, no
+  advertising network, no tracking pixel, and no third-party script or font on this website at
+  all</strong> — these pages load nothing from any host other than this one.</p>
+
+<table>
+  <tr><th>Data</th><th>Why</th><th>Kept for</th></tr>
+  <tr>
+    <td>Email address and a <strong>bcrypt password hash</strong></td>
+    <td>To identify your account. The password itself is never written down — only the bcrypt hash of it.</td>
+    <td>Until you ask for the account to be deleted.</td>
+  </tr>
+  <tr>
+    <td>API keys</td>
+    <td>Stored only as a SHA-256 hash plus the first 16 characters, so a key can be recognised and listed but never read back — not by support, not by the operator. A label and the times it was created, last used and revoked are stored too.</td>
+    <td>Until revoked; a revoked key keeps its row and a revocation timestamp.</td>
+  </tr>
+  <tr>
+    <td><strong>Uploaded template files, and every version of them</strong></td>
+    <td>Storing a template under a name is the entire point of <code>POST /v1/templates</code>. The file's bytes, its size, a SHA-256 of it, the placeholder list extracted from it, and any note you attached to that version are all stored.</td>
+    <td>Until you delete the template. Only the most recent 20 versions of each are kept; older ones are pruned automatically.</td>
+  </tr>
+  <tr>
+    <td><strong>The data you send to be filled in</strong></td>
+    <td>It is held in memory for the length of the request and used to produce the document. <strong>It is never written to the database.</strong></td>
+    <td>Not stored.</td>
+  </tr>
+  <tr>
+    <td><strong>The documents that are produced</strong></td>
+    <td>Produced in memory and returned in the response. <strong>Rendered documents and PDFs are never written to the database.</strong> The schema contains an unused <code>files</code> table left over from a hosted-link feature that is not implemented; no code path writes to it or reads from it.</td>
+    <td>Not stored.</td>
+  </tr>
+  <tr>
+    <td>Templates sent inline as <code>template_base64</code></td>
+    <td>Treated exactly like the data above: used for the render and discarded.</td>
+    <td>Not stored.</td>
+  </tr>
+  <tr>
+    <td>Usage records</td>
+    <td>One row per render: what kind of call, the format, the output mode, the template id, the credits, the duration and per-stage timings, whether it succeeded and the error code if not, and the request id. <strong>No document content, no template content and no request body.</strong></td>
+    <td>Kept, so quota accounting is accurate.</td>
+  </tr>
+  <tr>
+    <td>Stripe customer and subscription ids</td>
+    <td>To connect an account to a subscription. These columns exist and are empty while checkout is not enabled on this deployment.</td>
+    <td>Until the account is deleted.</td>
+  </tr>
+  <tr>
+    <td>Login sessions</td>
+    <td>A <code>sessions</code> table exists for a web dashboard that is <strong>not part of this deployment</strong>. No code path currently creates a session, so there are no session rows and no cookies are set by this service.</td>
+    <td>n/a today; 30 days when the dashboard ships.</td>
+  </tr>
+</table>
+
+<p>The application does not log your IP address or user agent. The hosting provider keeps its own
+  HTTP request logs, which do contain IP addresses; that is described under processors below. One
+  transient exception: the signup endpoint keeps the calling IP address in memory for 60 seconds to
+  enforce one signup per minute. It is never written to disk or to the database.</p>
+
+<h2>3. Card details</h2>
+<p><strong>Card numbers never reach this service.</strong> When paid checkout is enabled, payment is
+  handled entirely by Stripe on Stripe's own pages, and DocMint stores only the Stripe identifiers,
+  the plan and the credit limit. At the time of writing, checkout is not enabled on this deployment
+  and no payment data of any kind exists.</p>
+
+<h2>4. Email</h2>
+<p>DocMint does not send email at all. There is no newsletter, no marketing mail and no transactional
+  mail. One consequence is stated plainly in the <a href="/docs#signup">docs</a>: there is no password
+  reset and no confirmation email.</p>
+
+<h2>5. Outbound requests</h2>
+<p><strong>DocMint never fetches anything on your behalf.</strong> An image referenced by URL in your
+  data is not downloaded; you must supply its bytes. No template, no data and no document causes this
+  service to contact any other host.</p>
+
+<h2>6. Processors</h2>
+<p>Two companies process data on behalf of this service, and a third will when payments are enabled:</p>
+<table>
+  <tr><th>Processor</th><th>What they do</th><th>Where</th></tr>
+  <tr><td>Render Services, Inc.</td><td>Runs the application and keeps HTTP request logs, which include IP addresses.</td><td>Frankfurt, Germany</td></tr>
+  <tr><td>Neon, Inc.</td><td>Hosts the PostgreSQL database in which everything in section 2 is stored.</td><td>Frankfurt, Germany (EU region)</td></tr>
+  <tr><td>Stripe, Inc.</td><td>Will take payments and store card details when checkout is enabled. Stripe is the controller for the card data itself.</td><td>Ireland / United States</td></tr>
+</table>
+<p>LibreOffice, used for the optional PDF conversion, runs as a local process on the same server. It
+  is not a processor and nothing leaves the machine for it.</p>
+
+<h2>7. Your rights</h2>
+<p>Under the GDPR you may request access to your data, correction, deletion, restriction of
+  processing, portability, and you may object to processing. Write to
+  <a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a>. You may also complain
+  to a supervisory authority; for this controller that is the Bayerisches Landesamt für
+  Datenschutzaufsicht (BayLDA), Ansbach.</p>
+<div class="box">
+  <p><strong>Being straight about deletion:</strong> there is currently no self-service account
+  deletion, because there is no dashboard. A deletion request has to be handled by hand by the
+  operator. That is a gap, and it is named here rather than implied away. You <em>can</em> delete any
+  template and all its versions yourself at any time with
+  <code>DELETE /v1/templates/:name</code>.</p>
+</div>
+
+<h2>8. Legal basis</h2>
+<ul>
+  <li><strong>Art. 6(1)(b)</strong> — performing the contract: your account, your API keys, storing your templates, rendering your documents, quota accounting.</li>
+  <li><strong>Art. 6(1)(c)</strong> — legal obligation: records connected to payments, once there are any.</li>
+  <li><strong>Art. 6(1)(f)</strong> — legitimate interest: rate limiting and the operational logs needed to keep the service standing and to stop abuse.</li>
+</ul>
+
+<h2>9. Changes</h2>
+<p>If this policy changes materially, the change will be visible in this page's git history — the
+  repository is public at
+  <a href="https://github.com/fstandhartinger/docmint" rel="noopener">github.com/fstandhartinger/docmint</a>.</p>
+
+<p class="foot">
+  <a href="/">DocMint</a> ·
+  <a href="/docs">Docs</a> ·
+  <a href="/legal">Imprint</a> ·
+  <a href="/terms">Terms</a>
+</p>
+
+</main>
+</body>
+</html>

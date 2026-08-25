@@ -231,7 +231,7 @@ That matters because the obvious build — docxtemplater — would have cost:
 | Slide cloning in PPTX | 500 EUR/yr module | ours |
 | Charts, styling, footnotes, subtemplates | 500 EUR/yr each | not implemented |
 | HTML into DOCX | 500 EUR/yr module | **not implemented** |
-| Built-in formatters | **zero** — every one is code you write | 27 built in |
+| Built-in formatters | **zero** — every one is code you write | 28 built in |
 | Where a tag failed | 500 EUR/yr `error-location` module | built in, on every error |
 | All 18 modules | 3,000 EUR/yr | n/a |
 
@@ -288,3 +288,79 @@ measured about 450 ms per query from Render; pooled measures **3-4 ms**. That to
 the Office-file path from roughly 700 ms to 26 ms. `GET /healthz?db=1` reports a
 round trip and the pool counters so the question is answerable next time instead
 of guessable. **If a deploy ever feels slow, check that first.**
+
+## Corrections forced by the first adversarial review (2026-08-25)
+
+A critic with fresh context fetched Carbone, Docupilot, Formstack and
+docxtemplater, exercised the live API, opened the rendered files, and **picked
+Carbone**. The reasoning is recorded here rather than argued away, because a loop
+that only records the reviews it likes is not a loop.
+
+**Its verdict, verbatim in substance:** Carbone, because an invoice pipeline needs
+value-comparison conditionals, date arithmetic, PDF/A and Factur-X for EU
+e-invoicing, batch and async rendering, and an SLA — and DocMint has none of
+those. It also said, unprompted, that DocMint's fill engine is *more correct* than
+Carbone's and than docxtemplater's, and that it failed to make it produce a wrong
+document in places where the incumbents do.
+
+**Its single biggest gap:** the PDF path is one LibreOffice process at concurrency
+1 on one 512 MB instance, with no batch endpoint, no async webhook and no SLA. It
+measured two simultaneous PDF renders as perfectly serialised at 3,371 ms and
+5,740 ms. A 500-invoice month-end run is about 25 minutes of serialised wall clock.
+**That is accepted as true and is the top item on the roadmap.** It is architecture,
+not a bug, and it is not fixable in this pass.
+
+### Claims that were false, and are now true
+
+Every one of these was a statement in this repository that the running code did
+not support. They were fixed in the code, not softened in the prose:
+
+| Claim | What was wrong | Fix |
+|---|---|---|
+| errors carry `field` and `location` | errors raised *inside a formatter* carried neither, so "currency needs a number" on page 40 was unfindable | the tag and location are attached on the way out of `resolveValue` |
+| a missing field gets a "did you mean" | it compared only the LAST path segment, so `{customer.name}` against data holding `custmer` — the example used in this very file — never suggested anything | `suggestFor()` walks the path, finds the first segment that does not exist, and searches the keys available at that point |
+| a document never contains a silently blank cell | an empty `items` array produced a clean EUR 0.00 invoice with zero warnings, and `onMissing:"empty"` blanked six fields silently | `section_rendered_empty` and `field_blanked` warnings, with field and location |
+| SPEC listed 20 formatters | there were 28 | SPEC now points at `/v1/capabilities` and lists all 28 by group |
+| SPEC: docxtemplater's core "covers DOCX only" | its free core covers DOCX **and PPTX**; this file had it right and SPEC contradicted it | SPEC corrected |
+| capabilities: `currency:EUR gives EUR 1,234.57` | the code emits `€1,234.57` | description corrected |
+| `unknown_formatter` put the formatter name in `field` | `field` means a data path everywhere else | it now has its own `formatter` slot |
+| "Writer (.odt) file" | missing article | fixed, and `.odp` named too |
+
+### One claim that must be softened rather than fixed
+
+**"Nobody else tells you what fields the template needs" is not literally true.**
+Formstack Documents publishes `GET /documents/<ID>/fields` returning
+`[{"key": …, "name": …}]`. DocMint's answer is far richer — typed, scoped to the
+loop the field lives in, located in the document, and accompanied by sample data
+that is tested to render — but the absolute form of the claim is false and must
+not appear on the landing page or in the node's description. The true and still
+strong form is: **Carbone's API has no introspection endpoint at all, every
+existing n8n node in this space ships a raw JSON textarea, and no one returns a
+typed, scoped tree with renderable sample data.**
+
+### Defects accepted and fixed
+
+- **Every delivered XLSX carried the full template placeholder table** in
+  `xl/sharedStrings.xml`, invisible in the grid but plain to anyone who unzipped
+  the file. DOCX output was clean; XLSX was not.
+- The `{items|sumProduct:qty:unit_price}` type hint was registered only on a
+  tag's FIRST sighting, so a template writing `{items|count}` earlier took the
+  early return and the sumProduct arguments were never read. That made the sample
+  data for our own flagship invoice example unrenderable — the exact
+  credibility-destroying class of error this product line exists to avoid. Hints
+  are now read on every sighting, and a field named ONLY in a formatter argument
+  is now reported as a field of that loop.
+
+### Defects accepted and NOT fixed in this pass, stated plainly
+
+- **One error per render.** docxtemplater returns every failing tag at once.
+  DocMint returns the first. Fixing it properly means collecting rather than
+  throwing, through three renderers.
+- **No remote image URLs.** Carbone and Docupilot both fetch a public image URL;
+  DocMint requires base64. Refusing is at least explicit and SSRF-free, but it is
+  less convenient.
+- **No default image fit.** An image with no width is placed at its intrinsic
+  pixel size at 96 DPI, so a 2000 px logo is 20 inches wide. Carbone's
+  `:imageFit(contain)` fits the placeholder by default.
+- **Emptied runs are left in place** after a split-run replacement. Harmless,
+  untidy.

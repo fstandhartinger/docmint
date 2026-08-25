@@ -77,9 +77,12 @@ function detect(buffer) {
   if (mimetype) {
     const mt = readText(mimetype).trim();
     if (mt.startsWith('application/vnd.oasis.opendocument')) {
-      const kind = mt.includes('text') ? 'Writer (.odt)' : mt.includes('spreadsheet') ? 'Calc (.ods)' : 'an OpenDocument';
+      const kind = mt.includes('text') ? 'a Writer (.odt) file'
+        : mt.includes('spreadsheet') ? 'a Calc (.ods) file'
+          : mt.includes('presentation') ? 'an Impress (.odp) file'
+            : 'an OpenDocument file';
       throw new ApiError(415, 'template_is_opendocument',
-        `That is ${kind} file. DocMint fills the Microsoft Office formats: .docx, .xlsx and .pptx.`, {
+        `That is ${kind}. DocMint fills the Microsoft Office formats: .docx, .xlsx and .pptx.`, {
           hint: 'In LibreOffice, "Save As" and choose the Word/Excel/PowerPoint 2007-365 format.',
           docs: '/docs#templates',
         });

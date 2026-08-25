@@ -312,10 +312,15 @@ function applyFormatters(value, formatters, ctx) {
     const fn = FORMATTERS[f.name];
     if (!fn) {
       const known = Object.keys(FORMATTERS).sort();
-      throw new TemplateError('unknown_formatter', `There is no formatter called "${f.name}".`, {
-        field: f.name, available: known,
+      // `field` means the data path everywhere else in this API, so putting a
+      // formatter name in it would make the error machine-unreadable. The
+      // formatter goes in its own slot and the caller is told the whole list.
+      const err = new TemplateError('unknown_formatter', `There is no formatter called "${f.name}".`, {
+        available: known,
         hint: `Known formatters: ${known.join(', ')}.`,
       });
+      err.formatter = f.name;
+      throw err;
     }
     v = fn(v, f.args, ctx);
   }

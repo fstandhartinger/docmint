@@ -23,6 +23,14 @@ const { applyFormatters } = require('./formatters');
  * and is off by default because the failure it prevents is silent and expensive.
  */
 
+function warn(ctx, entry) {
+  if (!ctx.warnings) return;
+  const key = `${entry.code}:${entry.field}@${entry.location || ''}`;
+  if (ctx.warnings.seen.has(key)) return;
+  ctx.warnings.seen.add(key);
+  ctx.warnings.list.push(entry);
+}
+
 const SPECIALS = new Set(['$index', '$index1', '$first', '$last', '$length', '$total']);
 
 function splitPath(path) {
@@ -128,10 +136,19 @@ function resolveValue(tag, stack, ctx) {
   if (found && hit.depth > 0) assertNotShadowedTypo(tag, stack, hit, ctx);
 
   if (!found && !hasDefault) {
-    if (ctx.onMissing === 'empty') return '';
-    if (ctx.onMissing === 'keep') return tag.raw;
+    if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') {
+      warn(ctx, {
+        code: ctx.onMissing === 'empty' ? 'field_blanked' : 'field_left_as_tag',
+        field: tag.path,
+        location: ctx.location || null,
+        message: ctx.onMissing === 'empty'
+          ? `{${tag.expr}} was left blank because the data has no "${tag.path}" and onMissing is "empty".`
+          : `{${tag.expr}} was left in the document as written because the data has no "${tag.path}" and onMissing is "keep".`,
+      });
+      return ctx.onMissing === 'empty' ? '' : tag.raw;
+    }
     const available = visibleKeys(stack);
-    const guess = didYouMean(tag.path.split('.').pop(), available);
+    const guess = suggestFor(tag.path, stack, available);
     throw new TemplateError('placeholder_unresolved',
       `The template uses {${tag.expr}} but the data has no "${tag.path}".`, {
         field: tag.path,
@@ -151,7 +168,21 @@ function resolveValue(tag, stack, ctx) {
   if (ctx.probe) {
     try { out = applyFormatters(found ? value : undefined, tag.formatters, ctx); } catch { out = ''; }
   } else {
-    out = applyFormatters(found ? value : undefined, tag.formatters, ctx);
+    try {
+      out = applyFormatters(found ? value : undefined, tag.formatters, ctx);
+    } catch (e) {
+      // A formatter knows what went wrong but not where. Without this, a
+      // "currency needs a number" on page 40 of a report gave the caller no way
+      // at all to find the offending tag - and pointing at the exact tag is the
+      // thing docxtemplater charges 500 EUR a year for.
+      if (e instanceof TemplateError) {
+        if (!e.field) e.field = tag.path;
+        if (!e.location) e.location = ctx.location || null;
+        if (!e.tag) e.tag = `{${tag.expr}}`;
+        e.message = `${e.message.replace(/\.$/, '')}, in {${tag.expr}}${ctx.location ? ` at ${ctx.location}` : ''}.`;
+      }
+      throw e;
+    }
   }
   if (out === null || out === undefined) return '';
   // While probing there is no real data, so a section iterating over a skeleton
@@ -204,9 +235,17 @@ function resolveSection(tag, stack, ctx) {
     else value = applyFormatters(raw, tag.formatters || [], ctx);
   }
   if (!found) {
-    if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') return { passes: [] };
+    if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') {
+      warn(ctx, {
+        code: 'section_missing',
+        field: tag.path,
+        location: ctx.location || null,
+        message: `{#${tag.path}} rendered nothing because the data has no "${tag.path}" and onMissing is "${ctx.onMissing}".`,
+      });
+      return { passes: [] };
+    }
     const available = visibleKeys(stack);
-    const guess = didYouMean(tag.path.split('.').pop(), available);
+    const guess = suggestFor(tag.path, stack, available);
     throw new TemplateError('section_unresolved',
       `The template loops over {#${tag.path}} but the data has no "${tag.path}".`, {
         field: tag.path,
@@ -218,6 +257,22 @@ function resolveSection(tag, stack, ctx) {
       });
   }
   const passes = passesFor(value);
+  // An EMPTY LIST is worth reporting: it is the most likely real-world data
+  // fault - the upstream query came back with nothing - and it produces a
+  // perfectly clean, sendable, wrong document with a zero total on it.
+  //
+  // A falsy scalar is NOT worth reporting. {#paid}PAID{/paid} not rendering when
+  // paid is false is the entire point of writing it, and warning about it every
+  // time would train people to ignore the warnings channel, which would cost more
+  // than it is worth.
+  if (passes.length === 0 && Array.isArray(value)) {
+    warn(ctx, {
+      code: 'section_rendered_empty',
+      field: tag.path,
+      location: ctx.location || null,
+      message: `{#${tag.path}} rendered nothing because "${tag.path}" is an empty list. Any total computed over it will be zero.`,
+    });
+  }
   for (const p of passes) p.scopeId = tag.path;
   return { passes };
 }
@@ -283,19 +338,13 @@ function assertNotShadowedTypo(tag, stack, hit, ctx) {
   // a serious bug ({name} meaning the item, resolving to the company name). We
   // cannot tell which from the data alone — so it is recorded and reported back on
   // every render, rather than being guessed at silently in either direction.
-  if (ctx.warnings) {
-    const key = `${tag.path}@${ctx.location || ''}`;
-    if (!ctx.warnings.seen.has(key)) {
-      ctx.warnings.seen.add(key);
-      ctx.warnings.list.push({
-        code: 'resolved_from_outer_scope',
-        field: tag.path,
-        location: ctx.location || null,
-        message: `{${tag.expr}} is not a field of the loop item; it was taken from ${hit.depth} level${hit.depth > 1 ? 's' : ''} further out, so it prints the same value on every row.`,
-        item_fields: innerKeys.slice(0, 20),
-      });
-    }
-  }
+  warn(ctx, {
+    code: 'resolved_from_outer_scope',
+    field: tag.path,
+    location: ctx.location || null,
+    message: `{${tag.expr}} is not a field of the loop item; it was taken from ${hit.depth} level${hit.depth > 1 ? 's' : ''} further out, so it prints the same value on every row.`,
+    item_fields: innerKeys.slice(0, 20),
+  });
 
   if (ctx.strictScope) {
     throw new TemplateError('placeholder_outside_loop',
@@ -318,6 +367,43 @@ function assertNotShadowedTypo(tag, stack, hit, ctx) {
       available: innerKeys.slice(0, 40),
       hint: `The item has "${guess}", which looks like what was meant. Write {${guess}} to use the item's own value, or {../${tag.path}} if you really did mean the outer one.`,
     });
+}
+
+/**
+ * "Did you mean" for a DOTTED path.
+ *
+ * The obvious implementation compares the last segment against the keys in
+ * scope, and it is wrong in the case that matters most: with data
+ * {"custmer": {"name": …}} and a template writing {customer.name}, it compares
+ * "name" against the root keys, finds nothing like it, and stays silent — while
+ * the mistyped segment sits right there. So walk the path, find the first
+ * segment that does not exist, and look for a near miss among the keys that were
+ * actually available at THAT point.
+ */
+function suggestFor(pathText, stack, available) {
+  const { segs } = splitPath(pathText);
+  if (!segs.length) return null;
+
+  let cursorKeys = available;
+  let cursor = null;
+  let prefix = [];
+
+  for (let i = 0; i < segs.length; i += 1) {
+    const seg = segs[i];
+    if (cursorKeys.includes(seg)) {
+      prefix.push(seg);
+      const hit = i === 0 ? lookup(seg, stack) : { found: true, value: cursor?.[seg] };
+      cursor = i === 0 ? hit.value : cursor[seg];
+      cursorKeys = cursor && typeof cursor === 'object' && !Array.isArray(cursor) ? Object.keys(cursor) : [];
+      continue;
+    }
+    const guess = didYouMean(seg, cursorKeys);
+    if (!guess) return null;
+    // Name the whole corrected path, not the bare segment, so the reader can see
+    // what to write rather than having to reassemble it.
+    return [...prefix, guess, ...segs.slice(i + 1)].join('.');
+  }
+  return null;
 }
 
 function makeContext(opts = {}) {

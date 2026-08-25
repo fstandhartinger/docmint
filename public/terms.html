@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Terms of service — DocMint</title>
+<meta name="description" content="The terms DocMint is offered under, including what it does not promise.">
+<meta name="robots" content="index,follow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+<style>
+  .legal { max-width: 820px; margin: 0 auto; padding: 48px 24px 96px; }
+  .legal h1 { font-size: 40px; letter-spacing: -.02em; margin: 0 0 8px; }
+  .legal .sub { color: var(--muted); margin: 0 0 40px; }
+  .legal h2 { font-size: 24px; margin: 40px 0 12px; }
+  .legal p, .legal li { line-height: 1.65; }
+  .legal code { font-family: var(--mono); font-size: .9em; }
+  .legal .box { border: 1px solid var(--rule); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; margin: 22px 0; background: var(--panel); }
+  .legal .foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 14px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="legal">
+
+<h1>Terms of service</h1>
+<p class="sub">Short, and honest about what is not promised.</p>
+
+<h2>1. What the service is</h2>
+<p>DocMint fills Microsoft Office templates — Word (.docx), Excel (.xlsx) and PowerPoint (.pptx) —
+  with JSON data over an HTTP API, and optionally converts the result to PDF. Nothing more is
+  promised than that. What it does <em>not</em> do is listed on the
+  <a href="/#honest">home page</a> and in the <a href="/docs#formats">documentation</a>, and those
+  lists are meant to be read before you build on this.</p>
+
+<h2>2. Your account</h2>
+<p>One account, one email address. You are responsible for keeping your API keys secret. If a key
+  leaks, revoke it — <code>DELETE /v1/keys/{key_prefix}</code>. Revocation takes effect on the next
+  request. Usage on your key counts against your quota whoever made it.</p>
+<p>There is no password reset and no confirmation email, because this service sends no email at all.
+  A key is shown exactly once and only a hash of it is stored, so it cannot be read back. If you lose
+  both your password and every key, the account cannot currently be recovered without the operator's
+  help.</p>
+
+<h2>3. Your content</h2>
+<p>Your templates and your data stay yours. They are not read, mined, sold, or used to train
+  anything. What is stored and for how long is set out precisely in the
+  <a href="/privacy">privacy policy</a> — in short: uploaded templates and their versions are stored
+  because storing them is what you asked for; the data you send and the documents produced are not
+  stored at all.</p>
+<p>You must not use the service to produce or distribute unlawful material, or to infringe copyright.
+  Automated abuse and quota circumvention through multiple accounts are not permitted. Note that
+  <code>{@rawXml}</code> inserts markup into a document unescaped; what you put through it is your
+  responsibility.</p>
+
+<h2>4. Quota and payment</h2>
+<p>Each plan includes a number of documents per calendar month; the free plan includes 30 and needs
+  no card. A document costs one credit and a PDF conversion costs one more. A credit is reserved
+  before rendering and <strong>refunded when the render fails</strong>, so a failed render costs
+  nothing. When the quota is spent the API answers <code>402 quota_exceeded</code> until the next
+  period; there is no overage billing and no surprise invoice. The details are in the
+  <a href="/docs#quota">docs</a>.</p>
+<p>Paid plans are priced on the <a href="/#pricing">home page</a>. <strong>Self-serve checkout is not
+  enabled on this deployment yet</strong>; until it is, a paid plan is arranged by email. When it
+  ships, subscriptions will be monthly, taken through Stripe, and cancellable at any time;
+  cancelling stops the next charge and does not refund the current month.</p>
+
+<h2>5. What is not promised</h2>
+<div class="box">
+  <p>There is <strong>no SLA</strong>. This is one small instance in one region (Frankfurt), restarted
+  on every deploy, with no third-party uptime monitor and no SOC 2 report. PDF conversion runs one at
+  a time, so a burst of PDF requests queues and can time out. A large enough document can exhaust the
+  converter and briefly affect everyone. If your business would be damaged by an hour of downtime,
+  this service is not yet the right dependency, and you should know that before you build on it
+  rather than after.</p>
+</div>
+<p>The service is provided as is. To the extent permitted by law, the operator is not liable for
+  indirect or consequential damage, lost profit, or lost data. Nothing here limits liability for
+  intent, gross negligence, or injury to life, body or health, and statutory consumer rights are
+  unaffected.</p>
+<p>You are responsible for checking the documents you generate before sending them to anyone.
+  DocMint refuses to render a document with a missing field precisely so that fewer wrong documents
+  reach customers, but it is a tool, not a proofreader.</p>
+
+<h2>6. Third-party software and trademarks</h2>
+<p>The fill engine is written for this project and has no third-party dependencies. LibreOffice is
+  used, unmodified, as a separate process for the optional PDF step under the MPL-2.0; the full list
+  is in <a href="https://github.com/fstandhartinger/docmint/blob/master/THIRD-PARTY-NOTICES.md" rel="noopener">THIRD-PARTY-NOTICES.md</a>.
+  Microsoft Word, Excel and PowerPoint are trademarks of Microsoft Corporation; DocMint reads and
+  writes the Office Open XML formats and is not affiliated with or endorsed by Microsoft.</p>
+
+<h2>7. Ending it</h2>
+<p>You can stop using the service at any time, and delete any template and all of its versions
+  yourself with <code>DELETE /v1/templates/:name</code>. The operator may suspend an account that is
+  being used unlawfully or in a way that degrades the service for others, and will say why.</p>
+
+<h2>8. Changes</h2>
+<p>These terms may change. The repository is public, so every change is visible in the git history at
+  <a href="https://github.com/fstandhartinger/docmint" rel="noopener">github.com/fstandhartinger/docmint</a>.
+  A material change affecting paying customers will be announced before it takes effect.</p>
+
+<h2>9. Governing law</h2>
+<p>These terms are between you and productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG,
+  Passau, Germany — the provider named in the <a href="/legal">imprint</a>. German law applies, and
+  for merchants the place of jurisdiction is Passau, to the extent that a place of jurisdiction may
+  lawfully be agreed. Mandatory consumer protection law in your country of residence is unaffected.</p>
+<p>Questions, billing disputes and anything else:
+  <a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a>.</p>
+
+<p class="foot">
+  <a href="/">DocMint</a> ·
+  <a href="/docs">Docs</a> ·
+  <a href="/legal">Imprint</a> ·
+  <a href="/privacy">Privacy</a>
+</p>
+
+</main>
+</body>
+</html>

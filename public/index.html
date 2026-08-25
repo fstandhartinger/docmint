@@ -72,20 +72,25 @@ curl -X POST https://docmint-832s.onrender.com/v1/render \
        "output":"pdf"}'</span> \
   --output quote.pdf</code></pre></div>
 
-        <div class="code-panel" role="tabpanel" id="panel-fields" aria-labelledby="tab-fields" hidden><pre><code><span class="tok-c"># "What does this template actually need?" — free, no render.</span>
+        <div class="code-panel" role="tabpanel" id="panel-fields" hidden><pre><code><span class="tok-c"># "What does this template actually need?" - free, no render.</span>
 curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
-  https://docmint-832s.onrender.com/v1/templates/quote/fields
+  https://docmint-832s.onrender.com/v1/templates/lines/fields
 
-<span class="tok-c">{</span>
-<span class="tok-c">  "name": "quote", "format": "docx", "version": 1,</span>
-<span class="tok-c">  "fields": ["customer", "total"],</span>
-<span class="tok-c">  "tags": [</span>
-<span class="tok-c">    { "expr": "customer", "kind": "value",</span>
-<span class="tok-c">      "location": "word/document.xml, paragraph 1" },</span>
-<span class="tok-c">    { "expr": "total|currency:EUR", "kind": "value",</span>
-<span class="tok-c">      "location": "word/document.xml, paragraph 2" }</span>
-<span class="tok-c">  ]</span>
-<span class="tok-c">}</span></code></pre></div>
+<span class="tok-c">{ "name": "lines", "format": "docx", "version": 1,</span>
+<span class="tok-c">  "fields": [</span>
+<span class="tok-c">    { "name": "items", "scope": "", "type": "array",</span>
+<span class="tok-c">      "repeating": true, "required": true,</span>
+<span class="tok-c">      "formatters": ["sumProduct", "currency"],</span>
+<span class="tok-c">      "locations": ["word/document.xml, table 1 row 2"] },</span>
+<span class="tok-c">    { "name": "qty", "scope": "items", "type": "number",</span>
+<span class="tok-c">      "repeating": false, "required": true,</span>
+<span class="tok-c">      "locations": ["…table 1 row 2, paragraph 6"] } ],</span>
+<span class="tok-c">  "names": ["invoice_no","customer","items","description",</span>
+<span class="tok-c">            "qty","price"],</span>
+<span class="tok-c">  "sample_data": {</span>
+<span class="tok-c">    "invoice_no": "invoice no", "customer": "customer",</span>
+<span class="tok-c">    "items": [{ "description": "description",</span>
+<span class="tok-c">                "qty": 0, "price": 0 }] } }</span></code></pre></div>
 
         <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre><code><span class="tok-c"># No dashboard to click through. The key comes back in the response.</span>
 curl -X POST https://docmint-832s.onrender.com/v1/signup \
@@ -134,38 +139,53 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
       <p class="eyebrow">The thing nobody else does</p>
       <h2 class="sec-title">It tells you what the template needs</h2>
       <p>Every document generator joins your data to your template by invisible string matching, and the placeholder names live inside a zipped binary a workflow cannot open. So the loop is: guess the keys, render, open the file in Word, find the silently empty field, guess again.</p>
+      <p>DocMint answers the question directly, and not with a flat list of names: a <strong>typed, nested field list</strong> that knows <code>qty</code> lives inside <code>items</code> and wants a number, plus a <strong>ready-to-POST <code>sample_data</code> skeleton</strong>.</p>
     </div>
 
     <div class="split">
       <div>
-        <p class="lead"><code>GET /v1/templates/:name/fields</code> is a first-class endpoint. It re-reads the stored file and reports every placeholder, what kind it is, and where in the document it sits. It costs nothing and produces no document, because charging for the one call that prevents a bad render would be perverse.</p>
+        <p class="lead"><code>GET /v1/templates/:name/fields</code> is a first-class endpoint. It costs nothing and produces no document, because charging for the one call that prevents a bad render would be perverse.</p>
+        <p class="lead">It works by running the template through the <em>real</em> renderer with no data and a probe attached, so the answer is by construction exactly what a render would ask for — the same scope rules, the same section semantics, no second parser to drift.</p>
         <ul class="checks">
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>The sample it hands you renders.</b> Verified against the live API: <code>POST /v1/inspect</code>, then <code>POST /v1/render</code> with the <code>sample_data</code> it returned, produced a document with zero warnings on the first try.</span></li>
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Carbone's API has no template-introspection endpoint.</b> Its <code>GET /templates/tags</code> returns organisational folder labels, not placeholders.</span></li>
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Every existing n8n node in this space ships a raw JSON textarea.</b> The official <code>n8n-nodes-carbone</code> declares <code>{name:'data', type:'json', default:'{}'}</code>; so does <code>n8n-nodes-docxtemplater</code>. <code>n8n-nodes-fill-docx</code> is worse — a plain string you must <code>JSON.stringify</code> yourself.</span></li>
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Formstack's management API does return the field list</b> on template create — which proves the demand — but it is not surfaced in any automation UI.</span></li>
         </ul>
+        
       </div>
       <div class="split-media">
         <div class="evidence">
           <div class="head"><span>POST <b>/v1/inspect</b></span><span>a .pptx, uploaded inline</span><span>0 credits</span></div>
 <pre><code>{
   "format": "pptx",
-  "fields": ["title", "subtitle", "client.name", "logo", "notes",
-             "rows", "sku", "qty", "amount", "findings",
-             "label", "detail", "owner"],
-  "tags": [
-    { "expr": "logo",   "kind": "image",
-      "location": "slide 1, shape \"Logo 3\"" },
-    { "expr": "rows",   "kind": "section",
-      "location": "slide 2, table \"Items 5\", row 2, cell 1" },
-    { "expr": "amount|currency:EUR", "kind": "value",
-      "location": "slide 2, table \"Items 5\", row 2, cell 3" },
-    { "expr": "rows|sum:amount|currency:EUR", "kind": "value",
-      "location": "slide 2, table \"Items 5\", row 3, cell 3" }
-  ]
+  "fields": [
+    { "name": "client.name", "scope": "", "type": "string",
+      "repeating": false, "required": true, "used": 4,
+      "locations": ["slide 1, shape \"Subtitle 2\"",
+                    "slide 2, shape \"Heading 4\""] },
+    { "name": "rows", "scope": "", "type": "array",
+      "repeating": true, "required": true,
+      "formatters": ["count", "sum", "currency"],
+      "locations": ["slide 2, table \"Items 5\", row 2, cell 1"] },
+    { "name": "amount", "scope": "rows", "type": "number",
+      "repeating": false, "required": true,
+      "formatters": ["currency"],
+      "locations": ["slide 2, table \"Items 5\", row 2, cell 3"] }
+  ],
+  "names": ["title","subtitle","client.name","logo","notes",
+            "rows","sku","qty","amount","findings","label",
+            "detail","owner"],
+  "sample_data": {
+    "title": "title", "subtitle": "subtitle",
+    "client": { "name": "name" }, "logo": null, "notes": "notes",
+    "rows":     [{ "sku": "sku", "qty": "qty", "amount": 0 }],
+    "findings": [{ "label": "label", "detail": "detail",
+                   "owner": "owner" }]
+  }
 }</code></pre>
         </div>
-        <p class="cmp-note">Verbatim from the live API on 25 August 2026, trimmed to fit. The full response lists all 26 tags.</p>
+        <p class="cmp-note">From the live API on 25 August 2026, abridged: the real response lists all 13 fields and 26 tags. <code>scope</code> is what makes it a tree — <code>amount</code> lives inside <code>rows</code>, not at the root — and <code>sample_data</code> is a skeleton you can POST straight back. An image comes back as <code>null</code>, because DocMint cannot invent a picture for you.</p>
       </div>
     </div>
   </div>
@@ -409,7 +429,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
         <div class="docs">2,000 documents a month</div>
         <div class="per">$0.0045 per document</div>
         <p class="plan-for">A steady invoice or report flow out of one workflow.</p>
-        <a class="l-btn l-btn-ghost" href="/docs#pricing">How to upgrade</a>
+        <a class="l-btn l-btn-ghost" href="/docs#pricing">Start a subscription</a>
       </div>
       <div class="pcard feat">
         <div class="pname">Pro</div>
@@ -417,7 +437,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
         <div class="docs">20,000 documents a month</div>
         <div class="per">$0.00145 per document</div>
         <p class="plan-for">The same $29 that buys 100 documents at Docupilot buys 20,000 here.</p>
-        <a class="l-btn l-btn-primary" href="/docs#pricing">How to upgrade</a>
+        <a class="l-btn l-btn-primary" href="/docs#pricing">Start a subscription</a>
       </div>
       <div class="pcard">
         <div class="pname">Scale</div>
@@ -425,7 +445,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
         <div class="docs">100,000 documents a month</div>
         <div class="per">$0.00099 per document</div>
         <p class="plan-for">Bulk statement, payslip and certificate runs.</p>
-        <a class="l-btn l-btn-ghost" href="/docs#pricing">How to upgrade</a>
+        <a class="l-btn l-btn-ghost" href="/docs#pricing">Start a subscription</a>
       </div>
     </div>
 
@@ -475,8 +495,8 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
         <span>A range whose two ends are the same repeated row — <code>SUM(B3:B3)</code> over a per-group subtotal — widens to cover the rows in between. Chart series and pivot caches keep their own copies of ranges and are not rewritten. Column loops and sheet loops are not supported at all.</span>
       </div>
       <div class="gap">
-        <b>No paid checkout yet, and no dashboard</b>
-        <span>The free plan is fully self-serve over the API. Paid plans are priced but checkout is not live on this deployment yet; email <a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a> to be moved onto one. There is no web dashboard: keys are managed with <code>POST /v1/keys</code> and <code>DELETE /v1/keys/:prefix</code>.</span>
+        <b>There is no web dashboard</b>
+        <span>Everything is the API: keys are managed with <code>POST /v1/keys</code> and <code>DELETE /v1/keys/:prefix</code>, usage with <code>GET /v1/usage</code>, and a subscription is started with <code>POST /v1/billing/checkout</code>, which hands back a Stripe URL to open. There is also no self-service account deletion; that is a request by email today.</span>
       </div>
       <div class="gap">
         <b>The n8n node is written but not published</b>
@@ -553,7 +573,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
   <div class="wrap">
     <h2>Who runs this</h2>
     <p class="muted">DocMint is built and operated by productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG in Passau, Germany. It is new, it is small, and the honest limits are listed above rather than buried in a footnote.</p>
-    <p class="muted">The document fill engine has no third-party dependencies — no docxtemplater, no Carbone, no JSZip. The only external program is LibreOffice, run as a separate process for the optional PDF step. The full list is in <a href="https://github.com/fstandhartinger/docmint/blob/main/THIRD-PARTY-NOTICES.md" rel="noopener">THIRD-PARTY-NOTICES.md</a>.</p>
+    <p class="muted">The document fill engine has no third-party dependencies — no docxtemplater, no Carbone, no JSZip. The only external program is LibreOffice, run as a separate process for the optional PDF step. The full list is in <a href="https://github.com/fstandhartinger/docmint/blob/master/THIRD-PARTY-NOTICES.md" rel="noopener">THIRD-PARTY-NOTICES.md</a>.</p>
   </div>
 </section>
 

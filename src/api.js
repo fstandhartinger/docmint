@@ -492,7 +492,7 @@ router.get('/billing/plans', asyncRoute(async (req, res) => {
 
 router.post('/keys', withAuth, asyncRoute(async (req, res) => {
   const body = req.body || {};
-  input.rejectUnknown(body, ['label'], '/docs#auth');
+  input.rejectUnknown(body, ['label'], '/docs#authentication');
   const key = await issueApiKey(req.account.id, String(body.label || 'default').slice(0, 60));
   req.log.info('key.issued', { label: body.label || 'default' });
   res.status(201).json({ key, note: 'This is the only time the key is shown. Store it now.' });
@@ -500,7 +500,7 @@ router.post('/keys', withAuth, asyncRoute(async (req, res) => {
 
 router.delete('/keys/:prefix', withAuth, asyncRoute(async (req, res) => {
   const n = await revokeApiKey(req.account.id, req.params.prefix);
-  if (!n) throw new ApiError(404, 'key_not_found', `No live key on this account starts with "${req.params.prefix}".`, { docs: '/docs#auth' });
+  if (!n) throw new ApiError(404, 'key_not_found', `No live key on this account starts with "${req.params.prefix}".`, { docs: '/docs#authentication' });
   req.log.info('key.revoked', { prefix: req.params.prefix });
   res.json({ revoked: n });
 }));

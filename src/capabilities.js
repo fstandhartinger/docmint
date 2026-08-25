@@ -14,7 +14,7 @@ const { names } = require('./template/formatters');
 /** Short descriptions for the docs and for the node's help text. */
 const DESCRIPTIONS = {
   upper: 'UPPER CASE', lower: 'lower case', title: 'Title Case', trim: 'remove surrounding spaces',
-  number: 'group digits: number:2 gives 1,234.57', currency: 'currency:EUR gives EUR 1,234.57',
+  number: 'group digits in the request locale: number:2 gives 1,234.57 in en-US', currency: 'currency:EUR gives \u20ac1,234.57 in en, 1.234,56 \u20ac in de-DE',
   percent: 'percent:1 turns 0.075 into 7.5%', round: 'round:2', ordinal: '1st, 2nd, 3rd (English)',
   date: 'date:YYYY-MM-DD, or date:long for the locale form',
   default: 'default:- supplies a value when the field is absent',

@@ -401,3 +401,855 @@ x-ratelimit-remaining: 29</code></pre></div>
 <tr><td><code>image_url_unsupported</code></td><td class="wrap">A URL was given and no bytes were supplied for it.</td></tr>
 </tbody></table></div>
 </section>
+
+<!-- =============================================================== missing -->
+<section id="missing">
+<h2>The missing-field contract<a class="anchor" href="#missing">#</a></h2>
+<p>This is the behaviour the product is judged on. A rendered document must <strong>never</strong> contain the text <code>undefined</code>, an unresolved <code>{{tag}}</code>, or a silently blank cell where a number was meant to be.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Situation</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td class="wrap">The key is absent from the data</td><td class="wrap"><strong>HTTP 422</strong>, naming the field, its location in the document, the field names visible at that point, and a "did you mean" when the name is close to one of them.</td></tr>
+<tr><td class="wrap">The key is present with the value <code>null</code></td><td class="wrap">Renders as empty. You explicitly said "nothing here" and were believed.</td></tr>
+<tr><td class="wrap">The tag is <code>{x|default:—}</code></td><td class="wrap">The sanctioned opt-out, per tag.</td></tr>
+<tr><td class="wrap">Extra keys in the data that no tag uses</td><td class="wrap">Ignored. Only the other direction is an error.</td></tr>
+</tbody></table></div>
+
+<h3>onMissing</h3>
+<p>A per-request escape hatch. It is off by default because the failure it prevents is silent and expensive.</p>
+<div class="tw"><table>
+<thead><tr><th>Value</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>"error"</code></td><td class="wrap"><strong>The default.</strong> An absent key is a 422.</td></tr>
+<tr><td><code>"empty"</code></td><td class="wrap">An absent key renders as an empty string, and a section over an absent key renders zero times. Opt-in relaxation.</td></tr>
+<tr><td><code>"keep"</code></td><td class="wrap">Leaves the tag visible in the output, exactly as written. <strong>For template debugging only</strong> — it is the one setting that puts a literal <code>{{tag}}</code> into a document.</td></tr>
+</tbody></table></div>
+
+<h3>What a 422 looks like</h3>
+<p>Verbatim from the live API. A Word template with <code>{#items}{description}</code>, <code>{qty}</code>, <code>{price|currency}{/items}</code> across one table row, rendered with items that have no <code>price</code>:</p>
+<div class="code"><div class="cap">422 Unprocessable Entity — 0 credits, the reservation is refunded</div><pre><code>{
+  "error": {
+    "code": "placeholder_unresolved",
+    "message": "The template uses {price|currency} but the data has no \"price\".",
+    "hint": "Add \"price\" to the data, or write {price|default:} to allow it to be absent.",
+    "docs": "https://docmint-832s.onrender.com/docs#errors",
+    "details": {
+      "field": "price",
+      "location": "word/document.xml, table 1 row 2, paragraph 7",
+      "available": ["invoice_no", "customer", "items", "description", "qty"],
+      "format": "docx"
+    },
+    "request_id": "dm_IHD7M11U8enL"
+  }
+}</code></pre></div>
+
+<p>When the name is close to one that exists, the hint says so. The same template rendered with <code>custmer</code> instead of <code>customer</code>:</p>
+<div class="code"><div class="cap">422 Unprocessable Entity</div><pre><code>{
+  "error": {
+    "code": "placeholder_unresolved",
+    "message": "The template uses {customer} but the data has no \"customer\".",
+    "hint": "Did you mean \"custmer\"? Otherwise add \"customer\" to the data, or write
+             {customer|default:} to allow it to be absent.",
+    "details": {
+      "field": "customer",
+      "location": "word/document.xml, paragraph 1",
+      "available": ["custmer", "total"],
+      "format": "docx"
+    }
+  }
+}</code></pre></div>
+
+<h3>The location string</h3>
+<p>It is written for a human holding the file open, not for a parser. All three of these are real strings taken from the live API:</p>
+<div class="tw"><table>
+<thead><tr><th>Format</th><th>Example location</th></tr></thead>
+<tbody>
+<tr><td>Word</td><td><code>word/document.xml, paragraph 1</code><br><code>word/document.xml, table 1 row 2, paragraph 7</code></td></tr>
+<tr><td>Excel</td><td><code>Invoice!C5</code></td></tr>
+<tr><td>PowerPoint</td><td><code>slide 1, shape "Logo 3"</code><br><code>slide 2, table "Items 5", row 2, cell 3</code><br><code>slide 1 notes, shape "Notes 1"</code></td></tr>
+</tbody></table></div>
+
+<h3>The related codes</h3>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>placeholder_unresolved</code></td><td class="wrap">A value tag whose key is not in the data.</td></tr>
+<tr><td><code>section_unresolved</code></td><td class="wrap">A <code>{#name}</code> whose key is not in the data. An empty list <code>[]</code> renders the section zero times and is not an error; an absent key is.</td></tr>
+<tr><td><code>placeholder_not_scalar</code></td><td class="wrap">The tag resolves to an object or a list, which cannot be written into the document as text. The hint suggests looping it or reducing it with <code>join</code> or <code>sum</code>.</td></tr>
+<tr><td><code>placeholder_shadowed</code></td><td class="wrap">Inside a loop, the tag was found further out <em>and</em> the loop item has a near-miss key of its own. That is a typo, not a deliberate reach outwards, so it fails by name.</td></tr>
+<tr><td><code>placeholder_outside_loop</code></td><td class="wrap">Only under <code>strictScope: true</code>. See <a href="#warnings">Warnings</a>.</td></tr>
+<tr><td><code>section_unbalanced</code></td><td class="wrap">A <code>{#a}</code> that is never closed, or a <code>{/b}</code> that closes a different section. The message names both markers and where each was opened.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============================================================== warnings -->
+<section id="warnings">
+<h2>Warnings<a class="anchor" href="#warnings">#</a></h2>
+<p>A warning does not stop the render. It comes back in the JSON response under <code>warnings</code>, and the count is always in the <code>X-DocMint-Warnings</code> response header — including when the response body is the file's bytes rather than JSON.</p>
+
+<h3>resolved_from_outer_scope</h3>
+<p>Scopes nest outwards, so inside <code>{#rows}</code> a tag can reach the document root. That is usually what was wanted — <code>{currency}</code> from the invoice root — and occasionally a serious bug: if the rows have <code>product_name</code> and the template says <code>{name}</code>, and <code>name</code> exists at the root, <strong>every row prints the same value and nothing errors</strong>. DocMint cannot tell which case it is from the data alone, so it records every occurrence rather than guessing silently in either direction.</p>
+
+<div class="code"><div class="cap">200 OK — the file is returned; x-docmint-warnings: 1</div><pre><code>"warnings": [
+  {
+    "code": "resolved_from_outer_scope",
+    "field": "currency",
+    "location": "word/document.xml, table 1 row 2, paragraph 5",
+    "message": "{currency} is not a field of the loop item; it was taken from 1 level
+                further out, so it prints the same value on every row.",
+    "item_fields": ["title", "amount"]
+  }
+]</code></pre></div>
+
+<h3>strictScope</h3>
+<p>Send <code>"strictScope": true</code> and the same situation becomes a 422 instead. Use it once on a new template to prove every loop tag really belongs to its item, then turn it off — or leave it on and write <code>{../currency}</code> where you meant the outer value.</p>
+<div class="code"><div class="cap">422 Unprocessable Entity</div><pre><code>{
+  "error": {
+    "code": "placeholder_outside_loop",
+    "message": "{currency} is not a field of the loop item.",
+    "hint": "strictScope is on, so a tag inside a loop must name a field of the item.
+             Write {../currency} if you meant the value from outside the loop.",
+    "details": {
+      "field": "currency",
+      "location": "word/document.xml, table 1 row 2, paragraph 5",
+      "available": ["title", "amount"],
+      "format": "docx"
+    },
+    "request_id": "dm_UfljbGSKSbI0"
+  }
+}</code></pre></div>
+
+<h3>macros_not_preserved</h3>
+<p>A macro-enabled template (<code>.docm</code>, <code>.xlsm</code>, <code>.pptm</code>) is filled correctly, but the macros are not guaranteed to survive the rewrite and the file is returned with the plain, non-macro content type. The warning says so on every such render.</p>
+</section>
+
+<!-- ================================================================ render -->
+<section id="render">
+<h2><span class="pill post">POST</span><span class="path">/v1/render</span><a class="anchor" href="#render">#</a></h2>
+<p>The main endpoint. Send a template and some data; get the filled file back.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>template</code></td><td class="t">string</td><td class="wrap">The name (or <code>tpl_…</code> id) of a saved template. Exactly one of this and <code>template_base64</code>.</td></tr>
+<tr><td><code>template_base64</code></td><td class="t">string</td><td class="wrap">The template file itself, base64. See <a href="#input">Sending the template</a>.</td></tr>
+<tr><td><code>template_version</code></td><td class="t">integer</td><td class="wrap">Pin a saved template to one version. Only meaningful with <code>template</code>.</td></tr>
+<tr><td><code>data</code></td><td class="t">object</td><td class="wrap">Your values. See <a href="#data">The data object</a>. Defaults to <code>{}</code>.</td></tr>
+<tr><td><code>output</code></td><td class="t">string</td><td class="wrap"><code>document</code> (the default), <code>pdf</code> or <code>both</code>. See <a href="#output">Output modes</a>.</td></tr>
+<tr><td><code>response</code></td><td class="t">string</td><td class="wrap"><code>"json"</code> to get the file base64-encoded inside a JSON envelope instead of as raw bytes. Sending <code>Accept: application/json</code> does the same.</td></tr>
+<tr><td><code>filename</code></td><td class="t">string</td><td class="wrap">The name in <code>Content-Disposition</code> and in the JSON envelope. May itself contain placeholders — see below.</td></tr>
+<tr><td><code>onMissing</code></td><td class="t">string</td><td class="wrap"><code>error</code> (the default), <code>empty</code> or <code>keep</code>. See <a href="#missing">the missing-field contract</a>.</td></tr>
+<tr><td><code>strictScope</code></td><td class="t">boolean</td><td class="wrap">Turn the outer-scope <a href="#warnings">warning</a> into an error.</td></tr>
+<tr><td><code>locale</code></td><td class="t">string</td><td class="wrap">BCP 47, default <code>en-US</code>. See <a href="#localisation">Localisation</a>.</td></tr>
+<tr><td><code>currency</code></td><td class="t">string</td><td class="wrap">3-letter ISO code, default <code>USD</code>.</td></tr>
+<tr><td><code>timezone</code></td><td class="t">string</td><td class="wrap">IANA zone, default <code>UTC</code>.</td></tr>
+<tr><td><code>images</code></td><td class="t">object</td><td class="wrap">Bytes for image URLs the data refers to. See <a href="#images">Images</a>.</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>Unknown fields are refused, by name, with a suggestion.</strong> Sending <code>fileName</code>, <code>convertTo</code>, <code>context</code> or <code>output_format</code> gets a 400 that tells you the real name. That sounds unfriendly until you have spent an hour working out why <code>{"fileName": "x.docx"}</code> did nothing.</p>
+</div>
+<div class="code"><div class="cap">400 Bad Request</div><pre><code>{
+  "error": {
+    "code": "unknown_field",
+    "message": "There is no field called \"convertTo\" - did you mean \"output\"?",
+    "hint": "Rename \"convertTo\" to \"output\".",
+    "details": {
+      "sent": "convertTo",
+      "meant": "output",
+      "accepted": ["template","template_base64","template_version","data","output",
+                   "filename","locale","currency","timezone","onMissing",
+                   "strictScope","response","images"]
+    },
+    "docs": "https://docmint-832s.onrender.com/docs#render"
+  }
+}</code></pre></div>
+
+<h3>Response headers</h3>
+<div class="tw"><table>
+<thead><tr><th>Header</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>X-DocMint-Request-Id</code></td><td class="wrap">On every response, success or failure. Quote it in a bug report.</td></tr>
+<tr><td><code>X-DocMint-Credits-Remaining</code></td><td class="wrap">What is left of this month's allowance after this call.</td></tr>
+<tr><td><code>X-DocMint-Warnings</code></td><td class="wrap">How many warnings this render produced. Worth alerting on.</td></tr>
+<tr><td><code>X-RateLimit-Limit</code> / <code>-Burst</code> / <code>-Remaining</code></td><td class="wrap">120 per minute, burst 30, and how many tokens are left.</td></tr>
+</tbody></table></div>
+
+<h3>The filename</h3>
+<p>The filename may contain placeholders, so a workflow can produce a per-document name without a separate expression node. It is resolved against the same data, with missing fields treated as empty — a filename is cosmetic and failing the whole render over it would be absurd — and characters that would make the name unusable as a download, including path separators, are stripped. The extension is forced to match what is actually being returned.</p>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/render \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template":"quote","filename":"quote_{customer}.docx",
+       "data":{"customer":"Acme","total":1240.5}}' \
+  -D - -o quote.docx</code></pre>
+<div class="cap">content-disposition: attachment; filename="quote_Acme.docx"</div></div>
+
+<!-- ------------------------------------------------------------- the input -->
+<h3 id="input">Sending the template<a class="anchor" href="#input">#</a></h3>
+<p>Exactly one of <code>template</code> and <code>template_base64</code>. Sending both is refused rather than silently preferring one, because that is how a workflow ends up rendering last month's letterhead.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Approach</th><th>When</th></tr></thead>
+<tbody>
+<tr><td class="wrap"><strong>Saved</strong> — <code>{"template": "invoice"}</code></td><td class="wrap">Usually. The template is stored once under a name you choose, so replacing the letterhead does not mean editing every workflow that used it. Smaller requests, too.</td></tr>
+<tr><td class="wrap"><strong>Inline</strong> — <code>{"template_base64": "UEsDBB…"}</code></td><td class="wrap">When the template comes from somewhere else in the workflow, or when you want nothing stored on this service at all. Nothing about an inline template is written to the database.</td></tr>
+</tbody></table></div>
+
+<p>Base64 with or without a <code>data:</code> prefix is accepted, and whitespace and the URL-safe alphabet are tolerated. From a shell, <code>base64 -w0 invoice.docx</code>.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>missing_template</code></td><td class="wrap">Neither field was sent.</td></tr>
+<tr><td class="t">400</td><td><code>ambiguous_template</code></td><td class="wrap">Both were sent.</td></tr>
+<tr><td class="t">400</td><td><code>version_without_template</code></td><td class="wrap"><code>template_version</code> alongside <code>template_base64</code>, which has no versions.</td></tr>
+<tr><td class="t">400</td><td><code>bad_base64</code></td><td class="wrap">Not valid base64, or it decoded to zero bytes.</td></tr>
+<tr><td class="t">413</td><td><code>template_too_large</code></td><td class="wrap">Over 25 MB.</td></tr>
+</tbody></table></div>
+
+<!-- --------------------------------------------------------------- the data -->
+<h3 id="data">The data object<a class="anchor" href="#data">#</a></h3>
+<p>A JSON object. Not an array, and not a scalar — if you want to loop over a list, put it under a key and loop with <code>{#items}</code>:</p>
+<div class="code"><div class="cap">400 Bad Request</div><pre><code>{
+  "error": {
+    "code": "bad_data",
+    "message": "\"data\" must be a JSON object, not an array.",
+    "hint": "If you want to loop over a list, put it under a key: {\"items\": [...]},
+             and loop with {#items} in the template.",
+    "docs": "https://docmint-832s.onrender.com/docs#data"
+  }
+}</code></pre></div>
+<p>At most 8 MB, measured as the serialised JSON; over that is <code>413 data_too_large</code>. Large payloads are almost always base64 images, and an image can be sent through the <code>images</code> object instead.</p>
+
+<!-- -------------------------------------------------------------- the output -->
+<h3 id="output">Output modes<a class="anchor" href="#output">#</a></h3>
+<p>Chosen <strong>per request</strong>, not fixed per template in a dashboard. The same stored template can produce a <code>.docx</code> for one workflow and a PDF for another.</p>
+
+<div class="tw"><table>
+<thead><tr><th><code>output</code></th><th>Response</th><th>Credits</th></tr></thead>
+<tbody>
+<tr><td><code>document</code><br>(the default)</td><td class="wrap">The filled Office file's raw bytes, with the format's own content type and a <code>Content-Disposition</code>.</td><td class="t">1</td></tr>
+<tr><td><code>pdf</code></td><td class="wrap">The PDF's raw bytes, <code>application/pdf</code>. The Office file is not returned.</td><td class="t">2</td></tr>
+<tr><td><code>both</code></td><td class="wrap"><strong>Always a JSON envelope</strong>, with the Office file and the PDF each base64-encoded — two files cannot be two bodies.</td><td class="t">2</td></tr>
+</tbody></table></div>
+
+<p>Add <code>"response": "json"</code> (or an <code>Accept: application/json</code> header) to get the JSON envelope for any mode. It is the only way to see <code>stats</code> and <code>warnings</code>, so it is worth using while building a template.</p>
+
+<div class="code"><div class="cap">200 OK — output "both", from the live API, base64 elided</div><pre><code>{
+  "request_id": "dm_xteafxWKjXav",
+  "format": "xlsx",
+  "document": {
+    "filename": "document.xlsx",
+    "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "size": 6650,
+    "base64": "UEsDBBQ…"
+  },
+  "pdf": {
+    "filename": "document.pdf",
+    "content_type": "application/pdf",
+    "size": 31686,
+    "pages": 2,
+    "base64": "JVBERi0…"
+  },
+  "stats": {
+    "tags": 14, "resolved": 14, "sections": 2, "images": 0,
+    "parts": ["xl/workbook.xml", "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"],
+    "ms": 2708.5,
+    "stages": { "load": 0.3, "quota": 3.2, "fill": 7.2, "pdf": 2694.2 }
+  },
+  "warnings": [],
+  "credits": { "used": 2, "remaining": 18, "limit": 30 }
+}</code></pre></div>
+
+<p><code>stats.stages</code> is where the time actually went, in milliseconds: <code>load</code> is fetching the template, <code>quota</code> the credit reservation, <code>fill</code> the document surgery, <code>pdf</code> the LibreOffice conversion.</p>
+
+<!-- ----------------------------------------------------------------- pdf -->
+<h3 id="pdf">PDF output<a class="anchor" href="#pdf">#</a></h3>
+<p>PDFs are produced by headless LibreOffice, run as a separate process on the same instance. Word documents go through the Writer filter, workbooks through Calc, decks through Impress.</p>
+
+<div class="note warn">
+  <p><strong>The PDF step is much slower and much heavier than the fill.</strong> Measured on this deployment on 25 August 2026: a fill is single-digit milliseconds; a conversion took <strong>2.69 s</strong> and peaks around 219 MB of memory. That is a third of a small container, so <strong>conversions run one at a time</strong> and queue behind each other. Filling a template is not throttled at all. If you do not need a PDF, do not ask for one.</p>
+</div>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">501</td><td><code>pdf_not_available</code></td><td class="wrap">LibreOffice is not installed on the instance. <code>GET /healthz</code> reports this before you find out the hard way.</td></tr>
+<tr><td class="t">502</td><td><code>pdf_conversion_failed</code></td><td class="wrap">LibreOffice ran and produced no PDF, a non-PDF, or a non-zero exit. Ask for the Office file instead and open it; that shows what went wrong.</td></tr>
+<tr><td class="t">503</td><td><code>pdf_queue_full</code></td><td class="wrap">24 conversions are already queued on this instance. Retry in a few seconds.</td></tr>
+<tr><td class="t">504</td><td><code>pdf_timeout</code></td><td class="wrap">Longer than 90 seconds and it was stopped.</td></tr>
+</tbody></table></div>
+
+<p>Not supported: PDF/A, watermarking, PDF encryption, page-range selection, and any choice of converter. There is one converter and one profile.</p>
+
+<!-- ------------------------------------------------------------ localisation -->
+<h3 id="localisation">Localisation<a class="anchor" href="#localisation">#</a></h3>
+<p>Three per-request settings feed every formatter that has a locale-dependent result: <code>number</code>, <code>currency</code>, <code>percent</code>, <code>date</code>, and the collator that <code>sort</code> uses on strings.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Default</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>locale</code></td><td class="t">en-US</td><td class="wrap">A BCP 47 tag: <code>de-DE</code>, <code>fr-CA</code>, <code>en-GB</code>. Anything the runtime's <code>Intl</code> does not recognise is a 400 rather than a 500.</td></tr>
+<tr><td><code>currency</code></td><td class="t">USD</td><td class="wrap">A 3-letter ISO code, used by <code>{x|currency}</code> when the tag gives none.</td></tr>
+<tr><td><code>timezone</code></td><td class="t">UTC</td><td class="wrap">An IANA zone name such as <code>Europe/Berlin</code>. Used by every <code>date</code> formatter, so a timestamp does not silently shift a day.</td></tr>
+</tbody></table></div>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Example message</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>bad_locale</code></td><td class="wrap">"en_US" is not a language tag Intl recognises.</td></tr>
+<tr><td class="t">400</td><td><code>bad_timezone</code></td><td class="wrap">"Berlin" is not an IANA time zone.</td></tr>
+<tr><td class="t">400</td><td><code>bad_currency</code></td><td class="wrap">"Euro" is not a 3-letter ISO currency code.</td></tr>
+</tbody></table></div>
+<p><code>ordinal</code> is the one formatter that is <strong>not</strong> localised: it produces English suffixes whatever the locale says.</p>
+</section>
+
+<!-- =============================================================== inspect -->
+<section id="inspect">
+<h2><span class="pill post">POST</span><span class="path">/v1/inspect</span><a class="anchor" href="#inspect">#</a></h2>
+<p>"What fields does this template need?" — for a file you have not stored. It reads a template the caller already has and produces no document, so it <strong>costs no credits</strong>; charging for the one call that prevents a bad render would only discourage it. It never throws on a field you have not supplied, because it never looks at data.</p>
+
+<p>Takes <code>template</code>, <code>template_base64</code> or <code>template_version</code>, exactly as <a href="#render">render</a> does.</p>
+
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/inspect \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d "{\"template_base64\":\"$(base64 -w0 report.pptx)\"}"</code></pre></div>
+
+<div class="code"><div class="cap">200 OK — a real PowerPoint deck, trimmed to fit</div><pre><code>{
+  "request_id": "dm_UHkGNxmKNkIY",
+  "format": "pptx",
+  "fields": ["title", "subtitle", "client.name", "logo", "notes", "rows",
+             "sku", "qty", "amount", "findings", "label", "detail", "owner"],
+  "tags": [
+    { "expr": "title",  "kind": "value",
+      "location": "slide 1, shape \"Title 1\"" },
+    { "expr": "logo",   "kind": "image",
+      "location": "slide 1, shape \"Logo 3\"" },
+    { "expr": "notes",  "kind": "value",
+      "location": "slide 1 notes, shape \"Notes 1\"" },
+    { "expr": "rows",   "kind": "section",
+      "location": "slide 2, table \"Items 5\", row 2, cell 1" },
+    { "expr": "amount|currency:EUR", "kind": "value",
+      "location": "slide 2, table \"Items 5\", row 2, cell 3" },
+    { "expr": "rows|sum:amount|currency:EUR", "kind": "value",
+      "location": "slide 2, table \"Items 5\", row 3, cell 3" },
+    { "expr": "findings", "kind": "inverted",
+      "location": "slide 3, shape \"Body 6\"" }
+  ],
+  "template": null
+}</code></pre></div>
+
+<div class="tw"><table>
+<thead><tr><th>Response field</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>format</code></td><td class="wrap"><code>docx</code>, <code>xlsx</code> or <code>pptx</code>, decided from the package's own content types rather than from a filename or a claimed MIME type.</td></tr>
+<tr><td><code>fields</code></td><td class="wrap">The distinct data paths the template needs, in the order they first appear. Comments and loop metadata are excluded, and <code>../</code> prefixes are stripped.</td></tr>
+<tr><td><code>tags</code></td><td class="wrap">Every tag, with its <code>expr</code> (including any formatter pipeline), its <code>kind</code> — <code>value</code>, <code>section</code>, <code>inverted</code>, <code>close</code>, <code>image</code>, <code>raw</code>, <code>comment</code> — and its <code>location</code>.</td></tr>
+<tr><td><code>template</code></td><td class="wrap"><code>null</code> for an inline file; the id, name and version for a stored one.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ============================================================= templates -->
+<section id="templates">
+<h2>Template management<a class="anchor" href="#templates">#</a></h2>
+<p>Templates are addressed by a <strong>name you choose</strong>, not by an opaque id. A workflow that says <code>template: "invoice"</code> keeps working when the finance team uploads a new letterhead. The <code>tpl_…</code> id exists too and works anywhere a name does.</p>
+<p>Names are lower case letters, digits, dot, dash and underscore, 1 to 64 characters, starting and ending with a letter or digit. A name is lower-cased for you.</p>
+
+<h3><span class="pill post">POST</span><span class="path">/v1/templates</span> &nbsp; <span class="pill put">PUT</span><span class="path">/v1/templates/:name</span></h3>
+<p>Creates a template, or adds a version to one that exists. <code>POST</code> takes the name in the body; <code>PUT</code> takes it in the path.</p>
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>name</code></td><td class="t">string</td><td class="wrap">Required on <code>POST</code>, not accepted on <code>PUT</code>.</td></tr>
+<tr><td><code>file_base64</code></td><td class="t">string</td><td class="wrap">Required. The <code>.docx</code>, <code>.xlsx</code> or <code>.pptx</code> file.</td></tr>
+<tr><td><code>description</code></td><td class="t">string</td><td class="wrap">Optional, on the template. Updating it does not create a version.</td></tr>
+<tr><td><code>note</code></td><td class="t">string</td><td class="wrap">Optional, on <em>this version</em> — "new VAT rate", "logo swap". Shows up in the version list.</td></tr>
+</tbody></table></div>
+
+<p>The response is <code>201</code> for a new version and <code>200</code> with <code>"unchanged": true</code> when the bytes are identical to the current version. Re-uploading the same file does not burn a version number, because a workflow that syncs a template on every run should not fill the history with copies of one file.</p>
+
+<div class="code"><div class="cap">201 Created</div><pre><code>{
+  "request_id": "dm_ttYFcKAbX-Fn",
+  "id": "tpl_SGmNyoFTTGVf",
+  "name": "lines",
+  "format": "docx",
+  "version": 1,
+  "unchanged": false,
+  "size": 1129,
+  "fields": ["invoice_no", "customer", "items", "description", "qty", "price"],
+  "macro_enabled": false
+}</code></pre></div>
+
+<p>The file is identified and the fields extracted <em>at upload time</em>, so a file that cannot be filled is refused while you are looking at the response rather than at 3 a.m. when a workflow runs.</p>
+
+<h3><span class="pill get">GET</span><span class="path">/v1/templates</span></h3>
+<p>Every template on the account, with its current version, size, SHA-256 and field list.</p>
+
+<h3><span class="pill get">GET</span><span class="path">/v1/templates/:name</span></h3>
+<p>One template in full, including <code>versions</code>.</p>
+
+<h3 id="fields"><span class="pill get">GET</span><span class="path">/v1/templates/:name/fields</span><a class="anchor" href="#fields">#</a></h3>
+<p>The endpoint this product is built around. Same shape as <a href="#inspect">inspect</a>, for a stored template. Free. Accepts <code>?version=N</code>.</p>
+<p>The fields are re-derived from the stored bytes on every call rather than served from what was recorded at upload, so a template uploaded before a renderer improvement still reports accurately.</p>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -H "Authorization: Bearer dm_live_xxx" \
+  "https://docmint-832s.onrender.com/v1/templates/invoice/fields?version=1"</code></pre></div>
+
+<h3><span class="pill get">GET</span><span class="path">/v1/templates/:name/file</span></h3>
+<p>The stored bytes back, with the right content type and a <code>Content-Disposition</code>. Accepts <code>?version=N</code>. Free — downloading a file you already uploaded is not metered.</p>
+
+<h3><span class="pill del">DELETE</span><span class="path">/v1/templates/:name</span></h3>
+<p>Deletes the template and every version of it. There is no undo.</p>
+<div class="code"><pre><code>{ "deleted": true, "id": "tpl_SGmNyoFTTGVf", "name": "lines" }</code></pre></div>
+
+<h3>Errors</h3>
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>missing_file</code></td><td class="wrap">No <code>file_base64</code>.</td></tr>
+<tr><td class="t">400</td><td><code>missing_template_name</code> / <code>bad_template_name</code></td><td class="wrap">No name, or one that breaks the rules above.</td></tr>
+<tr><td class="t">404</td><td><code>template_not_found</code></td><td class="wrap">The hint lists the templates you actually have — up to twelve of them, most recently updated first.</td></tr>
+<tr><td class="t">409</td><td><code>template_format_changed</code></td><td class="wrap">Uploading an <code>.xlsx</code> over a name that holds a <code>.docx</code>. Changing a template's format would break every workflow using it, so it is refused; upload under a different name or delete the old one first.</td></tr>
+<tr><td class="t">415</td><td><code>template_is_pdf</code>, <code>template_is_legacy_office</code>, <code>template_is_opendocument</code>, <code>template_not_office</code>, <code>template_unknown_office_part</code></td><td class="wrap">The file is recognised as something else and named as such — a PDF, an old binary <code>.doc</code>/<code>.xls</code>/<code>.ppt</code>, an OpenDocument file, a non-zip, or an Office package that is none of the three kinds DocMint fills.</td></tr>
+</tbody></table></div>
+
+<div class="code"><div class="cap">404 Not Found — the hint is the useful part</div><pre><code>{
+  "error": {
+    "code": "template_not_found",
+    "message": "You have no template called \"nope\".",
+    "hint": "Templates on this account: report (docx), lines (docx), quote (docx),
+             invoice (docx).",
+    "details": { "available": ["report", "lines", "quote", "invoice"] },
+    "docs": "https://docmint-832s.onrender.com/docs#templates"
+  }
+}</code></pre></div>
+
+<!-- ------------------------------------------------------------- versions -->
+<h3 id="template-versions">Versions and rollback<a class="anchor" href="#template-versions">#</a></h3>
+<p>Every upload is a new version rather than an overwrite. A template is a thing a business depends on, and discovering an hour after replacing one that the old one was better has to be recoverable. The most recent <strong>20</strong> versions are kept; older ones are pruned oldest-first and never below one.</p>
+
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -H "Authorization: Bearer dm_live_xxx" \
+  https://docmint-832s.onrender.com/v1/templates/quote/versions</code></pre></div>
+<div class="code"><pre><code>{
+  "id": "tpl_6G2UxfHtsmUu",
+  "name": "quote",
+  "current": 2,
+  "versions": [
+    { "version": 2, "size": 1035,
+      "sha256": "b9902f378a8b4922c20ea48cef9087ef3cab315eba53bbd70aaab46884b9128e",
+      "note": "added a validity date", "fields": 3,
+      "created_at": "2026-08-25T08:54:04.109Z" },
+    { "version": 1, "size": 1001,
+      "sha256": "4efcfcbf0ff3a2f945fb3619bb5ad0a61183b7d7e37ba39f55221d2bca9d59d2",
+      "note": null, "fields": 2,
+      "created_at": "2026-08-25T08:51:07.079Z" }
+  ]
+}</code></pre></div>
+
+<p>Pin a render to one version with <code>"template_version": 2</code>. Roll the whole template back with:</p>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint-832s.onrender.com/v1/templates/quote/rollback \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"version":1}'</code></pre></div>
+<div class="code"><pre><code>{ "request_id": "dm_FdTo_2gvw4ko", "id": "tpl_6G2UxfHtsmUu",
+  "name": "quote", "version": 3, "restored_from": 1 }</code></pre></div>
+
+<p><strong>Rolling back copies the old version forward as a new one</strong> rather than deleting the versions after it. Nothing is lost, and a rollback made in a panic can itself be rolled back.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>bad_version</code></td><td class="wrap">Not a whole number of 1 or more.</td></tr>
+<tr><td class="t">400</td><td><code>missing_version</code></td><td class="wrap">A rollback with no <code>version</code>.</td></tr>
+<tr><td class="t">404</td><td><code>template_version_not_found</code></td><td class="wrap">That version is gone or never existed. The hint lists the versions still stored.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ================================================================= usage -->
+<section id="usage">
+<h2><span class="pill get">GET</span><span class="path">/v1/usage</span><a class="anchor" href="#usage">#</a></h2>
+<p>This calendar month's credits and a breakdown of what produced them, grouped by kind, format, output mode and success.</p>
+<div class="code"><div class="cap">200 OK — from the live API</div><pre><code>{
+  "plan": { "id": "free", "name": "Free", "price_usd": 0 },
+  "credits": { "used": 12, "limit": 30, "remaining": 18 },
+  "period_start": "2026-08-01T00:00:00.000Z",
+  "breakdown": [
+    { "kind": "render", "format": null,   "output": "document", "ok": false,
+      "n": 9, "credits": 0, "avg_ms": 14 },
+    { "kind": "render", "format": "docx", "output": "document", "ok": true,
+      "n": 7, "credits": 7, "avg_ms": 20 },
+    { "kind": "render", "format": "docx", "output": "pdf",      "ok": true,
+      "n": 1, "credits": 2, "avg_ms": 3381 },
+    { "kind": "render", "format": "pptx", "output": "document", "ok": true,
+      "n": 1, "credits": 1, "avg_ms": 22 },
+    { "kind": "render", "format": "xlsx", "output": "both",     "ok": true,
+      "n": 1, "credits": 2, "avg_ms": 2705 }
+  ]
+}</code></pre></div>
+<p>Note the first row: nine failed renders, zero credits. A usage record holds what kind of call it was, the format, the output mode, the duration, the stage timings, whether it succeeded and the error code if not. <strong>It never holds document content or the request body.</strong></p>
+</section>
+
+<!-- ========================================================== capabilities -->
+<section id="capabilities">
+<h2><span class="pill get">GET</span><span class="path">/v1/capabilities</span><a class="anchor" href="#capabilities">#</a></h2>
+<p><strong>No key needed.</strong> What this build can actually do, published so that the documentation and any client can be checked against the running code rather than against a README that drifted. The formatter list is read out of the module, so a formatter cannot be documented into existence.</p>
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl https://docmint-832s.onrender.com/v1/capabilities</code></pre></div>
+<div class="code"><div class="cap">200 OK — abridged; there are 28 formatters and 3 formats</div><pre><code>{
+  "formats": [
+    { "id": "docx", "name": "Word document",   "mime": "application/vnd.openxml…" },
+    { "id": "xlsx", "name": "Excel workbook",  "mime": "application/vnd.openxml…" },
+    { "id": "pptx", "name": "PowerPoint deck", "mime": "application/vnd.openxml…" }
+  ],
+  "outputs": ["document", "pdf", "both"],
+  "pdf": { "available": true, "engine": "libreoffice", "concurrency": 1 },
+  "formatters": [
+    { "name": "add", "does": "add:5" },
+    { "name": "count", "does": "how many items" },
+    { "name": "currency", "does": "currency:EUR gives EUR 1,234.57" }
+  ],
+  "limits": {
+    "max_template_bytes": 26214400,
+    "max_data_bytes": 8388608,
+    "max_versions_kept": 20,
+    "pdf_timeout_ms": 90000
+  },
+  "credits": { "document": 1, "pdf": 2, "both": 2 }
+}</code></pre></div>
+</section>
+
+<!-- =============================================================== healthz -->
+<section id="healthz">
+<h2><span class="pill get">GET</span><span class="path">/healthz</span><a class="anchor" href="#healthz">#</a></h2>
+<p>No key needed. Reports whether LibreOffice is actually present — an image built without it looks perfectly healthy right up until the first request that asks for a PDF — and how many conversions are running and queued. Add <code>?db=1</code> to time two trivial database round trips and see the connection pool's state.</p>
+<div class="code"><div class="cap">200 OK — live, 25 August 2026</div><pre><code>{
+  "ok": true,
+  "pdf": { "available": true, "active": 0, "queued": 0, "limit": 1 },
+  "db": { "first_ms": 3.4, "second_ms": 2.5,
+          "pool": { "total": 1, "idle": 1, "waiting": 0 }, "error": null }
+}</code></pre></div>
+</section>
+
+<!-- =============================================================== formats -->
+<section id="formats">
+<h2>Formats, and what each one cannot do<a class="anchor" href="#formats">#</a></h2>
+<p>Three formats, one syntax. The file is identified from the main part's content type in <code>[Content_Types].xml</code>, not from its extension or the MIME type a client claimed — both are routinely wrong, and the failure they cause is a stack trace inside a zip parser rather than a sentence you can act on.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Format</th><th>Extensions accepted</th><th>Content type returned</th></tr></thead>
+<tbody>
+<tr><td>Word</td><td><code>.docx</code> <code>.dotx</code> <code>.docm</code></td><td class="wrap"><code>application/vnd.openxmlformats-officedocument.wordprocessingml.document</code></td></tr>
+<tr><td>Excel</td><td><code>.xlsx</code> <code>.xltx</code> <code>.xlsm</code></td><td class="wrap"><code>application/vnd.openxmlformats-officedocument.spreadsheetml.sheet</code></td></tr>
+<tr><td>PowerPoint</td><td><code>.pptx</code> <code>.potx</code> <code>.ppsx</code> <code>.pptm</code></td><td class="wrap"><code>application/vnd.openxmlformats-officedocument.presentationml.presentation</code></td></tr>
+</tbody></table></div>
+
+<div class="note warn">
+  <p><strong>Macro-enabled templates are filled, but their macros are not guaranteed to survive</strong> the rewrite, and the result comes back with the plain content type above. The render response carries a <code>macros_not_preserved</code> warning saying exactly that.</p>
+</div>
+
+<h3>Word — what is not implemented</h3>
+<ul>
+  <li><strong>No HTML or Markdown into a document.</strong> A value goes in as text, inheriting the placeholder's own formatting. For anything richer there is <code>{@rawXml}</code>, which is raw WordprocessingML and entirely your responsibility.</li>
+  <li><strong>No charts, no styling API, no footnote or subtemplate features.</strong> Whatever style the placeholder carries is what the value inherits, and that is the whole styling story.</li>
+  <li>Images are PNG, JPEG, GIF or BMP, up to 24 MB each.</li>
+</ul>
+
+<h3>Excel — what is not implemented, and where it is subtle</h3>
+<ul>
+  <li><strong>Cell types matter, and are handled deliberately.</strong> A cell whose entire content is one placeholder becomes: a real numeric cell if the value is a JS number or the last formatter is arithmetic (<code>sum</code>, <code>sumProduct</code>, <code>count</code>, <code>round</code>, <code>multiply</code>, <code>add</code>, <code>subtract</code>, <code>divide</code>); a boolean cell for a boolean; an Excel date serial for a date value in a cell that already has a date number format; and an inline string for everything else. The cell keeps its <code>s=</code> style, so its number format, font, border and fill survive.</li>
+  <li><strong>A numeric <em>string</em> stays text on purpose.</strong> Turning <code>"007"</code> into <code>7</code> would quietly ruin part numbers and postcodes. Write <code>{n|add:0}</code> if you want it coerced.</li>
+  <li><strong><code>currency</code>, <code>number</code>, <code>percent</code> and <code>date</code> produce text, on purpose</strong> — you asked for that exact string. To get a real number that still <em>displays</em> as money, format the cell in the template and write a bare <code>{total}</code>: the cell's own number format does the work and <code>SUM()</code> over the column still adds up.</li>
+  <li><strong>No column loops and no sheet loops.</strong> A section whose two tags sit in one row is a row loop, because a loop that repeated part of a row would leave the rest of the line behind.</li>
+  <li><strong>Formula rewriting has known edges.</strong> Row insertion semantics are followed, so <code>SUM(D5:D6)</code> over a loop body becomes <code>SUM(D5:D10)</code> when the loop produced six rows. But a range whose two ends are the <em>same</em> repeated row — <code>SUM(B3:B3)</code> over a per-group subtotal — widens to first..last occurrence and therefore covers the rows in between as well, so a grand total is better written as a sum of the detail rows than as a sum of the subtotals. <strong>Chart series and pivot caches keep their own copies of the ranges they read and are not rewritten.</strong></li>
+  <li>The shared string table is never edited: a cell containing a tag is rewritten as an inline string instead. Orphaned shared entries are left behind, which Excel ignores.</li>
+  <li>A sheet that would need more than 1,048,576 rows fails with <code>too_many_rows</code>.</li>
+</ul>
+
+<h3>PowerPoint — what is not implemented</h3>
+<ul>
+  <li><strong>Images are PNG, JPEG or GIF only</strong> — the formats PowerPoint embeds without conversion. A BMP that is fine in Word is refused here.</li>
+  <li>Section markers must open and close inside the same text box; a <code>{#a}</code> in one shape and its <code>{/a}</code> in another is <code>section_unbalanced</code>.</li>
+  <li>Notes slides are filled too, and report locations as <code>slide N notes, shape "…"</code>.</li>
+  <li>The finished package is re-checked against the invariants PowerPoint enforces — slide list, relationships, content-type overrides, slide id ranges — before the bytes are returned, because PowerPoint refuses the whole file if any one of them is inconsistent and says only "PowerPoint found a problem with content". A failure here is <code>package_invariant</code> and is a bug worth reporting.</li>
+</ul>
+
+<h3>Not accepted at all</h3>
+<div class="tw"><table>
+<thead><tr><th>File</th><th>Code</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td class="wrap">A PDF</td><td><code>template_is_pdf</code></td><td class="wrap">A PDF cannot be a template here. Building a PDF from HTML is a different product.</td></tr>
+<tr><td class="wrap"><code>.doc</code>, <code>.xls</code>, <code>.ppt</code></td><td><code>template_is_legacy_office</code></td><td class="wrap">Open it in Office and "Save As" the modern format.</td></tr>
+<tr><td class="wrap"><code>.odt</code>, <code>.ods</code>, <code>.odp</code></td><td><code>template_is_opendocument</code></td><td class="wrap">In LibreOffice, "Save As" and choose the Word/Excel/PowerPoint 2007-365 format.</td></tr>
+<tr><td class="wrap">Anything not a zip</td><td><code>template_not_office</code></td><td class="wrap">Check the base64 decoded correctly — the first two bytes should be <code>PK</code>.</td></tr>
+<tr><td class="wrap">A zip that is not Office</td><td><code>template_unknown_office_part</code></td><td class="wrap">It has no recognised main part.</td></tr>
+<tr><td class="wrap">A truncated or damaged file</td><td><code>template_corrupt</code></td><td class="wrap">Re-save it from Office. A file that went through an email gateway or a text-mode transfer is often truncated.</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- ================================================================ errors -->
+<section id="errors">
+<h2>Every error code<a class="anchor" href="#errors">#</a></h2>
+<p>Every error has the same shape. <code>code</code> is stable and safe to switch on; <code>message</code> is one line for a human; <code>hint</code> says what to change; <code>docs</code> links to the section of this page that explains it; <code>details</code> carries the machine-readable specifics, and <code>request_id</code> identifies the exact log line.</p>
+
+<div class="code"><pre><code>{
+  "error": {
+    "code": "placeholder_unresolved",
+    "message": "…", "hint": "…",
+    "docs": "https://docmint-832s.onrender.com/docs#errors",
+    "details": { "field": "…", "location": "…", "available": ["…"], "format": "docx" },
+    "request_id": "dm_…"
+  }
+}</code></pre></div>
+
+<div class="note">
+  <p><strong>Why 422 and not 400 for a missing field.</strong> The request was well-formed and understood; it just cannot be carried out, because the template asks for something the data does not have. A caller can therefore tell "I sent nonsense" from "my data is missing a field" without parsing the message.</p>
+</div>
+
+<h3>400 — the request is wrong</h3>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>bad_json</code></td><td class="wrap">The body is not valid JSON.</td></tr>
+<tr><td><code>unknown_field</code></td><td class="wrap">A field this endpoint does not accept, with the closest real name.</td></tr>
+<tr><td><code>bad_option</code></td><td class="wrap">A field whose value is not one of the allowed ones — <code>output</code>, <code>onMissing</code>.</td></tr>
+<tr><td><code>bad_data</code></td><td class="wrap"><code>data</code> is not a JSON object.</td></tr>
+<tr><td><code>bad_base64</code></td><td class="wrap">Not valid base64, or zero bytes after decoding.</td></tr>
+<tr><td><code>missing_template</code></td><td class="wrap">Neither <code>template</code> nor <code>template_base64</code>.</td></tr>
+<tr><td><code>ambiguous_template</code></td><td class="wrap">Both of them.</td></tr>
+<tr><td><code>version_without_template</code></td><td class="wrap"><code>template_version</code> with an inline template.</td></tr>
+<tr><td><code>missing_file</code></td><td class="wrap">A template upload with no <code>file_base64</code>.</td></tr>
+<tr><td><code>missing_template_name</code></td><td class="wrap">A template upload with no name.</td></tr>
+<tr><td><code>bad_template_name</code></td><td class="wrap">A name that breaks the naming rules.</td></tr>
+<tr><td><code>bad_version</code></td><td class="wrap">A version that is not a whole number of 1 or more.</td></tr>
+<tr><td><code>missing_version</code></td><td class="wrap">A rollback with no <code>version</code>.</td></tr>
+<tr><td><code>bad_locale</code> <code>bad_timezone</code> <code>bad_currency</code></td><td class="wrap">See <a href="#localisation">Localisation</a>.</td></tr>
+<tr><td><code>filename_too_long</code></td><td class="wrap">The filename pattern is longer than 200 characters.</td></tr>
+<tr><td><code>empty_template</code></td><td class="wrap">The template file is empty.</td></tr>
+<tr><td><code>template_corrupt</code></td><td class="wrap">It looks like a zip but could not be read.</td></tr>
+<tr><td><code>template_too_large</code></td><td class="wrap">Over 25 MB on upload. (The same condition on a render is a 413.)</td></tr>
+<tr><td><code>bad_email</code> <code>weak_password</code></td><td class="wrap">See <a href="#signup">Sign up</a>.</td></tr>
+</tbody></table></div>
+
+<h3>401, 402, 404, 409 — who you are, what you have</h3>
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">401</td><td><code>missing_api_key</code></td><td class="wrap">No key was sent.</td></tr>
+<tr><td class="t">401</td><td><code>invalid_api_key</code></td><td class="wrap">Not a DocMint key, or revoked.</td></tr>
+<tr><td class="t">402</td><td><code>quota_exceeded</code></td><td class="wrap">This month's documents are used up. See <a href="#quota">Quota</a>.</td></tr>
+<tr><td class="t">402</td><td><code>plan_required</code></td><td class="wrap">The account's allowance is zero, so it never had a quota to exceed — a different statement, deliberately.</td></tr>
+<tr><td class="t">404</td><td><code>template_not_found</code></td><td class="wrap">The hint lists the templates you do have.</td></tr>
+<tr><td class="t">404</td><td><code>template_version_not_found</code></td><td class="wrap">The hint lists the versions still stored.</td></tr>
+<tr><td class="t">404</td><td><code>key_not_found</code></td><td class="wrap">No live key starts with that prefix.</td></tr>
+<tr><td class="t">404</td><td><code>unknown_endpoint</code></td><td class="wrap">No such <code>/v1/…</code> route.</td></tr>
+<tr><td class="t">409</td><td><code>email_taken</code></td><td class="wrap">An account with that address exists.</td></tr>
+<tr><td class="t">409</td><td><code>last_key</code></td><td class="wrap">Refusing to revoke the only key.</td></tr>
+<tr><td class="t">409</td><td><code>template_format_changed</code></td><td class="wrap">A different format under an existing name.</td></tr>
+</tbody></table></div>
+
+<h3>413, 415 — too big, or the wrong kind of file</h3>
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">413</td><td><code>request_too_large</code></td><td class="wrap">The whole body is over 36 MB. A base64 template is a third larger than the file; upload it once and reference it by name instead.</td></tr>
+<tr><td class="t">413</td><td><code>template_too_large</code></td><td class="wrap">The template alone is over 25 MB.</td></tr>
+<tr><td class="t">413</td><td><code>data_too_large</code></td><td class="wrap"><code>data</code> is over 8 MB.</td></tr>
+<tr><td class="t">415</td><td><code>format_unsupported</code></td><td class="wrap">Recognised, but not a format DocMint fills.</td></tr>
+<tr><td class="t">415</td><td><code>template_is_pdf</code> <code>template_is_legacy_office</code> <code>template_is_opendocument</code> <code>template_not_office</code> <code>template_unknown_office_part</code></td><td class="wrap">See <a href="#formats">Formats</a>.</td></tr>
+</tbody></table></div>
+
+<h3>422 — the template and the data disagree</h3>
+<p>Everything here comes back with <code>details.field</code>, <code>details.location</code> and usually <code>details.available</code>. A 422 <strong>costs no credits</strong>.</p>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>placeholder_unresolved</code></td><td class="wrap">A value tag whose key is not in the data.</td></tr>
+<tr><td><code>section_unresolved</code></td><td class="wrap">A <code>{#name}</code> whose key is not in the data.</td></tr>
+<tr><td><code>placeholder_not_scalar</code></td><td class="wrap">The tag resolves to an object or a list.</td></tr>
+<tr><td><code>placeholder_shadowed</code></td><td class="wrap">An outer-scope hit inside a loop where the item has a near-miss key of its own.</td></tr>
+<tr><td><code>placeholder_outside_loop</code></td><td class="wrap">Any outer-scope hit inside a loop, under <code>strictScope: true</code>.</td></tr>
+<tr><td><code>section_unbalanced</code></td><td class="wrap">Section markers that do not pair up. The message names both and where each was opened.</td></tr>
+<tr><td><code>section_in_shape</code></td><td class="wrap">A section marker somewhere a section cannot be expanded.</td></tr>
+<tr><td><code>unknown_formatter</code></td><td class="wrap">No such formatter. The error lists every one that exists.</td></tr>
+<tr><td><code>formatter_type</code></td><td class="wrap">A formatter got the wrong kind of value.</td></tr>
+<tr><td><code>formatter_arg</code></td><td class="wrap">A formatter got a missing or nonsensical argument.</td></tr>
+<tr><td><code>sum_missing_field</code></td><td class="wrap"><code>sum</code> or <code>sumProduct</code> hit an item without the field, naming which item.</td></tr>
+<tr><td><code>bad_option</code></td><td class="wrap"><code>onMissing</code> reached the renderer with a value it does not know.</td></tr>
+<tr><td><code>image_unresolved</code></td><td class="wrap">An image tag with no matching key in the data.</td></tr>
+<tr><td><code>image_invalid</code> <code>image_bad_data</code></td><td class="wrap">Not readable as an image.</td></tr>
+<tr><td><code>image_not_base64</code></td><td class="wrap">A <code>data:</code> URI that is not base64-encoded.</td></tr>
+<tr><td><code>image_empty</code></td><td class="wrap">Decoded to zero bytes.</td></tr>
+<tr><td><code>image_bad_size</code></td><td class="wrap">A non-numeric width or height.</td></tr>
+<tr><td><code>image_unsupported_format</code></td><td class="wrap">Not a format this renderer embeds.</td></tr>
+<tr><td><code>image_too_large</code></td><td class="wrap">Over 24 MB.</td></tr>
+<tr><td><code>image_url_unsupported</code></td><td class="wrap">A URL with no bytes supplied for it. DocMint never fetches.</td></tr>
+<tr><td><code>too_many_rows</code></td><td class="wrap">A worksheet would need more than 1,048,576 rows.</td></tr>
+<tr><td><code>not_xlsx</code> <code>not_a_pptx</code></td><td class="wrap">The package is missing the part that makes it a workbook or a presentation.</td></tr>
+<tr><td><code>package_invariant</code></td><td class="wrap">The finished PowerPoint package failed its own self-check and was not returned. This is a bug; please report it with the template.</td></tr>
+</tbody></table></div>
+
+<h3>429, 5xx</h3>
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">429</td><td><code>rate_limited</code></td><td class="wrap">Over 120 requests a minute on this account. <code>Retry-After</code> says how long to wait.</td></tr>
+<tr><td class="t">429</td><td><code>signup_rate_limited</code></td><td class="wrap">More than one signup a minute from one address.</td></tr>
+<tr><td class="t">500</td><td><code>render_failed</code></td><td class="wrap">Filling threw something unexpected. If the template opens correctly in Office this is a bug worth reporting with the file attached.</td></tr>
+<tr><td class="t">500</td><td><code>internal_error</code></td><td class="wrap">Something else went wrong inside DocMint. Report it with the request id.</td></tr>
+<tr><td class="t">501</td><td><code>pdf_not_available</code></td><td class="wrap">No LibreOffice on this instance.</td></tr>
+<tr><td class="t">501</td><td><code>format_not_available</code></td><td class="wrap">This build has no renderer for that format — a deployment fault, not your request.</td></tr>
+<tr><td class="t">502</td><td><code>pdf_conversion_failed</code></td><td class="wrap">LibreOffice ran and produced no usable PDF.</td></tr>
+<tr><td class="t">503</td><td><code>pdf_queue_full</code></td><td class="wrap">The conversion queue on this instance is full.</td></tr>
+<tr><td class="t">504</td><td><code>pdf_timeout</code></td><td class="wrap">Conversion took longer than 90 seconds.</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p>Three more codes — <code>billing_unavailable</code> (503), <code>unknown_plan</code> (400) and <code>no_subscription</code> (400) — exist in the codebase for the Stripe checkout endpoints. <strong>Those endpoints are not enabled on this deployment</strong>, so you will not see them today. See <a href="#pricing">Plans and pricing</a>.</p>
+</div>
+</section>
+
+<!-- ================================================================ limits -->
+<section id="limits">
+<h2>Limits<a class="anchor" href="#limits">#</a></h2>
+<p>The same for every plan. There is no feature ladder. These numbers are served by <a href="#capabilities"><code>GET /v1/capabilities</code></a>, so they can be checked rather than trusted.</p>
+<div class="tw"><table>
+<thead><tr><th>Limit</th><th>Value</th><th>Exceeded</th></tr></thead>
+<tbody>
+<tr><td>Template file</td><td class="t">25 MB</td><td><code>template_too_large</code></td></tr>
+<tr><td><code>data</code>, as serialised JSON</td><td class="t">8 MB</td><td><code>data_too_large</code></td></tr>
+<tr><td>Whole request body</td><td class="t">36 MB</td><td><code>request_too_large</code></td></tr>
+<tr><td>One image</td><td class="t">24 MB</td><td><code>image_too_large</code></td></tr>
+<tr><td>Versions kept per template</td><td class="t">20</td><td class="wrap">The oldest is pruned, never below one.</td></tr>
+<tr><td>Rows in one worksheet</td><td class="t">1,048,576</td><td><code>too_many_rows</code></td></tr>
+<tr><td>Filename pattern</td><td class="t">200 characters</td><td><code>filename_too_long</code></td></tr>
+<tr><td>PDF conversion time</td><td class="t">90 s</td><td><code>pdf_timeout</code></td></tr>
+<tr><td>Concurrent PDF conversions</td><td class="t">1 per instance</td><td class="wrap">Further conversions queue.</td></tr>
+<tr><td>Queued PDF conversions</td><td class="t">24</td><td><code>pdf_queue_full</code></td></tr>
+<tr><td>Requests per minute, per account</td><td class="t">120</td><td><code>rate_limited</code></td></tr>
+<tr><td>Instantaneous burst</td><td class="t">30</td><td><code>rate_limited</code></td></tr>
+</tbody></table></div>
+<p>Rate-limit state comes back on every authenticated response as <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Burst</code> and <code>X-RateLimit-Remaining</code>; a 429 also carries <code>Retry-After</code>. The bucket lives in the instance's memory, which is the honest implementation while there is one instance.</p>
+</section>
+
+<!-- ================================================================= quota -->
+<section id="quota">
+<h2>Quota and credits<a class="anchor" href="#quota">#</a></h2>
+<p>One credit is one document produced.</p>
+<div class="tw"><table>
+<thead><tr><th>Call</th><th>Credits</th></tr></thead>
+<tbody>
+<tr><td class="wrap"><code>POST /v1/render</code> with <code>output: "document"</code> (the default)</td><td class="t">1</td></tr>
+<tr><td class="wrap"><code>POST /v1/render</code> with <code>output: "pdf"</code></td><td class="t">2</td></tr>
+<tr><td class="wrap"><code>POST /v1/render</code> with <code>output: "both"</code></td><td class="t">2</td></tr>
+<tr><td class="wrap">A render that fails, for any reason</td><td class="t">0</td></tr>
+<tr><td class="wrap"><code>POST /v1/inspect</code>, <code>GET …/fields</code>, <code>GET …/file</code>, uploads, versions, rollback, <code>GET /v1/usage</code>, <code>GET /v1/capabilities</code></td><td class="t">0</td></tr>
+</tbody></table></div>
+
+<p>The PDF costs one extra because it costs about a hundred times the CPU of the fill — roughly 2.7 s against roughly 10 ms — and pretending the two are the same price would mean the cheap path subsidising the expensive one. <strong>Nothing else is metered.</strong> Downloading a file you already generated is free, and so is asking a template what it needs.</p>
+
+<div class="note">
+  <p><strong>A failed render costs nothing.</strong> The credit is reserved before the work and refunded when the work throws, so a 422 on a missing field, a 502 from LibreOffice or a 504 timeout all leave your balance where it was.</p>
+</div>
+
+<h3>The month</h3>
+<p>Quotas are per calendar month, in UTC, and reset on the 1st. The window rolls forward lazily on your first request of the new month, so there is no cron job that can fail to run. <code>GET /v1/usage</code> reports <code>period_start</code>.</p>
+
+<h3>At the ceiling</h3>
+<div class="code"><div class="cap">402 Payment Required</div><pre><code>{
+  "error": {
+    "code": "quota_exceeded",
+    "message": "You have used all 30 documents included in your free plan this month.",
+    "hint": "The quota resets on the 1st of next month. To raise it now, upgrade …",
+    "details": { "plan": "free", "credits_used": 30, "credits_limit": 30 },
+    "docs": "https://docmint-832s.onrender.com/docs#quota"
+  }
+}</code></pre></div>
+<p>There is <strong>no overage billing</strong> and no surprise invoice: the API answers 402 until the next period or until the plan changes.</p>
+</section>
+
+<!-- =============================================================== pricing -->
+<section id="pricing">
+<h2>Plans and pricing<a class="anchor" href="#pricing">#</a></h2>
+<div class="tw"><table>
+<thead><tr><th>Plan</th><th>Price</th><th>Documents / month</th><th>Per document</th></tr></thead>
+<tbody>
+<tr><td>Free</td><td class="t">$0</td><td class="t">30</td><td class="t">—</td></tr>
+<tr><td>Starter</td><td class="t">$9</td><td class="t">2,000</td><td class="t">$0.0045</td></tr>
+<tr><td>Pro</td><td class="t">$29</td><td class="t">20,000</td><td class="t">$0.00145</td></tr>
+<tr><td>Scale</td><td class="t">$99</td><td class="t">100,000</td><td class="t">$0.00099</td></tr>
+</tbody></table></div>
+
+<p>Every plan has every feature: all three formats, PDF output, images, the field list, the missing-field contract, the outer-scope warning, versioning and rollback, localisation, and the <a href="#limits">same limits</a>. There is no paid module and no per-feature licence, now or ever — the fill engine is written for this project and depends on nothing that could start charging for a feature later.</p>
+
+<div class="note warn">
+  <p><strong>Self-serve checkout is not live on this deployment yet.</strong> The Free plan is fully self-serve over the API: <a href="#signup">sign up</a> and start. For a paid plan today, email <a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a>. This note will go when the checkout endpoints ship; until then it is the truth, checked against the running API.</p>
+</div>
+</section>
+
+<p class="muted" style="margin-top:3rem;font-size:.88rem">
+  <a href="/">DocMint</a> ·
+  <a href="/#pricing">Pricing</a> ·
+  <a href="/legal">Imprint</a> ·
+  <a href="/privacy">Privacy</a> ·
+  <a href="/terms">Terms</a> ·
+  <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+</p>
+
+</main>
+</div>
+
+<script>
+(function () {
+  // Copy buttons.
+  document.querySelectorAll('.code .copy').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var code = b.parentElement.querySelector('code');
+      if (!code || !navigator.clipboard) return;
+      navigator.clipboard.writeText(code.innerText).then(function () {
+        b.textContent = 'Copied';
+        setTimeout(function () { b.textContent = 'Copy'; }, 1400);
+      });
+    });
+  });
+
+  // Collapsible contents on narrow screens.
+  var toggle = document.getElementById('tocToggle');
+  var body = document.getElementById('tocBody');
+  function narrow() { return window.matchMedia('(max-width: 960px)').matches; }
+  function sync() {
+    if (narrow()) {
+      body.hidden = toggle.getAttribute('aria-expanded') !== 'true';
+    } else {
+      body.hidden = false;
+    }
+  }
+  toggle.addEventListener('click', function () {
+    toggle.setAttribute('aria-expanded', toggle.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');
+    sync();
+  });
+  window.addEventListener('resize', sync);
+  sync();
+  body.addEventListener('click', function (e) {
+    if (e.target.tagName === 'A' && narrow()) { toggle.setAttribute('aria-expanded', 'false'); sync(); }
+  });
+
+  // Highlight the section currently on screen.
+  var links = {};
+  document.querySelectorAll('.toc a[href^="#"]').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  var targets = Object.keys(links).map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  if ('IntersectionObserver' in window && targets.length) {
+    var seen = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { seen[e.target.id] = e.isIntersecting; });
+      var active = targets.filter(function (t) { return seen[t.id]; })[0];
+      if (!active) return;
+      Object.keys(links).forEach(function (id) { links[id].classList.toggle('active', id === active.id); });
+    }, { rootMargin: '-72px 0px -70% 0px' });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+})();
+</script>
+
+</body>
+</html>
