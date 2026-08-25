@@ -131,8 +131,9 @@ function splitTop(s, sep) {
   let quote = null;
   for (const ch of s) {
     if (quote) {
+      // The closing quote is consumed rather than kept, so default:'a|b' passes
+      // through with the pipe intact and without the quotes.
       if (ch === quote) quote = null; else cur += ch;
-      if (ch === quote) cur += ''; // closing quote is dropped
       continue;
     }
     if (ch === "'" || ch === '"') { quote = ch; continue; }

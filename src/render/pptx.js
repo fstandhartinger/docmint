@@ -883,95 +883,99 @@ function loneTagOf(spXml, kinds) {
  * Renders one slide, notes slide, layout or master part.
  */
 function renderPart(pkg, partName, xml, stack, ctx, locPrefix) {
-  const sink = { inlineImages: [] };
   const edits = [];
+  // Pictures cannot be created where their tag was: a <p:pic> is a child of the
+  // shape tree, not of a run. So an image tag that shares its shape with text
+  // records itself here and is appended once the tree has been rewritten.
+  const pending = [];
   let paraNo = 0;
-  const nextId = { v: maxShapeId(xml) + 1 };
+  let nextId = maxShapeId(xml) + 1;
+
+  const collect = (sink, box) => {
+    for (const image of sink.inlineImages) pending.push({ image, box });
+  };
 
   for (const sp of findElements(xml, 'p:sp')) {
     const spXml = xml.slice(sp.start, sp.end);
     const name = shapeName(spXml);
     const loc = name ? `${locPrefix}, shape "${name}"` : `${locPrefix}, paragraph ${paraNo + 1}`;
     ctx.location = loc;
+    paraNo += countParagraphs(spXml);
 
     const img = loneTagOf(spXml, [KIND.IMAGE]);
     if (img) {
-      // The tag owns the shape, so the picture takes the shape's own box —
-      // the author drew the frame where they wanted the image.
+      // The tag owns the shape, so the picture takes the shape's own box: the
+      // author drew that frame where they wanted the image to appear.
       ctx.stats.tags += 1;
+      ctx.stats.resolved += 1;
       const decoded = resolveImage(img, stack, ctx);
       if (!decoded) {
         edits.push({ start: sp.start, end: sp.end, text: '' });
-      } else {
-        const rid = addImagePart(pkg, partName, decoded);
-        const box = fitInto(decoded, shapeExtent(spXml));
-        edits.push({
-          start: sp.start,
-          end: sp.end,
-          text: picXml({ id: nextId.v, name: name || `Image ${nextId.v}`, rid, ...box }),
-        });
-        nextId.v += 1;
-        ctx.stats.images += 1;
+        continue;
       }
-      ctx.stats.resolved += 1;
-      paraNo += countParagraphs(spXml);
+      const rid = addImagePart(pkg, partName, decoded);
+      const box = fitInto(decoded, shapeExtent(spXml));
+      edits.push({
+        start: sp.start,
+        end: sp.end,
+        text: picXml({ id: nextId, name: name || `Image ${nextId}`, rid, ...box }),
+      });
+      nextId += 1;
+      ctx.stats.images += 1;
       continue;
     }
 
-    const shapeSink = { inlineImages: [] };
-    let rendered = renderTextBodyElement(spXml, 'p:txBody', stack, ctx, shapeSink, name ? loc : null, paraNo);
-    paraNo += countParagraphs(spXml);
-    if (shapeSink.inlineImages.length) {
-      const box = shapeExtent(spXml);
-      for (const image of shapeSink.inlineImages) {
-        sink.inlineImages.push({ image, box, partName });
-      }
-    }
-    edits.push({ start: sp.start, end: sp.end, text: rendered });
+    const sink = { inlineImages: [] };
+    edits.push({
+      start: sp.start,
+      end: sp.end,
+      text: renderTextBodyElement(spXml, 'p:txBody', stack, ctx, sink, name ? loc : null, paraNo),
+    });
+    collect(sink, shapeExtent(spXml));
   }
 
   for (const gf of findElements(xml, 'p:graphicFrame')) {
     const gfXml = xml.slice(gf.start, gf.end);
-    const name = shapeName(gfXml) || 'Table';
     const tbls = findElements(gfXml, 'a:tbl');
     if (!tbls.length) continue;
-    const inner = [];
-    for (const t of tbls) {
-      ctx.location = `${locPrefix}, table "${name}"`;
-      inner.push({
-        start: t.start,
-        end: t.end,
-        text: renderTable(gfXml.slice(t.start, t.end), stack, ctx, sink, `${locPrefix}, table "${name}"`),
-      });
-    }
+    const loc = `${locPrefix}, table "${shapeName(gfXml) || 'Table'}"`;
+    const sink = { inlineImages: [] };
+    const inner = tbls.map((t) => ({
+      start: t.start,
+      end: t.end,
+      text: renderTable(gfXml.slice(t.start, t.end), stack, ctx, sink, loc),
+    }));
     edits.push({ start: gf.start, end: gf.end, text: applyEdits(gfXml, inner) });
+    collect(sink, shapeExtent(gfXml));
   }
 
-  // Anything with text that is neither a <p:sp> nor a table: a connector with a
-  // label, a caption on a <p:pic>. Rare, but silently leaving a tag unrendered
-  // in one is worse than the twelve lines it costs to catch them.
+  // Anything else that carries text: a connector with a label, a caption on a
+  // picture. Rare, but silently leaving a tag unrendered in one of them is far
+  // worse than the dozen lines it costs to catch it.
   for (const tb of findElements(xml, 'p:txBody')) {
     if (edits.some((e) => tb.start >= e.start && tb.end <= e.end)) continue;
     const tbXml = xml.slice(tb.start, tb.end);
     if (!scan(flatten(tbXml, 'a:t').text).length) continue;
     const loc = `${locPrefix}, paragraph ${paraNo + 1}`;
     ctx.location = loc;
+    const sink = { inlineImages: [] };
     edits.push({
       start: tb.start,
       end: tb.end,
       text: renderTextBodyElement(tbXml, 'p:txBody', stack, ctx, sink, loc, paraNo),
     });
     paraNo += countParagraphs(tbXml);
+    collect(sink, null);
   }
 
   let out = edits.length ? applyEdits(xml, edits) : xml;
 
-  if (sink.inlineImages.length) {
+  if (pending.length) {
     let pics = '';
     let id = maxShapeId(out) + 1;
-    for (const rec of sink.inlineImages) {
+    for (const rec of pending) {
       const rid = addImagePart(pkg, partName, rec.image);
-      const box = rec.box || { x: 0, y: 0, cx: 0, cy: 0 };
+      const box = rec.box || { x: 0, y: 0 };
       pics += picXml({
         id,
         name: `Image ${id}`,
@@ -987,7 +991,7 @@ function renderPart(pkg, partName, xml, stack, ctx, locPrefix) {
     if (tree) out = out.slice(0, tree.contentEnd) + pics + out.slice(tree.contentEnd);
   }
 
-  // A generated <p:pic> uses r:embed, so the part must declare the r namespace.
+  // A generated <p:pic> uses r:embed, so the part has to declare the r namespace.
   if (out.includes('r:embed=') && !/xmlns:r=/.test(out.slice(0, 2000))) {
     out = out.replace(/^(<\?xml[^>]*\?>\s*)?(<[A-Za-z:]+)/, (m, decl, open) => `${decl || ''}${open} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"`);
   }

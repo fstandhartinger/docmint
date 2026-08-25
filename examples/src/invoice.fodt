@@ -42,7 +42,7 @@
   <style:page-layout style:name="pm1">
     <style:page-layout-properties fo:page-width="21cm" fo:page-height="29.7cm"
       style:print-orientation="portrait"
-      fo:margin-top="1.5cm" fo:margin-bottom="1.5cm" fo:margin-left="2cm" fo:margin-right="2cm"/>
+      fo:margin-top="1.3cm" fo:margin-bottom="1.3cm" fo:margin-left="2cm" fo:margin-right="2cm"/>
     <style:header-style>
       <style:header-footer-properties fo:min-height="0.7cm" fo:margin-bottom="0.6cm" style:dynamic-spacing="false"/>
     </style:header-style>
@@ -91,14 +91,14 @@
   </style:style>
 
   <style:style style:name="PRule" style:family="paragraph" style:parent-style-name="Standard">
-    <style:paragraph-properties fo:margin-top="0.45cm" fo:margin-bottom="0.42cm"
+    <style:paragraph-properties fo:margin-top="0.38cm" fo:margin-bottom="0.34cm"
       fo:border-top="1.5pt solid #12395b" fo:border-bottom="none" fo:border-left="none" fo:border-right="none"/>
     <style:text-properties fo:font-size="1pt"/>
   </style:style>
 
   <style:style style:name="PTitle" style:family="paragraph" style:parent-style-name="Standard">
     <style:paragraph-properties fo:margin-bottom="0.08cm"/>
-    <style:text-properties style:font-name="Caladea" fo:font-size="24pt" fo:font-weight="bold"
+    <style:text-properties style:font-name="Caladea" fo:font-size="22pt" fo:font-weight="bold"
       fo:color="#12395b" fo:letter-spacing="0.04cm"/>
   </style:style>
   <style:style style:name="PSub" style:family="paragraph" style:parent-style-name="Standard">
@@ -190,12 +190,12 @@
   </style:style>
 
   <style:style style:name="PClose" style:family="paragraph" style:parent-style-name="Standard">
-    <style:paragraph-properties fo:margin-top="0.45cm" fo:line-height="122%"/>
+    <style:paragraph-properties fo:margin-top="0.4cm" fo:line-height="122%"/>
     <style:text-properties fo:font-size="8.5pt" fo:color="#6b7b8b"/>
   </style:style>
   <style:style style:name="PGapL" style:family="paragraph" style:parent-style-name="Standard">
     <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0cm" fo:line-height="100%"/>
-    <style:text-properties fo:font-size="11pt"/>
+    <style:text-properties fo:font-size="9pt"/>
   </style:style>
   <style:style style:name="PGapS" style:family="paragraph" style:parent-style-name="Standard">
     <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0cm" fo:line-height="100%"/>
@@ -224,13 +224,13 @@
     <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.45cm" fo:margin-bottom="0cm"/>
   </style:style>
   <style:style style:name="TaBanner" style:family="table">
-    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.4cm" fo:margin-bottom="0cm"/>
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.32cm" fo:margin-bottom="0cm"/>
   </style:style>
   <style:style style:name="TaItems" style:family="table">
     <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.15cm" fo:margin-bottom="0cm"/>
   </style:style>
   <style:style style:name="TaTotals" style:family="table">
-    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.35cm" fo:margin-bottom="0cm"/>
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.2cm" fo:margin-bottom="0cm"/>
   </style:style>
 
   <style:style style:name="cLetterL" style:family="table-column"><style:table-column-properties style:column-width="9.2cm"/></style:style>
@@ -276,28 +276,28 @@
   </style:style>
   <style:style style:name="ceRowL" style:family="table-cell">
     <style:table-cell-properties fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
-      fo:padding-top="0.15cm" fo:padding-bottom="0.15cm" fo:padding-left="0.22cm" fo:padding-right="0.1cm"
+      fo:padding-top="0.13cm" fo:padding-bottom="0.13cm" fo:padding-left="0.22cm" fo:padding-right="0.1cm"
       style:vertical-align="top"/>
   </style:style>
   <style:style style:name="ceRow" style:family="table-cell">
     <style:table-cell-properties fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
-      fo:padding-top="0.15cm" fo:padding-bottom="0.15cm" fo:padding-left="0.1cm" fo:padding-right="0.1cm"
+      fo:padding-top="0.13cm" fo:padding-bottom="0.13cm" fo:padding-left="0.1cm" fo:padding-right="0.1cm"
       style:vertical-align="top"/>
   </style:style>
   <style:style style:name="ceRowR" style:family="table-cell">
     <style:table-cell-properties fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
-      fo:padding-top="0.15cm" fo:padding-bottom="0.15cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      fo:padding-top="0.13cm" fo:padding-bottom="0.13cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
       style:vertical-align="top"/>
   </style:style>
   <style:style style:name="ceTot" style:family="table-cell">
     <style:table-cell-properties fo:border="none"
-      fo:padding-top="0.1cm" fo:padding-bottom="0.1cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      fo:padding-top="0.07cm" fo:padding-bottom="0.07cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
       style:vertical-align="middle"/>
   </style:style>
   <style:style style:name="ceGrand" style:family="table-cell">
     <style:table-cell-properties fo:background-color="#eef3f8" fo:border="none"
       fo:border-top="1.5pt solid #12395b"
-      fo:padding-top="0.2cm" fo:padding-bottom="0.2cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      fo:padding-top="0.16cm" fo:padding-bottom="0.16cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
       style:vertical-align="middle"/>
   </style:style>
   <style:style style:name="ceBadgeOver" style:family="table-cell">
@@ -364,6 +364,7 @@
 <text:p text:style-name="PSub">{items|count} line items<text:s/>&#183;<text:s/>issued {issued|date:DD MMMM YYYY}</text:p>
 
 <!-- ======================= bill-to and invoice meta ===================== -->
+<text:p text:style-name="PGapL"/>
 <table:table table:name="Parties" table:style-name="TaParties">
   <table:table-column table:style-name="cBill"/>
   <table:table-column table:style-name="cGap"/>
@@ -464,17 +465,17 @@
   <table:table-column table:style-name="cTotV"/>
 
   <table:table-row table:style-name="rowKeep">
-    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PGapS"/></table:table-cell>
     <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotL">Subtotal (net)</text:p></table:table-cell>
     <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotV">{items|sumProduct:qty:unit_price|currency:EUR}</text:p></table:table-cell>
   </table:table-row>
   <table:table-row table:style-name="rowKeep">
-    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PGapS"/></table:table-cell>
     <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotL">VAT at {vat_rate|percent}</text:p></table:table-cell>
     <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotV">{items|sumProduct:qty:unit_price:vat_rate|currency:EUR}</text:p></table:table-cell>
   </table:table-row>
   <table:table-row table:style-name="rowKeep">
-    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PGapS"/></table:table-cell>
     <table:table-cell table:style-name="ceGrand" office:value-type="string"><text:p text:style-name="PGrandL">Amount due</text:p></table:table-cell>
     <table:table-cell table:style-name="ceGrand" office:value-type="string"><text:p text:style-name="PGrandV">{items|sumProduct:qty:unit_price:vat_factor|currency:EUR}</text:p></table:table-cell>
   </table:table-row>

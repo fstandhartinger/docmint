@@ -373,6 +373,39 @@ test('the same image used many times is stored once', async () => {
   assert.equal(out.stats.images, 4);
 });
 
+test('an image in a header gets its own relationships part', async () => {
+  // A header has no word/_rels/header1.xml.rels until something in it points
+  // somewhere. Writing the relationship into the body's rels instead — the easy
+  // mistake — produces a header with a broken picture icon.
+  const template = H.patchPart(H.fixture('invoice'), 'word/header1.xml',
+    (xml) => xml.replace('Invoice {invoice_no}', '{%logo}Invoice {invoice_no}'));
+  const out = await render(template, H.invoiceData(), { currency: 'EUR' });
+
+  const rels = H.partText(out.buffer, 'word/_rels/header1.xml.rels');
+  const rId = /Id="(rId\d+)"[^>]*relationships\/image"[^>]*Target="media\/([^"]+)"/.exec(rels);
+  assert.ok(rId, 'no image relationship in the header rels part');
+  assert.ok(H.partText(out.buffer, 'word/header1.xml').includes(`r:embed="${rId[1]}"`));
+  assert.ok(H.partNames(out.buffer).includes(`word/media/${rId[2]}`));
+  // One set of bytes, two relationships pointing at it.
+  assert.equal(H.partNames(out.buffer).filter((n) => n.startsWith('word/media/')).length, 1);
+  assert.equal(out.stats.images, 2);
+});
+
+test('an inverted section works at row level too', async () => {
+  const template = H.patchPart(H.fixture('invoice'), 'word/document.xml', (xml) => xml
+    .replace('{#items}{description}', '{^items}No items at all')
+    .replace('{qty}', '').replace('{unit_price|currency:EUR}', '')
+    .replace('{line_total|currency:EUR}{/items}', '{/items}'));
+
+  const empty = await render(template, H.invoiceData({ items: [] }), { currency: 'EUR' });
+  assert.equal(H.count(H.partText(empty.buffer, 'word/document.xml'), /<w:tr>/g), 3);
+  assert.ok(H.visibleText(empty.buffer).includes('No items at all'));
+
+  const full = await render(template, H.invoiceData(), { currency: 'EUR' });
+  assert.equal(H.count(H.partText(full.buffer, 'word/document.xml'), /<w:tr>/g), 2);
+  assert.ok(!H.visibleText(full.buffer).includes('No items at all'));
+});
+
 test('a null image renders as nothing rather than as a broken picture', async () => {
   const out = await render(H.fixture('invoice'), H.invoiceData({ logo: null }), { currency: 'EUR' });
   assert.equal(out.stats.images, 0);

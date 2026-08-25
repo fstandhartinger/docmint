@@ -595,6 +595,22 @@ test('an unsupported image format is refused rather than embedded', async () => 
   });
 });
 
+test('an image tag inside a table cell still produces a picture', async () => {
+  // Injected rather than baked into the fixture: it is a corner nobody authors
+  // on purpose, and it used to throw because a table cell reported its images
+  // differently from a text box.
+  const zip = readZip(H.fixture('nested'));
+  const slide = zip.byName.get(H.slideParts(H.fixture('nested'))[2]);
+  const { writeEntry: we, writeZip: wz } = require('../src/ooxml/zip');
+  we(slide, readText(slide).replace('<a:t>Count</a:t>', '<a:t>Count {%pic}</a:t>'));
+
+  const { buffer, stats } = await render(wz(zip), NESTED_DATA(), {});
+  assert.equal(stats.images, 2);
+  const xml = H.part(buffer, H.slideParts(buffer)[2]);
+  assert.equal(findElements(xml, 'p:pic').length, 1);
+  assert.ok(H.slideText(buffer, 2).includes('Count'), 'the cell keeps its text');
+});
+
 test('the image bytes go in verbatim, once', async () => {
   const { buffer } = await render(H.fixture('report'), REPORT_DATA(), {});
   const zip = readZip(buffer);

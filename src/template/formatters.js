@@ -75,11 +75,19 @@ const FORMATTERS = {
     }).format(n);
   },
 
+  /**
+   * Returns a NUMBER, like sum/add/multiply and unlike currency/number, which
+   * return formatted text. The distinction is load-bearing in a spreadsheet: a
+   * numeric result becomes a real numeric cell and a SUM over the column works,
+   * whereas text lands as text and SUM silently returns zero. This used to return
+   * a string, which made {price|round:2} the one arithmetic formatter that broke
+   * the column it was in.
+   */
   round: (v, args) => {
     const n = toNumber(v, 'round');
     const d = args[0] === undefined || args[0] === '' ? 0 : Number(args[0]);
     const f = 10 ** d;
-    return String(Math.round(n * f) / f);
+    return Math.round(n * f) / f;
   },
 
   /**

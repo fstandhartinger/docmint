@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  readZip, readText, writeEntry, addEntry, writeZip,
+  readZip, readText, writeEntry, addEntry, writeZip, crc32,
 } = require('../ooxml/zip');
 const {
   findTagEnd, setAttr, applyEdits, escapeXml, stripInvalidXmlChars,
@@ -948,7 +948,8 @@ class Resources {
     this.mediaSeq = 0;
     this.drawingSeq = 1000;
     this.exts = new Set();
-    this.byDigest = new Map();   // part -> (digest -> rId), so one logo in a loop is stored once
+    this.mediaByDigest = new Map();  // identical bytes -> one media part
+    this.relByDigest = new Map();    // rels part -> (digest -> rId)
   }
 
   nextDrawingId() { this.drawingSeq += 1; return this.drawingSeq; }
@@ -975,22 +976,29 @@ class Resources {
 
   addImage(partName, bytes, info) {
     const rels = this.relsFor(partName);
-    // Identical bytes used by every row of a loop should be one media part, not
-    // one per row; a 200-line invoice with a per-line icon otherwise gets huge.
-    const digest = `${bytes.length}:${bytes.toString('base64', 0, Math.min(64, bytes.length))}`;
-    let perPart = this.byDigest.get(rels.name);
-    if (!perPart) { perPart = new Map(); this.byDigest.set(rels.name, perPart); }
-    if (perPart.has(digest)) return perPart.get(digest);
+    // The same logo on every row of a loop, or in both the body and the header,
+    // should be one media part with several relationships pointing at it — not one
+    // copy per use, which turns a 200-line invoice into a 40 MB download.
+    const digest = `${bytes.length}:${crc32(bytes)}:${bytes.toString('base64', 0, Math.min(48, bytes.length))}`;
 
-    this.mediaSeq += 1;
-    const media = `word/media/docmint_${this.mediaSeq}.${info.ext}`;
-    addEntry(this.zip, media, bytes);
-    this.exts.add(info.ext);
+    let media = this.mediaByDigest.get(digest);
+    if (!media) {
+      this.mediaSeq += 1;
+      media = `docmint_${this.mediaSeq}.${info.ext}`;
+      addEntry(this.zip, `word/media/${media}`, bytes);
+      this.exts.add(info.ext);
+      this.mediaByDigest.set(digest, media);
+    }
+
+    // The relationship, though, is per part: a header cannot borrow the body's.
+    let perPart = this.relByDigest.get(rels.name);
+    if (!perPart) { perPart = new Map(); this.relByDigest.set(rels.name, perPart); }
+    if (perPart.has(digest)) return perPart.get(digest);
 
     const rId = `rId${rels.next}`;
     rels.next += 1;
     rels.xml = rels.xml.replace(/<\/Relationships>\s*$/,
-      `<Relationship Id="${rId}" Type="${IMAGE_REL}" Target="media/docmint_${this.mediaSeq}.${info.ext}"/></Relationships>`);
+      `<Relationship Id="${rId}" Type="${IMAGE_REL}" Target="media/${media}"/></Relationships>`);
     rels.dirty = true;
     perPart.set(digest, rId);
     return rId;
