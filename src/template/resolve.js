@@ -210,8 +210,14 @@ function passesFor(value) {
     }));
   }
   if (value === null || value === undefined || value === false || value === '' || value === 0) return [];
-  if (typeof value === 'object') return [{ value, meta: { $index: 0, $index1: 1, $first: true, $last: true, $length: 1, $total: 1 } }];
-  return [{ value: undefined, meta: { $index: 0, $index1: 1, $first: true, $last: true, $length: 1, $total: 1 } }];
+  // A truthy scalar renders the section once with the scalar itself in scope, so
+  // {#note}{.}{/note} prints the note. Pushing `undefined` here instead — which is
+  // what the first version of this function did — makes {.} render as an empty
+  // string with no error at all: precisely the silent blank this whole product
+  // exists to prevent. Non-object scopes are transparent to dotted lookups, which
+  // fall through to the enclosing scope as before.
+  const meta = { $index: 0, $index1: 1, $first: true, $last: true, $length: 1, $total: 1 };
+  return [{ value, meta }];
 }
 
 function resolveInverted(tag, stack, ctx) {

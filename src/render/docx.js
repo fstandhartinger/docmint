@@ -643,8 +643,14 @@ function buildParagraphNode(pXml, cuts, loc, cx) {
   };
 }
 
-function parsePart(xml, partName) {
-  const cx = { part: partName, paraNo: 0, tableNo: 0, locPrefix: null, tagSeq: 0 };
+function parsePart(xml, partName, seq) {
+  // The tag ids must be unique across the whole package, not just this part, or a
+  // header tag and a body tag collide and the "resolved" count silently under-reports.
+  const cx = {
+    part: partName, paraNo: 0, tableNo: 0, locPrefix: null,
+    get tagSeq() { return seq.n; },
+    set tagSeq(v) { seq.n = v; },
+  };
   const el = firstElement(xml);
   if (!el) return { items: [{ k: 'xml', xml }], head: '', tail: '', cx };
   return {
@@ -1053,6 +1059,7 @@ async function render(buffer, data, opts = {}) {
   const ctx = opts.ctx || makeContext(opts);
   const res = new Resources(zip);
   const st = { tags: 0, sections: 0, images: 0, resolved: new Set(), parts: [] };
+  const seq = { n: 0 };
   const images = normalizeImagesOpt(opts.images);
   const root = [{ value: data === null || data === undefined ? {} : data, meta: {} }];
 
@@ -1063,7 +1070,7 @@ async function render(buffer, data, opts = {}) {
     // keeps its bytes identical to the template's.
     if (xml.indexOf('{') === -1) continue;
 
-    const tree = parsePart(xml, partName);
+    const tree = parsePart(xml, partName, seq);
     const counts = countTree(tree.items);
     if (!counts.tags && !counts.sections) continue;
     st.tags += counts.tags;
@@ -1126,11 +1133,12 @@ async function inspect(buffer) {
   const zip = readZip(buffer);
   const parts = [];
   const tags = [];
+  const seq = { n: 0 };
   for (const partName of listParts(zip)) {
     const entry = zip.byName.get(partName);
     const xml = readText(entry);
     if (xml.indexOf('{') === -1) continue;
-    const tree = parsePart(xml, partName);
+    const tree = parsePart(xml, partName, seq);
     const found = collectTags(tree.items, []);
     if (!found.length) continue;
     parts.push(partName);

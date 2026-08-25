@@ -387,6 +387,71 @@ router.get('/capabilities', asyncRoute(async (req, res) => {
   });
 }));
 
+/* ----------------------------------------------------------------- signup */
+
+/**
+ * Self-serve signup, deliberately over the API rather than only through a web
+ * form. The buyer here is someone wiring up a workflow; making them leave the
+ * terminal, click through a dashboard and copy a key out of a modal before they
+ * can see whether the thing works at all is friction with no purpose. The
+ * dashboard can come later; the key must be obtainable now.
+ */
+const signupLimiter = new Map();
+
+router.post('/signup', asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  input.rejectUnknown(body, ['email', 'password'], '/docs#signup');
+
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!/^[^@\s]+@[^@\s.]+\.[^@\s]{2,}$/.test(email)) {
+    throw bad('bad_email', 'That does not look like an email address.', { docs: '/docs#signup' });
+  }
+  const password = String(body.password || '');
+  if (password.length < 10) {
+    throw bad('weak_password', 'The password must be at least 10 characters.', {
+      hint: 'This is the only thing standing between someone else and your templates.',
+      docs: '/docs#signup',
+    });
+  }
+
+  // One signup per IP per minute. Not security, just enough to stop a loop in a
+  // misconfigured workflow filling the accounts table overnight.
+  const ip = req.ip || 'unknown';
+  const now = Date.now();
+  const last = signupLimiter.get(ip) || 0;
+  if (now - last < 60000) {
+    throw new ApiError(429, 'signup_rate_limited', 'Only one signup per minute from the same address.', {
+      hint: 'If you already have an account, create another key with POST /v1/keys using your existing one.',
+      docs: '/docs#signup',
+    });
+  }
+  signupLimiter.set(ip, now);
+  if (signupLimiter.size > 5000) signupLimiter.clear();
+
+  const { createAccount } = require('./auth');
+  let out;
+  try {
+    out = await createAccount(email, password);
+  } catch (e) {
+    if (e.code === '23505') {
+      throw new ApiError(409, 'email_taken', 'There is already an account with that email address.', {
+        hint: 'Create an extra API key with POST /v1/keys using a key you already hold.',
+        docs: '/docs#signup',
+      });
+    }
+    throw e;
+  }
+
+  req.log.info('signup.ok', { account: out.account.id });
+  const plan = PLANS[out.account.plan];
+  res.status(201).json({
+    email: out.account.email,
+    api_key: out.apiKey,
+    plan: { id: out.account.plan, name: plan.name, credits: out.account.credits_limit },
+    note: 'This is the only time the key is shown. Store it now.',
+  });
+}));
+
 /* ------------------------------------------------------------------- keys */
 
 router.post('/keys', withAuth, asyncRoute(async (req, res) => {

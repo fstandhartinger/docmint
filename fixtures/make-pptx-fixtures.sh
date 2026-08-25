@@ -198,11 +198,78 @@ XML
 ftr
 } > "$work/cards.fodp"
 
+# ---------------------------------------------------------------------------
+# nested.pptx — three levels of nesting both across paragraphs and inline,
+# inverted sections in every position, outward scope with ../, a multi-line
+# value, raw OOXML, a comment tag and an image tag sharing a shape with text.
+# ---------------------------------------------------------------------------
+{
+hdr
+cat <<'XML'
+   <draw:page draw:name="Nesting">
+    <draw:frame draw:name="Deep 1" draw:style-name="gr1" svg:x="1cm" svg:y="1cm" svg:width="13cm" svg:height="12cm">
+     <draw:text-box>
+      <text:p>{#regions}</text:p>
+      <text:p>{name}</text:p>
+      <text:p>{#offices}</text:p>
+      <text:p>{city}:</text:p>
+      <text:p>{#staff}</text:p>
+      <text:p>- {.} ({../city}, {../../name})</text:p>
+      <text:p>{/staff}</text:p>
+      <text:p>{/offices}</text:p>
+      <text:p>{/regions}</text:p>
+     </draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Inline 2" draw:style-name="gr1" svg:x="14cm" svg:y="1cm" svg:width="12cm" svg:height="4cm">
+     <draw:text-box><text:p>[{#regions}{name}({#offices}{city}{^$last}; {/}{/offices}){^$last} | {/}{/regions}]</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Inverted 3" draw:style-name="gr1" svg:x="14cm" svg:y="6cm" svg:width="12cm" svg:height="4cm">
+     <draw:text-box>
+      <text:p>{^regions}no regions at all{/regions}</text:p>
+      <text:p>{^ghosts}no ghosts here{/ghosts}</text:p>
+     </draw:text-box>
+    </draw:frame>
+   </draw:page>
+   <draw:page draw:name="Bits">
+    <draw:frame draw:name="Multiline 4" draw:style-name="gr1" svg:x="1cm" svg:y="1cm" svg:width="12cm" svg:height="4cm">
+     <draw:text-box><text:p>Address: {address}</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Raw 5" draw:style-name="gr1" svg:x="1cm" svg:y="6cm" svg:width="12cm" svg:height="2cm">
+     <draw:text-box><text:p>Before {@rawrun} after</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="Comment 6" draw:style-name="gr1" svg:x="14cm" svg:y="1cm" svg:width="12cm" svg:height="2cm">
+     <draw:text-box><text:p>Kept{!this vanishes} text</text:p></draw:text-box>
+    </draw:frame>
+    <draw:frame draw:name="InlineImage 7" draw:style-name="gr1" svg:x="14cm" svg:y="6cm" svg:width="12cm" svg:height="4cm">
+     <draw:text-box><text:p>Logo: {%pic} here</text:p></draw:text-box>
+    </draw:frame>
+   </draw:page>
+   <draw:page draw:name="Grid">
+    <draw:frame draw:name="Grid 8" svg:x="1cm" svg:y="2cm" svg:width="24cm" svg:height="8cm">
+     <table:table>
+      <table:table-column table:number-columns-repeated="3"/>
+      <table:table-row>
+       <table:table-cell office:value-type="string"><text:p>Region</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>Offices</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>Count</text:p></table:table-cell>
+      </table:table-row>
+      <table:table-row>
+       <table:table-cell office:value-type="string"><text:p>{#regions}{name}</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>{#offices}{city}{^$last}, {/}{/offices}</text:p></table:table-cell>
+       <table:table-cell office:value-type="string"><text:p>{offices|count}{/regions}</text:p></table:table-cell>
+      </table:table-row>
+     </table:table>
+    </draw:frame>
+   </draw:page>
+XML
+ftr
+} > "$work/nested.fodp"
+
 sudo docker run --rm -m 1g -v "$work:/w" -e HOME=/tmp docmint-lo-probe \
   soffice --headless --norestore --convert-to pptx --outdir /w \
-  /w/report.fodp /w/chapters.fodp /w/cards.fodp >/dev/null 2>&1
+  /w/report.fodp /w/chapters.fodp /w/cards.fodp /w/nested.fodp >/dev/null 2>&1
 
-for f in report chapters cards; do
+for f in report chapters cards nested; do
   sudo chown "$(id -u):$(id -g)" "$work/$f.pptx"
   cp "$work/$f.pptx" "$here/$f.pptx"
   cp "$work/$f.fodp" "$here/$f.fodp"

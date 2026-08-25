@@ -17,6 +17,6 @@
 <office:body><office:spreadsheet>
 <table:table table:name="Sheet1">
  <table:table-column table:number-columns-repeated="3"/>
- <table:table-row><table:table-cell office:value-type="string"><text:p>Cell tag {title}</text:p><draw:frame draw:style-name="gr1" draw:z-index="0" svg:width="8cm" svg:height="2cm" svg:x="1cm" svg:y="1cm"><draw:text-box><text:p>Shape says <text:span text:style-name="T1">{sha</text:span>pe.line}</text:p></draw:text-box></draw:frame></table:table-cell><table:table-cell/><table:table-cell/></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>Cell tag {title}</text:p><draw:frame draw:style-name="gr1" draw:z-index="0" svg:width="8cm" svg:height="2cm" svg:x="1cm" svg:y="1cm"><draw:text-box><text:p>Shape says <text:span text:style-name="T1">{sha</text:span>pe.line}</text:p></draw:text-box></draw:frame></table:table-cell><table:table-cell office:value-type="string"><text:p>{%badge}</text:p></table:table-cell><table:table-cell/></table:table-row>
 </table:table>
 </office:spreadsheet></office:body></office:document>

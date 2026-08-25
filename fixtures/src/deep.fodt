@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.text">
+<office:body><office:text>
+
+<text:p>{#regions}</text:p>
+<text:p>Region {name}</text:p>
+<text:p>{#offices}</text:p>
+<text:p>Office {city}</text:p>
+<text:p>{#staff}</text:p>
+<text:p>Staff {name} ({../city}, {../../name})</text:p>
+<text:p>{/}</text:p>
+<text:p>{/}</text:p>
+<text:p>{/}</text:p>
+
+<table:table table:name="Marked">
+  <table:table-column table:number-columns-repeated="2"/>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>Item</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p>Price</text:p></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{#products}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p/></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{title}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p>{price}</text:p></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>in stock: {stock}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p/></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{/products}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p/></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{#pairs}{left}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p>{right}</text:p></table:table-cell>
+  </table:table-row>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>note: {note}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string"><text:p>{/pairs}</text:p></table:table-cell>
+  </table:table-row>
+</table:table>
+
+<text:p>{^products}No products at all.{/products}</text:p>
+<text:p>Done.</text:p>
+
+</office:text></office:body></office:document>
