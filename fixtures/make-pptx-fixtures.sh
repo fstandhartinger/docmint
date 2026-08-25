@@ -193,6 +193,11 @@ cat <<'XML'
     <draw:frame draw:name="Loop Close" draw:style-name="gr1" svg:x="0.5cm" svg:y="12cm" svg:width="5cm" svg:height="0.8cm">
      <draw:text-box><text:p>{/cards}</text:p></draw:text-box>
     </draw:frame>
+    <presentation:notes>
+     <draw:frame draw:name="Card Notes" svg:x="2cm" svg:y="10cm" svg:width="14cm" svg:height="6cm">
+      <draw:text-box><text:p>Speaker notes for {label}</text:p></draw:text-box>
+     </draw:frame>
+    </presentation:notes>
    </draw:page>
 XML
 ftr

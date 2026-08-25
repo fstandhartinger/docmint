@@ -6,6 +6,7 @@ const path = require('node:path');
 const { config } = require('./config');
 const { ApiError } = require('./errors');
 const { migrate } = require('./migrate');
+const { query, pool } = require('./db');
 const api = require('./api');
 const pdf = require('./pdf');
 const log = require('./log');
@@ -47,7 +48,30 @@ app.get('/healthz', async (req, res) => {
   if (Date.now() - loStatus.checkedAt > 60000) {
     loStatus = { ...(await pdf.probe()), checkedAt: Date.now() };
   }
-  res.json({ ok: true, pdf: { available: loStatus.available, ...pdf.stats() } });
+  const body = { ok: true, pdf: { available: loStatus.available, ...pdf.stats() } };
+
+  // `?db=1` times a trivial round trip and reports the pool's state. This exists
+  // because the first production measurement showed 450 ms per query between two
+  // services in the same city, which is the kind of number you cannot debug from
+  // the outside: it could be the network, the pool opening a connection per
+  // query, or the container being starved of CPU. The pool counters tell them
+  // apart. Kept in, because that question recurs.
+  if (req.query.db !== undefined) {
+    const s = process.hrtime.bigint();
+    let err = null;
+    try { await query('SELECT 1'); } catch (e) { err = e.message; }
+    const first = Number(process.hrtime.bigint() - s) / 1e6;
+    const s2 = process.hrtime.bigint();
+    try { await query('SELECT 1'); } catch (e) { err = err || e.message; }
+    const second = Number(process.hrtime.bigint() - s2) / 1e6;
+    body.db = {
+      first_ms: Math.round(first * 10) / 10,
+      second_ms: Math.round(second * 10) / 10,
+      pool: { total: pool.totalCount, idle: pool.idleCount, waiting: pool.waitingCount },
+      error: err,
+    };
+  }
+  res.json(body);
 });
 
 app.use('/v1', api.router);

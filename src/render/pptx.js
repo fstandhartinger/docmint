@@ -441,7 +441,7 @@ function substituteValues(xml, flat, tags, stack, ctx, sink) {
       continue;
     }
     if (tag.kind === KIND.RAW) {
-      const out = resolveValue(tag, stack, ctx);
+      const out = stripInvalidXmlChars(resolveValue(tag, stack, ctx)).replace(MARKERS_RE, '');
       ctx.stats.resolved += 1;
       edits.push({ start: tag.start, end: tag.end, text: RAW_OPEN + out + RAW_CLOSE });
       continue;
@@ -1157,6 +1157,7 @@ function duplicateSlide(pkg, srcPart, srcXml) {
         if (notesRels.length) {
           writeRels(zip, relsPathFor(newNotes), notesRels);
           pkg.touched.add(relsPathFor(newNotes));
+          pkg.ct = mirrorRelsOverride(pkg.ct, relsPathFor(srcNotes), relsPathFor(newNotes));
         }
         notesRel.target = relativeTarget(newPart, newNotes);
       } else {
@@ -1167,10 +1168,18 @@ function duplicateSlide(pkg, srcPart, srcXml) {
     }
     writeRels(zip, relsPathFor(newPart), copied);
     pkg.touched.add(relsPathFor(newPart));
+    pkg.ct = mirrorRelsOverride(pkg.ct, relsPathFor(srcPart), relsPathFor(newPart));
   }
   return newPart;
 }
 
+/**
+ * LibreOffice writes a content-type Override for every `.rels` part as well as
+ * for the part itself, even though `<Default Extension="rels">` already covers
+ * them. So a slide that gets deleted has to take *both* overrides with it: an
+ * Override naming a part that is no longer in the package is an OPC violation,
+ * and it is exactly the sort of inconsistency PowerPoint refuses on.
+ */
 function dropSlide(pkg, part) {
   const zip = pkg.zip;
   for (const r of readRels(zip, relsPathFor(part))) {
@@ -1178,11 +1187,17 @@ function dropSlide(pkg, part) {
     const notes = resolveRelTarget(part, r.target);
     removeEntry(zip, notes);
     removeEntry(zip, relsPathFor(notes));
-    pkg.ct = ctRemoveOverride(pkg.ct, notes);
+    pkg.ct = ctRemoveOverride(ctRemoveOverride(pkg.ct, notes), relsPathFor(notes));
   }
   removeEntry(zip, part);
   removeEntry(zip, relsPathFor(part));
-  pkg.ct = ctRemoveOverride(pkg.ct, part);
+  pkg.ct = ctRemoveOverride(ctRemoveOverride(pkg.ct, part), relsPathFor(part));
+}
+
+/** Copies the source part's `.rels` Override onto the new one, if it had one. */
+function mirrorRelsOverride(ct, srcRelsPath, newRelsPath) {
+  const m = new RegExp(`<Override[^>]*PartName="/${escapeRe(srcRelsPath)}"[^>]*ContentType="([^"]+)"`).exec(ct);
+  return m ? ctAddOverride(ct, newRelsPath, m[1]) : ct;
 }
 
 function notesPartFor(zip, slidePart) {
@@ -1244,6 +1259,14 @@ function selfCheck(zip) {
         `"${relsPathFor(e.name)}" points at "${r.target}", which is not in the package.`,
         'PowerPoint refuses to open a file with a dangling relationship, even though LibreOffice will.');
     }
+  }
+
+  for (const el of findElements(ct, 'Override')) {
+    const name = attr(el.openTag, 'PartName');
+    if (!name) continue;
+    invariant(zip.byName.has(name.replace(/^\//, '')),
+      `[Content_Types].xml declares "${name}", which is not in the package.`,
+      'An override naming a part that does not exist is an OPC violation.');
   }
 
   for (const e of zip.entries) {

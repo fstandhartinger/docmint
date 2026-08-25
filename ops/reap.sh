@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SERVICE_ID="srv-da6l2s61egvs7394d030"
-NEON_PROJECT="fragrant-credit-25886270"
+NEON_PROJECT="cool-cake-82817336"
 R="https://api.render.com/v1"
 
 die() { echo "$*" >&2; exit 1; }

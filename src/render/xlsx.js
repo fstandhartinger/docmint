@@ -433,6 +433,46 @@ function cellSource(cell, shared) {
   return null;
 }
 
+/**
+ * Every row interval any formula in the package points at, per sheet.
+ *
+ * Needed because a section that renders zero times would otherwise take rows out
+ * from under a SUM that covered them. Excel's own answer to deleting the rows a
+ * range spans is #REF!, which on an invoice with no line items means the total
+ * cell reads "#REF!" instead of "0.00" — so a span that something references
+ * collapses to one blank row rather than to nothing at all.
+ */
+function collectFormulaRanges(sheets) {
+  const bySheet = new Map();
+  const add = (name, from, to) => {
+    const key = name.toLowerCase();
+    if (!bySheet.has(key)) bySheet.set(key, []);
+    bySheet.get(key).push([Math.min(from, to), Math.max(from, to)]);
+  };
+  for (const { sheet, prep } of sheets) {
+    for (const row of prep.parsed.rows) {
+      for (const cell of row.cells) {
+        const fEl = findElements(cell.inner, 'f')[0];
+        if (!fEl) continue;
+        const formula = decodeXml(textOf(cell.inner, fEl));
+        formula.replace(FORMULA_TOKEN_RE, (match, str, sheetQ, a, b) => {
+          if (str !== undefined) return match;
+          const first = splitRef(a);
+          if (!first) return match;
+          const second = b ? splitRef(b) : null;
+          const name = sheetQ ? sheetQ.slice(0, -1).replace(/^'|'$/g, '') : sheet.name;
+          add(name, first.row, second ? second.row : first.row);
+          return match;
+        });
+      }
+    }
+  }
+  return bySheet;
+}
+
+const rangesTouch = (intervals, from, to) => !!intervals
+  && intervals.some(([a, b]) => a <= to && b >= from);
+
 // ---------------------------------------------------------------------------
 // Section structure over rows
 // ---------------------------------------------------------------------------
@@ -665,6 +705,30 @@ function setEmptyCell(out) {
 // Row expansion
 // ---------------------------------------------------------------------------
 
+/**
+ * A single empty row standing in for a span that rendered zero times. Styles are
+ * kept so the table's borders do not break; text and formulas are not.
+ */
+function blankRow(row, lastSrc, group) {
+  return {
+    srcRow: row.r,
+    lastSrc,
+    aliasRows: [],
+    openTag: row.openTag,
+    selfClosing: row.selfClosing,
+    group,
+    cells: row.cells.map((cell) => ({
+      col: cell.col,
+      openTag: removeAttr(cell.openTag, 't'),
+      inner: '',
+      selfClosing: true,
+      formula: null,
+      formulaOpen: null,
+      srcRow: row.r,
+    })),
+  };
+}
+
 function renderRows(rows, node, stack, outRows, group, env) {
   const children = node.children;
   let ci = 0;
@@ -678,6 +742,11 @@ function renderRows(rows, node, stack, outRows, group, env) {
         ? resolveSection(child.tag, stack, env.ctx)
         : resolveInverted(child.tag, stack, env.ctx);
       env.stats.sections += 1;
+      if (!res.passes.length) {
+        const from = rows[child.startRow].r;
+        const to = rows[child.endRow].r;
+        if (rangesTouch(env.referenced, from, to)) outRows.push(blankRow(rows[child.startRow], to, group));
+      }
       for (const pass of res.passes) {
         stack.push({ value: pass.value, meta: pass.meta });
         renderRows(rows, child, stack, outRows, { parent: group, map: new Map() }, env);
@@ -722,11 +791,23 @@ function numberRows(outRows, presentRows) {
       n = prevNew + 1 + gaps;
     } else n = prevNew + 1;
     row.newRow = n;
-    prevSrc = row.srcRow;
+    prevSrc = row.lastSrc === undefined ? row.srcRow : row.lastSrc;
     prevNew = n;
-    row.group.map.set(row.srcRow, n);
-    if (!occ.has(row.srcRow)) occ.set(row.srcRow, []);
-    occ.get(row.srcRow).push(n);
+    // A blank stand-in row answers for every source row of the span it replaced,
+    // so SUM(D5:D6) becomes SUM(D5:D5) over that one blank row instead of
+    // pointing at whatever moved up into its place.
+    for (let src = row.srcRow; src <= (row.lastSrc === undefined ? row.srcRow : row.lastSrc); src += 1) {
+      // Each enclosing iteration records the span its own rows occupy, so a
+      // per-group subtotal such as SUM(B2:B2) sitting in the outer loop widens to
+      // that department's staff rows and not to every department's.
+      for (let g = row.group; g; g = g.parent) {
+        const cur = g.map.get(src);
+        if (!cur) g.map.set(src, [n, n]);
+        else { cur[0] = Math.min(cur[0], n); cur[1] = Math.max(cur[1], n); }
+      }
+      if (!occ.has(src)) occ.set(src, []);
+      occ.get(src).push(n);
+    }
   }
   return occ;
 }
@@ -939,8 +1020,11 @@ function emitCell(cell, row, sheet, sheetMappers, ownMapper) {
   if (cell.formula !== null) {
     // A reference from inside a repeated row to another row of the same copy has
     // to stay inside that copy; anything else follows the row it pointed at.
-    const resolveLocal = (oldRow) => {
-      for (let g = row.group; g; g = g.parent) if (g.map.has(oldRow)) return g.map.get(oldRow);
+    const resolveLocal = (oldRow, which) => {
+      for (let g = row.group; g; g = g.parent) {
+        const span = g.map.get(oldRow);
+        if (span) return which === 'end' ? span[1] : span[0];
+      }
       return null;
     };
     const formula = rewriteFormula(cell.formula, (oldRow, which, sheetName) => {
@@ -948,7 +1032,7 @@ function emitCell(cell, row, sheet, sheetMappers, ownMapper) {
         const other = sheetMappers.get(sheetName.toLowerCase());
         return other ? other(oldRow, which) : null;
       }
-      const local = resolveLocal(oldRow);
+      const local = resolveLocal(oldRow, which);
       if (local !== null) return local;
       return ownMapper(oldRow, which);
     });
@@ -1350,17 +1434,23 @@ async function render(buffer, data, opts = {}) {
   const styles = readStyles(zip);
   const touched = new Set();
   const stats = { tags: 0, resolved: 0, sections: 0, images: 0, parts: [] };
-  const env = { ctx, stats, images: [], sheetName: '' };
+  const env = { ctx, stats, images: [], sheetName: '', referenced: null };
+
+  const preps = [];
+  for (const sheet of sheets) {
+    const prep = prepareSheet(zip, sheet, shared, styles);
+    if (prep) preps.push({ sheet, prep });
+  }
+  const referenced = collectFormulaRanges(preps);
 
   // Pass one: expand every sheet and number its rows. Formulas are left until
   // pass two because a summary sheet may reference a row on another sheet that
   // has not been expanded yet.
   const states = new Map();
-  for (const sheet of sheets) {
-    const prep = prepareSheet(zip, sheet, shared, styles);
-    if (!prep) continue;
+  for (const { sheet, prep } of preps) {
     stats.tags += prep.tagCount;
     env.images = [];
+    env.referenced = referenced.get(sheet.name.toLowerCase()) || null;
     const stack = [{ value: data, meta: {} }];
     const state = renderSheet(prep, sheet, stack, env);
     state.prep = prep;

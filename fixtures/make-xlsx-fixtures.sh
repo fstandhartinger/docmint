@@ -32,3 +32,9 @@ done
 # shared-formula group, the way Excel would have saved it.
 node "$here/shared-formula.js" "$here/shared-formula.xlsx"
 echo "shared-formula.xlsx (shared <f> group injected)"
+
+# Same reasoning for autofilter / conditional formatting / data validation /
+# hyperlink: LibreOffice does not round-trip all four into the shape Excel
+# writes, and the shape Excel writes is the one that has to survive.
+node "$here/extras.js" "$here/invoice-extras.xlsx"
+echo "invoice-extras.xlsx (autoFilter, cf, validation, hyperlink injected)"

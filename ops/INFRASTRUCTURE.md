@@ -8,7 +8,7 @@ unnoticed. `ops/reap.sh` tears all of it down.
 | What | Where | Plan | Cost |
 |---|---|---|---:|
 | DocMint API + PDF converter + site + docs | Render web service `docmint` (`srv-da6l2s61egvs7394d030`), Frankfurt | Starter, 512 MB | **$7.00** |
-| Database | Neon project `docmint` (`fragrant-credit-25886270`), aws-us-west-2 | Free tier | **$0.00** |
+| Database | Neon project `docmint` (`cool-cake-82817336`), aws-eu-central-1 | Free tier | **$0.00** |
 | npm package | `n8n-nodes-docmint` | public | $0.00 |
 | GitHub repos + Actions | `fstandhartinger/docmint`, `fstandhartinger/n8n-nodes-docmint` | public | $0.00 |
 | Document libraries | none — the fill engine is ours | — | **$0.00** |
@@ -58,8 +58,8 @@ whether anyone is actually waiting.
 - **Render web service** `docmint` — id `srv-da6l2s61egvs7394d030`, region
   frankfurt, Docker runtime, auto-deploys from `master` of
   `fstandhartinger/docmint`. URL `https://docmint-832s.onrender.com`.
-- **Neon project** `docmint` — id `fragrant-credit-25886270`, database `neondb`,
-  branch `main` (`br-fancy-salad-a6hv2k58`). Tables: accounts, api_keys,
+- **Neon project** `docmint` — id `cool-cake-82817336`, database `neondb`,
+  branch `main`. Tables: accounts, api_keys,
   templates, template_versions, files, usage_events, sessions, stripe_events.
 - **npm** — `n8n-nodes-docmint`, published from GitHub Actions with provenance.
 - **GitHub** — `fstandhartinger/docmint`, `fstandhartinger/n8n-nodes-docmint`.
@@ -77,3 +77,12 @@ ops/reap.sh --destroy   # delete the Render service and the Neon project
 `--destroy` asks for confirmation and prints exactly what it will remove first.
 It deliberately does **not** unpublish the npm package: unpublishing breaks anyone
 who installed it, and after 72 hours npm refuses anyway.
+
+### Why the database is in Frankfurt
+
+It started in `aws-us-west-2` and the service is in Frankfurt, which cost **560 ms
+loading a template and 152 ms taking a credit, on every single render** — measured
+from the `stages` object in the render response, not guessed. Moving the Neon
+project to `aws-eu-central-1` removed that. The original project was deleted rather
+than left suspended, because a free-tier project that nobody remembers is exactly
+the kind of thing this file exists to prevent.
