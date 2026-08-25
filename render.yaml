@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: docmint
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # LibreOffice peaks at 219 MB per conversion, measured. One at a time is
+      # what fits beside Node in a 512 MB Starter instance.
+      - key: MAX_CONCURRENT_PDF
+        value: "1"

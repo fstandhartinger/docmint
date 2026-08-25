@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Type-fidelity fixture. B1:B3 hold bare placeholders and B4 sums them: if the
+     renderer writes those three cells as text the SUM comes back 0, which is the
+     failure this whole fixture exists to catch. -->
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+ xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+ xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+ xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2"
+ office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+<office:automatic-styles>
+ <number:date-style style:name="NDate"><number:day number:style="long"/><number:text>.</number:text><number:month number:style="long"/><number:text>.</number:text><number:year number:style="long"/></number:date-style>
+ <style:style style:name="coDate" style:family="table-cell" style:data-style-name="NDate"/>
+ <number:number-style style:name="N2"><number:number number:decimal-places="2" number:min-decimal-places="2" number:grouping="true"/></number:number-style>
+ <style:style style:name="co2" style:family="table-cell" style:data-style-name="N2"/>
+</office:automatic-styles>
+<office:body><office:spreadsheet>
+<table:table table:name="Types">
+ <table:table-column table:number-columns-repeated="2"/>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>a</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{a}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>b</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{b}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>c</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{c}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>sum</text:p></table:table-cell><table:table-cell table:style-name="co2" table:formula="of:=SUM([.B1:.B3])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>money</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{price|currency:EUR}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>flag</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{active}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>yesno</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{active|yesno}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>date cell</text:p></table:table-cell><table:table-cell table:style-name="coDate" office:value-type="string"><text:p>{when}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>date text</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{when|date:DD.MM.YYYY}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>mixed</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>Ref {code} ok</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>rounded</text:p></table:table-cell><table:table-cell table:style-name="co2" office:value-type="string"><text:p>{price|round:1}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>summed</text:p></table:table-cell><table:table-cell table:style-name="co2" office:value-type="string"><text:p>{items|sum:amount}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>nulled</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{nothing}</text:p></table:table-cell></table:table-row>
+</table:table>
+</office:spreadsheet></office:body></office:document>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The main XLSX fixture: an invoice the way somebody would actually build one.
+     Exercises a two-row loop body, a merged range inside the loop, a SUM that
+     spans the loop, formulas below the loop that point at a row which moves, a
+     cross-sheet reference to that same row, a currency-formatted cell holding a
+     placeholder, a date-formatted cell holding a placeholder, an inverted
+     section, and a placeholder deliberately split across two text spans so it
+     lands in sharedStrings as several <r><t> runs. -->
+<office:document xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+ xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+ xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+ xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+ xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+ xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+ xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2"
+ office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+<office:automatic-styles>
+ <number:currency-style style:name="NCur"><number:number number:decimal-places="2" number:min-decimal-places="2" number:grouping="true"/><number:text> </number:text><number:currency-symbol number:language="en" number:country="US">$</number:currency-symbol></number:currency-style>
+ <style:style style:name="coCur" style:family="table-cell" style:data-style-name="NCur"/>
+ <number:date-style style:name="NDate"><number:year number:style="long"/><number:text>-</number:text><number:month number:style="long"/><number:text>-</number:text><number:day number:style="long"/></number:date-style>
+ <style:style style:name="coDate" style:family="table-cell" style:data-style-name="NDate"/>
+ <style:style style:name="coBold" style:family="table-cell"><style:text-properties fo:font-weight="bold"/></style:style>
+ <style:style style:name="T1" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+ <style:style style:name="T2" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+</office:automatic-styles>
+<office:body><office:spreadsheet>
+<table:table table:name="Invoice">
+ <table:table-column table:number-columns-repeated="4"/>
+ <!-- 1 --><table:table-row><table:table-cell table:style-name="coBold" table:number-columns-spanned="2" table:number-rows-spanned="1" office:value-type="string"><text:p>INVOICE {invoice.number}</text:p></table:table-cell><table:covered-table-cell/><table:table-cell/><table:table-cell table:style-name="coDate" office:value-type="string"><text:p>{invoice.date}</text:p></table:table-cell></table:table-row>
+ <!-- 2 --><table:table-row><table:table-cell office:value-type="string"><text:p>Bill to</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p><text:span text:style-name="T1">{cus</text:span><text:span text:style-name="T2">tomer.name}</text:span></text:p></table:table-cell><table:table-cell/><table:table-cell/></table:table-row>
+ <!-- 3 (deliberately empty: a gap the renderer must preserve) --><table:table-row><table:table-cell table:number-columns-repeated="4"/></table:table-row>
+ <!-- 4 --><table:table-row><table:table-cell table:style-name="coBold" office:value-type="string"><text:p>Description</text:p></table:table-cell><table:table-cell table:style-name="coBold" office:value-type="string"><text:p>Qty</text:p></table:table-cell><table:table-cell table:style-name="coBold" office:value-type="string"><text:p>Unit</text:p></table:table-cell><table:table-cell table:style-name="coBold" office:value-type="string"><text:p>Amount</text:p></table:table-cell></table:table-row>
+ <!-- 5 loop body row 1 --><table:table-row><table:table-cell office:value-type="string"><text:p>{#items}{description}</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{qty}</text:p></table:table-cell><table:table-cell table:style-name="coCur" office:value-type="string"><text:p>{price}</text:p></table:table-cell><table:table-cell table:style-name="coCur" table:formula="of:=[.B5]*[.C5]" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell></table:table-row>
+ <!-- 6 loop body row 2, merged across all four columns --><table:table-row><table:table-cell table:number-columns-spanned="4" table:number-rows-spanned="1" office:value-type="string"><text:p>{note|default:}{/items}</text:p></table:table-cell><table:covered-table-cell table:number-columns-repeated="3"/></table:table-row>
+ <!-- 7 --><table:table-row><table:table-cell office:value-type="string"><text:p>Subtotal</text:p></table:table-cell><table:table-cell/><table:table-cell/><table:table-cell table:style-name="coCur" table:formula="of:=SUM([.D5:.D6])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell></table:table-row>
+ <!-- 8 --><table:table-row><table:table-cell office:value-type="string"><text:p>VAT 19%</text:p></table:table-cell><table:table-cell/><table:table-cell/><table:table-cell table:style-name="coCur" table:formula="of:=[.D7]*0.19" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell></table:table-row>
+ <!-- 9 --><table:table-row><table:table-cell table:style-name="coBold" office:value-type="string"><text:p>Total</text:p></table:table-cell><table:table-cell/><table:table-cell/><table:table-cell table:style-name="coCur" table:formula="of:=[.D7]+[.D8]" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell></table:table-row>
+ <!-- 10 inverted: disappears when there are line items --><table:table-row><table:table-cell office:value-type="string"><text:p>{^items}No line items were supplied.{/}</text:p></table:table-cell><table:table-cell/><table:table-cell/><table:table-cell/></table:table-row>
+ <!-- 11 --><table:table-row><table:table-cell office:value-type="string"><text:p>Prepared by {user.name}</text:p></table:table-cell><table:table-cell/><table:table-cell/><table:table-cell/></table:table-row>
+</table:table>
+<table:table table:name="Summary">
+ <table:table-column table:number-columns-repeated="2"/>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>Customer</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{customer.name}</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>Amount due</text:p></table:table-cell><table:table-cell table:style-name="coCur" table:formula="of:=[Invoice.D9]" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell></table:table-row>
+ <table:table-row><table:table-cell office:value-type="string"><text:p>Lines</text:p></table:table-cell><table:table-cell office:value-type="string"><text:p>{items|count}</text:p></table:table-cell></table:table-row>
+</table:table>
+</office:spreadsheet></office:body></office:document>

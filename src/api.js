@@ -1,0 +1,423 @@
+'use strict';
+
+const express = require('express');
+const crypto = require('node:crypto');
+
+const { config, PLANS, FORMATS } = require('./config');
+const { ApiError, bad } = require('./errors');
+const { query } = require('./db');
+const { authenticate, consumeCredits, refundCredits, issueApiKey, revokeApiKey } = require('./auth');
+const { rateLimit } = require('./ratelimit');
+const { formatterNames } = require('./capabilities');
+const templates = require('./templates');
+const renderer = require('./render');
+const pdf = require('./pdf');
+const input = require('./input');
+const log = require('./log');
+
+const router = express.Router();
+
+const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+const authenticateOnly = asyncRoute(async (req, res, next) => {
+  req.account = await authenticate(req);
+  req.log = req.log.child({ account: req.account.id });
+  next();
+});
+
+const withAuth = [authenticateOnly, rateLimit];
+
+/* ------------------------------------------------------------------ costing */
+
+/**
+ * A document costs one credit. Converting it to PDF costs one more, because
+ * LibreOffice costs roughly a hundred times the CPU of the fill itself
+ * (measured: about 1,020 ms against about 10 ms) and pretending the two are the
+ * same price would mean the cheap path subsidising the expensive one.
+ *
+ * Nothing else is metered. Downloading a file you already generated is free —
+ * unlike Docupilot, where "Downloading generated document also consumes 1 credit"
+ * and each delivery consumes another.
+ */
+const CREDITS = { document: 1, pdf: 2, both: 2 };
+
+/* --------------------------------------------------------------- /v1/render */
+
+const RENDER_FIELDS = [
+  'template', 'template_base64', 'template_version', 'data', 'output', 'filename',
+  'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'images',
+];
+
+router.post('/render', withAuth, asyncRoute(async (req, res) => {
+  const t = log.timer();
+  const body = req.body || {};
+  input.rejectUnknown(body, RENDER_FIELDS, '/docs#render');
+
+  const output = input.enumOr(body.output, ['document', 'pdf', 'both'], 'output', '/docs#output');
+  const wantJson = String(body.response || '').toLowerCase() === 'json'
+    || (!body.response && String(req.get('accept') || '').includes('application/json'));
+
+  const opts = {
+    locale: input.checkLocale(body.locale),
+    currency: input.checkCurrency(body.currency),
+    timezone: input.checkTimezone(body.timezone),
+    onMissing: input.enumOr(body.onMissing, ['error', 'empty', 'keep'], 'onMissing', '/docs#errors'),
+    strictScope: body.strictScope === true,
+    images: body.images && typeof body.images === 'object' ? body.images : undefined,
+  };
+
+  const data = body.data === undefined ? {} : body.data;
+  const dataBytes = input.checkDataSize(data);
+
+  const { buffer: templateBuffer, source, template } = await loadTemplate(req.account, body, req.log);
+  t.mark('load');
+
+  req.log = req.log.child({ template_id: template?.id || null, template_source: source });
+
+  // Credits are taken before the work and refunded if the work fails, so a run
+  // that errors on a missing field does not cost the caller anything.
+  const cost = CREDITS[output];
+  const balance = await consumeCredits(req.account.id, cost);
+  t.mark('quota');
+
+  let filled;
+  let pdfOut = null;
+  try {
+    filled = await renderer.fill(templateBuffer, data, { ...opts, log: req.log });
+    t.mark('fill');
+
+    if (output === 'pdf' || output === 'both') {
+      pdfOut = await pdf.toPdf(filled.buffer, filled.format, { log: req.log });
+      t.mark('pdf');
+    }
+  } catch (e) {
+    await refundCredits(req.account.id, cost);
+    await recordUsage(req, {
+      kind: 'render', format: filled?.format || null, template_id: template?.id || null,
+      output, credits: 0, ok: false, error_code: e.code || 'unknown', ms: t.total(), stages: t.stages(),
+    });
+    req.log.warn('render.fail', {
+      output, code: e.code, status: e.status, field: e.details?.field, location: e.details?.location,
+      stages: t.stages(), ms: t.total(), data_bytes: dataBytes,
+    });
+    throw e;
+  }
+
+  const ext = FORMATS[filled.format].ext;
+  const docName = input.renderFilename(body.filename, data, ext, opts);
+  const pdfName = input.renderFilename(body.filename, data, 'pdf', opts);
+
+  await recordUsage(req, {
+    kind: 'render', format: filled.format, template_id: template?.id || null,
+    output, credits: cost, ok: true, ms: t.total(), stages: t.stages(),
+  });
+
+  req.log.info('render.ok', {
+    output, format: filled.format, template_source: source,
+    template_version: template ? (body.template_version || template.version) : null,
+    in_bytes: templateBuffer.length, data_bytes: dataBytes,
+    doc_bytes: filled.buffer.length, pdf_bytes: pdfOut?.buffer.length || null,
+    pages: pdfOut?.pages ?? null, pdf_queued_ms: pdfOut?.queuedMs ?? null,
+    tags: filled.stats.tags, resolved: filled.stats.resolved, sections: filled.stats.sections,
+    images: filled.stats.images, warnings: filled.warnings.length,
+    credits: cost, credits_remaining: balance.remaining,
+    stages: t.stages(), ms: t.total(),
+  });
+
+  res.set('X-DocMint-Request-Id', req.id);
+  res.set('X-DocMint-Credits-Remaining', String(balance.remaining));
+  res.set('X-DocMint-Warnings', String(filled.warnings.length));
+
+  if (wantJson || output === 'both') {
+    res.json({
+      request_id: req.id,
+      format: filled.format,
+      document: output === 'pdf' ? undefined : {
+        filename: docName, content_type: FORMATS[filled.format].mime,
+        size: filled.buffer.length, base64: filled.buffer.toString('base64'),
+      },
+      pdf: pdfOut ? {
+        filename: pdfName, content_type: 'application/pdf',
+        size: pdfOut.buffer.length, pages: pdfOut.pages, base64: pdfOut.buffer.toString('base64'),
+      } : undefined,
+      stats: { ...filled.stats, ms: t.total(), stages: t.stages() },
+      warnings: filled.warnings,
+      credits: { used: cost, remaining: balance.remaining, limit: balance.limit },
+    });
+    return;
+  }
+
+  const send = output === 'pdf' ? pdfOut.buffer : filled.buffer;
+  const name = output === 'pdf' ? pdfName : docName;
+  res.set('Content-Type', output === 'pdf' ? 'application/pdf' : FORMATS[filled.format].mime);
+  res.set('Content-Disposition', `attachment; filename="${name.replace(/"/g, '')}"`);
+  res.set('Content-Length', String(send.length));
+  res.send(send);
+}));
+
+/**
+ * Where the template came from. Exactly one of `template` and `template_base64`,
+ * because accepting both and silently preferring one is how a workflow ends up
+ * rendering last month's letterhead.
+ */
+async function loadTemplate(account, body, l) {
+  const given = ['template', 'template_base64'].filter((k) => body[k] !== undefined && body[k] !== null && body[k] !== '');
+  if (given.length === 0) {
+    throw bad('missing_template', 'No template: send "template" with a saved template name, or "template_base64" with the file itself.', {
+      hint: 'Upload a template once with POST /v1/templates and then reference it by name, or send the file inline on every call.',
+      docs: '/docs#render',
+    });
+  }
+  if (given.length > 1) {
+    throw bad('ambiguous_template', 'Send either "template" or "template_base64", not both.', {
+      hint: 'Pick the saved template by name, or send the file inline - never both, because it is not obvious which would win.',
+      docs: '/docs#render',
+    });
+  }
+
+  if (body.template_base64) {
+    if (body.template_version !== undefined) {
+      throw bad('version_without_template', '"template_version" only means something with a saved "template".', { docs: '/docs#template-versions' });
+    }
+    const buffer = input.decodeBase64(body.template_base64, 'template_base64');
+    if (buffer.length > config.maxTemplateBytes) {
+      throw new ApiError(413, 'template_too_large',
+        `That template is ${(buffer.length / 1048576).toFixed(1)} MB; the limit is ${(config.maxTemplateBytes / 1048576).toFixed(0)} MB.`,
+        { docs: '/docs#limits' });
+    }
+    return { buffer, source: 'inline', template: null };
+  }
+
+  const template = await templates.findOrThrow(account.id, body.template);
+  const version = await templates.bytesOf(template, body.template_version);
+  l.debug('template.loaded', { template_id: template.id, name: template.name, version: version.version, bytes: version.size });
+  return { buffer: version.bytes, source: 'stored', template, version: version.version };
+}
+
+/* -------------------------------------------------------------- /v1/inspect */
+
+/**
+ * "What fields does this template need?" — the question no competitor answers.
+ * Free: it reads a file the caller already has and produces no document, so
+ * charging for it would only discourage the one call that prevents a bad render.
+ */
+router.post('/inspect', withAuth, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  input.rejectUnknown(body, ['template', 'template_base64', 'template_version'], '/docs#inspect');
+  const { buffer, source, template } = await loadTemplate(req.account, body, req.log);
+  const t = log.timer();
+  const out = await renderer.inspect(buffer);
+  req.log.info('inspect.ok', {
+    template_id: template?.id || null, source, format: out.format,
+    fields: out.fields.length, tags: out.tags.length, ms: t.total(),
+  });
+  res.json({
+    request_id: req.id,
+    format: out.format,
+    fields: out.fields,
+    tags: out.tags,
+    sample_data: out.sample_data,
+    template: template ? { id: template.id, name: template.name, version: template.version } : null,
+  });
+}));
+
+/* ------------------------------------------------------------ /v1/templates */
+
+router.get('/templates', withAuth, asyncRoute(async (req, res) => {
+  res.json({ templates: await templates.list(req.account.id) });
+}));
+
+const uploadTemplate = asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const fromPath = req.params.name !== undefined;
+  const known = fromPath ? ['file_base64', 'description', 'note'] : ['name', 'file_base64', 'description', 'note'];
+  input.rejectUnknown(body, known, '/docs#templates');
+
+  if (!body.file_base64) {
+    throw bad('missing_file', 'Send the template file as "file_base64".', {
+      hint: 'base64 -w0 invoice.docx, then send {"name":"invoice","file_base64":"<that>"}. In n8n the node handles this for you.',
+      docs: '/docs#templates',
+    });
+  }
+  const buffer = input.decodeBase64(body.file_base64, 'file_base64');
+
+  // Extracting the fields at upload time is what lets the node show them as real
+  // inputs later without opening the file again on every keystroke.
+  let fields = { fields: [], tags: [] };
+  try {
+    const info = await renderer.inspect(buffer);
+    fields = { fields: info.fields, tags: info.tags };
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    req.log.warn('template.inspect_failed', { err: e });
+  }
+
+  const out = await templates.upload(req.account, {
+    name: fromPath ? req.params.name : body.name,
+    buffer,
+    description: body.description,
+    note: body.note,
+    inspectFields: fields,
+  });
+
+  res.status(out.unchanged ? 200 : 201).json({
+    request_id: req.id,
+    id: out.template.id,
+    name: out.template.name,
+    format: out.format,
+    version: out.version,
+    unchanged: out.unchanged,
+    size: buffer.length,
+    fields: fields.fields,
+    macro_enabled: out.macroEnabled,
+  });
+});
+
+router.post('/templates', withAuth, uploadTemplate);
+router.put('/templates/:name', withAuth, uploadTemplate);
+
+router.get('/templates/:name', withAuth, asyncRoute(async (req, res) => {
+  const template = await templates.findOrThrow(req.account.id, req.params.name);
+  const current = await templates.bytesOf(template, null);
+  res.json({
+    id: template.id,
+    name: template.name,
+    format: template.format,
+    version: template.version,
+    description: template.description,
+    size: Number(current.size),
+    sha256: current.sha256,
+    fields: current.fields,
+    created_at: template.created_at,
+    updated_at: template.updated_at,
+    versions: await templates.versionsOf(template.id),
+  });
+}));
+
+/** The endpoint the n8n node's field mapper calls. */
+router.get('/templates/:name/fields', withAuth, asyncRoute(async (req, res) => {
+  const template = await templates.findOrThrow(req.account.id, req.params.name);
+  const version = await templates.bytesOf(template, req.query.version);
+  // Stored fields come from the upload; re-deriving is cheap and means a template
+  // uploaded before a renderer improvement still reports accurately.
+  const out = await renderer.inspect(version.bytes);
+  res.json({
+    id: template.id,
+    name: template.name,
+    format: out.format,
+    version: version.version,
+    fields: out.fields,
+    tags: out.tags,
+    sample_data: out.sample_data,
+  });
+}));
+
+router.get('/templates/:name/file', withAuth, asyncRoute(async (req, res) => {
+  const template = await templates.findOrThrow(req.account.id, req.params.name);
+  const version = await templates.bytesOf(template, req.query.version);
+  res.set('Content-Type', FORMATS[template.format].mime);
+  res.set('Content-Disposition', `attachment; filename="${template.name}.${FORMATS[template.format].ext}"`);
+  res.send(version.bytes);
+}));
+
+router.get('/templates/:name/versions', withAuth, asyncRoute(async (req, res) => {
+  const template = await templates.findOrThrow(req.account.id, req.params.name);
+  res.json({ id: template.id, name: template.name, current: template.version, versions: await templates.versionsOf(template.id) });
+}));
+
+router.post('/templates/:name/rollback', withAuth, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  input.rejectUnknown(body, ['version'], '/docs#template-versions');
+  if (body.version === undefined) {
+    throw bad('missing_version', 'Say which version to roll back to: {"version": 3}.', { docs: '/docs#template-versions' });
+  }
+  const out = await templates.rollback(req.account, req.params.name, body.version);
+  res.json({
+    request_id: req.id, id: out.template.id, name: out.template.name,
+    version: out.version, restored_from: out.restoredFrom,
+  });
+}));
+
+router.delete('/templates/:name', withAuth, asyncRoute(async (req, res) => {
+  const template = await templates.remove(req.account.id, req.params.name);
+  res.json({ deleted: true, id: template.id, name: template.name });
+}));
+
+/* --------------------------------------------------------------- /v1/usage */
+
+router.get('/usage', withAuth, asyncRoute(async (req, res) => {
+  const a = req.account;
+  const { rows } = await query(
+    `SELECT kind, format, output, ok, count(*)::int AS n, sum(credits)::int AS credits,
+            round(avg(duration_ms))::int AS avg_ms
+     FROM usage_events WHERE account_id = $1 AND created_at >= date_trunc('month', now())
+     GROUP BY kind, format, output, ok ORDER BY n DESC`, [a.id],
+  );
+  const plan = PLANS[a.plan] || PLANS.free;
+  res.json({
+    plan: { id: a.plan, name: plan.name, price_usd: plan.priceUsd },
+    credits: { used: a.credits_used, limit: a.credits_limit, remaining: a.credits_limit - a.credits_used },
+    period_start: a.period_start,
+    breakdown: rows,
+  });
+}));
+
+/* ---------------------------------------------------------- /v1/formats etc */
+
+/**
+ * What this build can actually do. Published so that the documentation and the
+ * node can be checked against the running code rather than against a README that
+ * drifted - if a formatter is listed here it exists, because the list is read out
+ * of the module.
+ */
+router.get('/capabilities', asyncRoute(async (req, res) => {
+  const lo = await pdf.probe();
+  res.json({
+    formats: Object.entries(FORMATS).map(([id, f]) => ({ id, name: f.name, mime: f.mime })),
+    outputs: ['document', 'pdf', 'both'],
+    pdf: { available: lo.available, engine: lo.available ? 'libreoffice' : null, concurrency: config.maxConcurrentPdf },
+    formatters: formatterNames(),
+    limits: {
+      max_template_bytes: config.maxTemplateBytes,
+      max_data_bytes: config.maxDataBytes,
+      max_versions_kept: config.maxVersionsKept,
+      pdf_timeout_ms: config.pdfTimeoutMs,
+    },
+    credits: CREDITS,
+  });
+}));
+
+/* ------------------------------------------------------------------- keys */
+
+router.post('/keys', withAuth, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  input.rejectUnknown(body, ['label'], '/docs#auth');
+  const key = await issueApiKey(req.account.id, String(body.label || 'default').slice(0, 60));
+  req.log.info('key.issued', { label: body.label || 'default' });
+  res.status(201).json({ key, note: 'This is the only time the key is shown. Store it now.' });
+}));
+
+router.delete('/keys/:prefix', withAuth, asyncRoute(async (req, res) => {
+  const n = await revokeApiKey(req.account.id, req.params.prefix);
+  if (!n) throw new ApiError(404, 'key_not_found', `No live key on this account starts with "${req.params.prefix}".`, { docs: '/docs#auth' });
+  req.log.info('key.revoked', { prefix: req.params.prefix });
+  res.json({ revoked: n });
+}));
+
+/* ------------------------------------------------------------------ usage */
+
+async function recordUsage(req, e) {
+  try {
+    await query(
+      `INSERT INTO usage_events (account_id, kind, format, template_id, output, credits, duration_ms, stages, ok, error_code, origin, request_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      [req.account.id, e.kind, e.format, e.template_id, e.output, e.credits,
+        Math.round(e.ms || 0), JSON.stringify(e.stages || {}), e.ok, e.error_code || null, config.origin, req.id],
+    );
+  } catch (err) {
+    // Usage accounting must never take a successful render down with it.
+    req.log.error('usage.record_failed', { err });
+  }
+}
+
+module.exports = { router, CREDITS };
