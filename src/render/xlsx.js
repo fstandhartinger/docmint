@@ -7,7 +7,7 @@ const {
 const { flatten, splice } = require('../ooxml/runs');
 const { scan, KIND } = require('../template/scan');
 const {
-  resolveValue, resolveSection, resolveInverted, makeContext, lookup,
+  resolveValue, resolveSection, resolveInverted, makeContext, lookup, probeTag,
 } = require('../template/resolve');
 const { applyFormatters } = require('../template/formatters');
 const { TemplateError } = require('../template/errors');
@@ -651,6 +651,7 @@ function renderCell(cell, row, stack, env) {
  * was stringified.
  */
 function typedValue(tag, stack, ctx, cell, text) {
+  probeTag(tag, stack, ctx);
   const { found, value } = lookup(tag.path, stack);
   const hasDefault = tag.formatters.some((f) => f.name === 'default');
   if (!found && !hasDefault) return null;          // onMissing relaxation: keep it as text
@@ -1521,6 +1522,7 @@ async function render(buffer, data, opts = {}) {
     const requests = [];
     for (const req of state.imageRequests) {
       ctx.location = `${sheet.name}!${req.cell.col}${req.srcRow}`;
+      probeTag(req.tag, [...req.stack], ctx);
       const { found, value } = lookup(req.tag.path, [...req.stack]);
       if (!found) {
         if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') continue;

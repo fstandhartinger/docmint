@@ -9,6 +9,7 @@ const { migrate } = require('./migrate');
 const { query, pool } = require('./db');
 const api = require('./api');
 const pdf = require('./pdf');
+const billing = require('./billing');
 const log = require('./log');
 
 const app = express();
@@ -34,6 +35,10 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Stripe verifies a signature over the exact bytes it sent, so this route must be
+// mounted before the JSON parser gets to rewrite them.
+app.use('/stripe', express.raw({ type: 'application/json' }), billing.router);
 
 app.use(express.json({ limit: config.maxRequestBytes }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
@@ -144,12 +149,14 @@ async function start() {
   }
   const lo = await pdf.probe();
   loStatus = { ...lo, checkedAt: Date.now() };
+  if (config.databaseUrl) await billing.healStaleCustomers().catch((e) => log.warn('stripe.heal_failed', { err: e }));
   log.info('start', {
     port: config.port,
     origin: config.origin,
     pdf_available: lo.available,
     pdf_engine: lo.version,
     max_concurrent_pdf: config.maxConcurrentPdf,
+    billing: billing.enabled(),
     node: process.version,
   });
   app.listen(config.port, () => log.info('listening', { port: config.port, url: config.publicUrl || null }));

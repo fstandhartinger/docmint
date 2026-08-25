@@ -9,7 +9,7 @@ const {
 const { flatten, splice } = require('../ooxml/runs');
 const { scan } = require('../template/scan');
 const {
-  makeContext, resolveValue, resolveSection, resolveInverted, lookup, visibleKeys,
+  makeContext, resolveValue, resolveSection, resolveInverted, lookup, visibleKeys, probeTag,
 } = require('../template/resolve');
 const { TemplateError, didYouMean } = require('../template/errors');
 
@@ -713,6 +713,7 @@ function renderSection(node, stack, job) {
 
 function renderRaw(node, stack, job) {
   job.ctx.location = node.loc;
+  probeTag(node.tag, stack, job.ctx);
   const { found, value } = lookup(node.tag.path, stack);
   if (!found) {
     if (job.ctx.onMissing === 'empty') return '';
@@ -904,6 +905,7 @@ function drawingXml({ rId, width, height, alt, id, name }) {
 
 function renderImage(node, stack, job) {
   job.ctx.location = node.loc;
+  probeTag(node.tag, stack, job.ctx);
   const { found, value } = lookup(node.tag.path, stack);
   if (!found) {
     if (job.ctx.onMissing === 'empty' || job.ctx.onMissing === 'keep') return '';

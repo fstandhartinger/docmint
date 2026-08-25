@@ -9,7 +9,7 @@ const {
 const { flatten, splice } = require('../ooxml/runs');
 const { scan, KIND } = require('../template/scan');
 const {
-  lookup, resolveValue, resolveSection, resolveInverted, makeContext,
+  lookup, probeTag, resolveValue, resolveSection, resolveInverted, makeContext,
 } = require('../template/resolve');
 const { TemplateError } = require('../template/errors');
 
@@ -250,6 +250,7 @@ function decodeImageValue(value, tag, ctx) {
 }
 
 function resolveImage(tag, stack, ctx) {
+  probeTag(tag, stack, ctx);
   const hit = lookup(tag.path, stack);
   let value = hit.found ? hit.value : undefined;
   if (!hit.found && ctx.imagesOpt && Object.prototype.hasOwnProperty.call(ctx.imagesOpt, tag.path)) {

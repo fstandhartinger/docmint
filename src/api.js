@@ -3,7 +3,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 
-const { config, PLANS, FORMATS } = require('./config');
+const { config, PLANS, FORMATS, planPriceId } = require('./config');
 const { ApiError, bad } = require('./errors');
 const { query } = require('./db');
 const { authenticate, consumeCredits, refundCredits, issueApiKey, revokeApiKey } = require('./auth');
@@ -14,6 +14,7 @@ const renderer = require('./render');
 const pdf = require('./pdf');
 const input = require('./input');
 const log = require('./log');
+const billing = require('./billing');
 
 const router = express.Router();
 
@@ -214,7 +215,11 @@ router.post('/inspect', withAuth, asyncRoute(async (req, res) => {
   res.json({
     request_id: req.id,
     format: out.format,
+    // `fields` is the typed, scoped tree - what to SEND. `names` is the flat list
+    // of what is literally written in the file. `tags` says where each one is.
+    // `sample_data` is a skeleton that is guaranteed to render this template.
     fields: out.fields,
+    names: out.names,
     tags: out.tags,
     sample_data: out.sample_data,
     template: template ? { id: template.id, name: template.name, version: template.version } : null,
@@ -307,6 +312,7 @@ router.get('/templates/:name/fields', withAuth, asyncRoute(async (req, res) => {
     format: out.format,
     version: version.version,
     fields: out.fields,
+    names: out.names,
     tags: out.tags,
     sample_data: out.sample_data,
   });
@@ -449,6 +455,36 @@ router.post('/signup', asyncRoute(async (req, res) => {
     api_key: out.apiKey,
     plan: { id: out.account.plan, name: plan.name, credits: out.account.credits_limit },
     note: 'This is the only time the key is shown. Store it now.',
+  });
+}));
+
+/* ---------------------------------------------------------------- billing */
+
+router.post('/billing/checkout', withAuth, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  input.rejectUnknown(body, ['plan'], '/docs#pricing');
+  const plan = String(body.plan || '');
+  const session = await billing.createCheckoutSession(req.account, plan);
+  req.log.info('billing.checkout_created', { plan, session: session.id });
+  res.json({ url: session.url, plan, expires_at: session.expires_at });
+}));
+
+router.post('/billing/portal', withAuth, asyncRoute(async (req, res) => {
+  const session = await billing.createPortalSession(req.account);
+  res.json({ url: session.url });
+}));
+
+router.get('/billing/plans', asyncRoute(async (req, res) => {
+  res.json({
+    billing_available: billing.enabled(),
+    // A plan with no Stripe price configured is listed but marked unpurchasable,
+    // rather than hidden: a page that shows three plans while the API knows about
+    // four is how documentation and code drift apart.
+    plans: Object.values(PLANS).map((p) => ({
+      id: p.id, name: p.name, price_usd: p.priceUsd, documents_per_month: p.credits,
+      purchasable: p.priceUsd === 0 ? false : Boolean(planPriceId(p.id)),
+    })),
+    note: 'One document costs one credit. Asking for a PDF costs one more, because converting it costs about a hundred times the CPU. Downloading a file you already made is free.',
   });
 }));
 

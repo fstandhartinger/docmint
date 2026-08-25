@@ -121,6 +121,7 @@ function walk(root, segs) {
  * Throws TemplateError, naming the field, when it cannot.
  */
 function resolveValue(tag, stack, ctx) {
+  if (ctx.probe) ctx.probe.value(tag, stack);
   const hit = lookup(tag.path, stack);
   const { found, value } = hit;
   const hasDefault = tag.formatters.some((f) => f.name === 'default');
@@ -142,8 +143,22 @@ function resolveValue(tag, stack, ctx) {
       });
   }
 
-  const out = applyFormatters(found ? value : undefined, tag.formatters, ctx);
+  // While probing (see src/render/fields.js) the data is a skeleton, so a
+  // formatter that inspects it - {rows|sum:amount} over a row with no amount -
+  // will legitimately object. Discovery is not correctness: swallow it and carry
+  // on, or one such tag would abort the walk and hide every field after it.
+  let out;
+  if (ctx.probe) {
+    try { out = applyFormatters(found ? value : undefined, tag.formatters, ctx); } catch { out = ''; }
+  } else {
+    out = applyFormatters(found ? value : undefined, tag.formatters, ctx);
+  }
   if (out === null || out === undefined) return '';
+  // While probing there is no real data, so a section iterating over a skeleton
+  // object makes {.} an object. That is an artefact of the probe, not a fault in
+  // the template, and throwing here would abandon the walk and lose every field
+  // written after this point.
+  if (typeof out === 'object' && ctx.probe) return '';
   if (typeof out === 'object') {
     throw new TemplateError('placeholder_not_scalar',
       `{${tag.expr}} resolves to ${Array.isArray(out) ? 'a list' : 'an object'}, which cannot be written into the document as text.`, {
@@ -181,8 +196,13 @@ function numberToText(n, ctx) {
  * A missing key is an error, exactly as for a value, unless onMissing relaxes it.
  */
 function resolveSection(tag, stack, ctx) {
+  if (ctx.probe) ctx.probe.section(tag, stack, 'section');
   const { found, value: raw } = lookup(tag.path, stack);
-  const value = found ? applyFormatters(raw, tag.formatters || [], ctx) : raw;
+  let value = raw;
+  if (found) {
+    if (ctx.probe) { try { value = applyFormatters(raw, tag.formatters || [], ctx); } catch { value = raw; } }
+    else value = applyFormatters(raw, tag.formatters || [], ctx);
+  }
   if (!found) {
     if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') return { passes: [] };
     const available = visibleKeys(stack);
@@ -197,7 +217,9 @@ function resolveSection(tag, stack, ctx) {
           : `Add "${tag.path}" to the data as a list, or remove the {#${tag.path}} section from the template. An empty list "[]" renders the section zero times.`,
       });
   }
-  return { passes: passesFor(value) };
+  const passes = passesFor(value);
+  for (const p of passes) p.scopeId = tag.path;
+  return { passes };
 }
 
 function passesFor(value) {
@@ -207,6 +229,10 @@ function passesFor(value) {
       meta: {
         $index: i, $index1: i + 1, $first: i === 0, $last: i === value.length - 1, $length: value.length, $total: value.length,
       },
+      // `scopeId` is set by the caller in resolveSection; it identifies which
+      // section produced this frame, which is what lets the field prober work out
+      // that {qty} lives inside {#items} rather than at the root.
+      scopeId: null,
     }));
   }
   if (value === null || value === undefined || value === false || value === '' || value === 0) return [];
@@ -221,6 +247,7 @@ function passesFor(value) {
 }
 
 function resolveInverted(tag, stack, ctx) {
+  if (ctx.probe) ctx.probe.section(tag, stack, 'inverted');
   const { found, value: raw } = lookup(tag.path, stack);
   const value = found ? applyFormatters(raw, tag.formatters || [], ctx) : raw;
   // An inverted section is precisely the "when this is absent or empty" case, so
@@ -309,8 +336,25 @@ function makeContext(opts = {}) {
     // write; on, it turns the warning below into an error.
     strictScope: opts.strictScope === true,
     warnings: { list: [], seen: new Set() },
+    // Set by the field prober (src/render/fields.js) to record what a template
+    // asks for, in scope, without needing any data. Left null on a real render.
+    probe: opts.probe || null,
     location: null,
   };
 }
 
-module.exports = { lookup, resolveValue, resolveSection, resolveInverted, makeContext, visibleKeys, passesFor, splitPath };
+/**
+ * Tells the field prober about a tag the renderer resolves itself.
+ *
+ * Images ({%logo}) and raw XML ({@block}) do not go through resolveValue: each
+ * renderer looks them up directly because what it does with the value is
+ * format-specific. Without this hook the prober simply never hears about them,
+ * and GET /v1/templates/:name/fields quietly omits the logo - which is exactly
+ * the kind of silent gap this product exists to remove. Costs one call and does
+ * nothing at all on a real render.
+ */
+function probeTag(tag, stack, ctx) {
+  if (ctx && ctx.probe) ctx.probe.value(tag, stack);
+}
+
+module.exports = { probeTag, lookup, resolveValue, resolveSection, resolveInverted, makeContext, visibleKeys, passesFor, splitPath };

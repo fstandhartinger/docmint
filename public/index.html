@@ -1,5 +1,598 @@
-<!doctype html><meta charset="utf-8"><title>DocMint</title>
-<meta name="robots" content="noindex">
-<h1>DocMint</h1>
-<p>Fill Word, Excel and PowerPoint templates with JSON and get the file or a PDF back.</p>
-<p>The documentation is not published yet. The API is live: <code>GET /v1/capabilities</code> needs no key.</p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DocMint — fill Word, Excel and PowerPoint templates from JSON</title>
+<meta name="description" content="DocMint is a document generation API. POST your data against a .docx, .xlsx or .pptx template and get the Office file, a PDF, or both. It tells you what fields the template needs, and refuses to render one that is missing. 30 documents a month free, no card.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="DocMint — fill Word, Excel and PowerPoint templates from JSON">
+<meta property="og:description" content="One POST, the filled file back. It names the fields your template needs, and refuses to render a document with a missing one — naming the field and the cell, row or slide it is in.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/landing.css?v=1">
+</head>
+<body>
+
+<header class="l-top">
+  <div class="wrap">
+    <a class="logo" href="/">
+      <svg class="l-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3.5" y="2.5" width="17" height="19" rx="3" stroke="currentColor" stroke-width="1.7"/>
+        <path d="M7.6 8.6h3.2c2.4 0 4 1.8 4 4.4s-1.6 4.4-4 4.4H7.6V8.6z" stroke="#4b56d6" stroke-width="1.7" stroke-linejoin="round"/>
+      </svg>
+      Doc<span>Mint</span>
+    </a>
+    <nav class="l-nav">
+      <a href="#fields" class="hide-sm">What it does</a>
+      <a href="#honest" class="hide-sm">Limits</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="/docs#signup" class="l-btn l-btn-primary">Get an API key</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ------------------------------------------------------------------ hero -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="pill">30 documents a month, free, no card</span>
+        <h1 class="hero-title">Your template and your JSON in.<br><em>The filled document out.</em></h1>
+        <p class="hero-sub">DocMint fills <strong>Word, Excel and PowerPoint</strong> templates from a JSON payload and returns the Office file, a PDF, or both — in one request. It will also tell you, before you ever send data, <strong>exactly which fields the template needs</strong>.</p>
+        <div class="hero-cta">
+          <a class="l-btn l-btn-primary l-btn-lg" href="/docs#signup">Get an API key</a>
+          <a class="l-btn l-btn-ghost l-btn-lg" href="/docs">Read the docs</a>
+        </div>
+        <ul class="fmts">
+          <li class="fmt docx"><i></i>.docx .dotx .docm</li>
+          <li class="fmt xlsx"><i></i>.xlsx .xltx .xlsm</li>
+          <li class="fmt pptx"><i></i>.pptx .potx .ppsx .pptm</li>
+        </ul>
+        <p class="hero-note">One syntax across all three. Both <code>{name}</code> and <code>{{name}}</code> work, everywhere, always.</p>
+      </div>
+
+      <div class="code-card">
+        <div class="code-tabs" role="tablist" aria-label="Example requests">
+          <button role="tab" id="tab-render" aria-controls="panel-render" aria-selected="true">render</button>
+          <button role="tab" id="tab-fields" aria-controls="panel-fields" aria-selected="false">fields</button>
+          <button role="tab" id="tab-signup" aria-controls="panel-signup" aria-selected="false">sign up</button>
+          <button class="code-copy" type="button" id="copyBtn">Copy</button>
+        </div>
+
+        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre><code><span class="tok-c"># A saved .docx template + your data. A PDF comes straight back.</span>
+curl -X POST https://docmint-832s.onrender.com/v1/render \
+  -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
+  -H <span class="tok-s">"Content-Type: application/json"</span> \
+  -d <span class="tok-s">'{"template":"quote",
+       "data":{"customer":"Acme GmbH","total":1240.5},
+       "output":"pdf"}'</span> \
+  --output quote.pdf</code></pre></div>
+
+        <div class="code-panel" role="tabpanel" id="panel-fields" aria-labelledby="tab-fields" hidden><pre><code><span class="tok-c"># "What does this template actually need?" — free, no render.</span>
+curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
+  https://docmint-832s.onrender.com/v1/templates/quote/fields
+
+<span class="tok-c">{</span>
+<span class="tok-c">  "name": "quote", "format": "docx", "version": 1,</span>
+<span class="tok-c">  "fields": ["customer", "total"],</span>
+<span class="tok-c">  "tags": [</span>
+<span class="tok-c">    { "expr": "customer", "kind": "value",</span>
+<span class="tok-c">      "location": "word/document.xml, paragraph 1" },</span>
+<span class="tok-c">    { "expr": "total|currency:EUR", "kind": "value",</span>
+<span class="tok-c">      "location": "word/document.xml, paragraph 2" }</span>
+<span class="tok-c">  ]</span>
+<span class="tok-c">}</span></code></pre></div>
+
+        <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre><code><span class="tok-c"># No dashboard to click through. The key comes back in the response.</span>
+curl -X POST https://docmint-832s.onrender.com/v1/signup \
+  -H <span class="tok-s">"Content-Type: application/json"</span> \
+  -d <span class="tok-s">'{"email":"you@example.com",
+       "password":"a-long-enough-password"}'</span>
+
+<span class="tok-c">{</span>
+<span class="tok-c">  "email": "you@example.com",</span>
+<span class="tok-c">  "api_key": "dm_live_…",</span>
+<span class="tok-c">  "plan": { "id": "free", "name": "Free", "credits": 30 },</span>
+<span class="tok-c">  "note": "This is the only time the key is shown. Store it now."</span>
+<span class="tok-c">}</span></code></pre></div>
+
+        <div class="code-foot">
+          <span>HTTP <b>200</b></span>
+          <span>content-type: <b>application/pdf</b></span>
+          <span>content-length: <b>13660</b></span>
+          <span>x-docmint-credits-remaining: <b>28</b></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="measured">
+      <div>
+        <div class="n">17–27 ms</div>
+        <div class="t">Server-side time to fill a three-line-item Word template, five consecutive live requests.</div>
+      </div>
+      <div>
+        <div class="n">2.7 s</div>
+        <div class="t">Added by the optional PDF step. LibreOffice, half a CPU — this is the number a customer gets.</div>
+      </div>
+      <div>
+        <div class="n">$0.00145</div>
+        <div class="t">Per document on the $29 Pro plan — 20,000 documents a month.</div>
+      </div>
+    </div>
+    <p class="measured-note">Measured on the live service on 25 August 2026, from the <code>stats.stages</code> object the API returns on every render. The first request after an idle period took 53 ms; the PDF path is one instance with a queue of one, so a busy moment queues rather than slows. DocMint is new — these are the only numbers there are, so they are the only ones quoted.</p>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------- the fields -->
+<section class="sec tinted" id="fields">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">The thing nobody else does</p>
+      <h2 class="sec-title">It tells you what the template needs</h2>
+      <p>Every document generator joins your data to your template by invisible string matching, and the placeholder names live inside a zipped binary a workflow cannot open. So the loop is: guess the keys, render, open the file in Word, find the silently empty field, guess again.</p>
+    </div>
+
+    <div class="split">
+      <div>
+        <p class="lead"><code>GET /v1/templates/:name/fields</code> is a first-class endpoint. It re-reads the stored file and reports every placeholder, what kind it is, and where in the document it sits. It costs nothing and produces no document, because charging for the one call that prevents a bad render would be perverse.</p>
+        <ul class="checks">
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Carbone's API has no template-introspection endpoint.</b> Its <code>GET /templates/tags</code> returns organisational folder labels, not placeholders.</span></li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Every existing n8n node in this space ships a raw JSON textarea.</b> The official <code>n8n-nodes-carbone</code> declares <code>{name:'data', type:'json', default:'{}'}</code>; so does <code>n8n-nodes-docxtemplater</code>. <code>n8n-nodes-fill-docx</code> is worse — a plain string you must <code>JSON.stringify</code> yourself.</span></li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Formstack's management API does return the field list</b> on template create — which proves the demand — but it is not surfaced in any automation UI.</span></li>
+        </ul>
+      </div>
+      <div class="split-media">
+        <div class="evidence">
+          <div class="head"><span>POST <b>/v1/inspect</b></span><span>a .pptx, uploaded inline</span><span>0 credits</span></div>
+<pre><code>{
+  "format": "pptx",
+  "fields": ["title", "subtitle", "client.name", "logo", "notes",
+             "rows", "sku", "qty", "amount", "findings",
+             "label", "detail", "owner"],
+  "tags": [
+    { "expr": "logo",   "kind": "image",
+      "location": "slide 1, shape \"Logo 3\"" },
+    { "expr": "rows",   "kind": "section",
+      "location": "slide 2, table \"Items 5\", row 2, cell 1" },
+    { "expr": "amount|currency:EUR", "kind": "value",
+      "location": "slide 2, table \"Items 5\", row 2, cell 3" },
+    { "expr": "rows|sum:amount|currency:EUR", "kind": "value",
+      "location": "slide 2, table \"Items 5\", row 3, cell 3" }
+  ]
+}</code></pre>
+        </div>
+        <p class="cmp-note">Verbatim from the live API on 25 August 2026, trimmed to fit. The full response lists all 26 tags.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ----------------------------------------------------------- missing field -->
+<section class="sec" id="missing">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">The failure this product exists to prevent</p>
+      <h2 class="sec-title">It refuses to render a document with a missing field</h2>
+      <p>A document that renders a placeholder as an empty cell, or as the literal text <code>undefined</code>, is worse than no document at all — because nobody notices until it has been emailed to a customer.</p>
+    </div>
+
+    <div class="split rev">
+      <div class="split-media">
+        <div class="evidence">
+          <div class="head"><span>POST <b>/v1/render</b></span><span>HTTP <b>422</b></span><span>0 credits — the reservation is refunded</span></div>
+<pre><code>{
+  "error": {
+    "code": "placeholder_unresolved",
+    "message": "The template uses {price|currency} but the data
+                has no \"price\".",
+    "hint": "Add \"price\" to the data, or write {price|default:}
+             to allow it to be absent.",
+    "docs": "https://docmint-832s.onrender.com/docs#errors",
+    "details": {
+      "field": "price",
+      "location": "word/document.xml, table 1 row 2, paragraph 7",
+      "available": ["invoice_no","customer","items",
+                    "description","qty"],
+      "format": "docx"
+    },
+    "request_id": "dm_IHD7M11U8enL"
+  }
+}</code></pre>
+        </div>
+      </div>
+      <div>
+        <p class="lead">Every failure carries the field name, the place it was written, the field names that <em>do</em> exist at that point in the data, and — when the name is close enough to be a typo — a "did you mean".</p>
+        <ul class="checks">
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>The location is where a human would look.</b> <code>word/document.xml, table 1 row 2, paragraph 7</code> in Word, <code>Invoice!C5</code> in Excel, <code>slide 2, table "Items 5", row 2, cell 3</code> in PowerPoint. All three are real strings from the live API.</span></li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>docxtemplater writes the literal word "undefined" into the document</b> by default, and sells finding out where a tag failed as a separately-licensed 500 EUR/year module.</span></li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>A typo'd tag in Carbone does not error; it renders blank.</b></span></li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>A failed render costs no credits.</b> The reservation is taken before the work and refunded when the work fails.</span></li>
+        </ul>
+        <p class="hero-note">A value that is present but <code>null</code> renders as empty — you said "nothing here" and were believed. <code>{x|default:—}</code> is the sanctioned opt-out, and <code>onMissing: "empty"</code> relaxes the rule wholesale if you really want it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------ outer scope -->
+<section class="sec tinted" id="scope">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">The bug that prints the same value on every row</p>
+      <h2 class="sec-title">It warns when a tag inside a loop came from outside it</h2>
+      <p>Scopes nest outwards, so inside <code>{#items}</code> a tag can legitimately reach the invoice's <code>{currency}</code> at the root. That convenience has a nasty edge: if your rows have <code>product_name</code> and you write <code>{name}</code>, and <code>name</code> happens to exist at the root, <strong>every row silently prints the same value</strong>. Nothing errors. The document looks plausible. It is wrong.</p>
+    </div>
+
+    <div class="split">
+      <div>
+        <p class="lead">DocMint still allows it — <code>{currency}</code> from the invoice root is a reasonable thing to write — but it reports <em>every</em> occurrence back in the render response, naming the field, the location, and the fields the loop item actually has. Setting <code>strictScope: true</code> turns the warning into a <code>422</code>.</p>
+        <ul class="checks">
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>No competitor reports this.</b> docxtemplater's own documentation presents <code>{#products}{name}{/products}</code>, where <code>name</code> exists only at the root, as normal behaviour.</span></li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>When the outer name looks like a typo of an item field, it is an error, not a warning.</b> Reaching outwards for something the item nearly has is not a deliberate reach.</span></li>
+        </ul>
+      </div>
+      <div class="split-media">
+        <div class="evidence">
+          <div class="head"><span>POST <b>/v1/render</b></span><span>HTTP <b>200</b> — the file is returned</span><span>x-docmint-warnings: <b>1</b></span></div>
+<pre><code>"warnings": [
+  {
+    "code": "resolved_from_outer_scope",
+    "field": "currency",
+    "location": "word/document.xml, table 1 row 2, paragraph 5",
+    "message": "{currency} is not a field of the loop item; it was
+                taken from 1 level further out, so it prints the
+                same value on every row.",
+    "item_fields": ["title", "amount"]
+  }
+]</code></pre>
+        </div>
+        <div class="evidence">
+          <div class="head"><span>the same request with <b>"strictScope": true</b></span><span>HTTP <b>422</b></span></div>
+<pre><code>{
+  "code": "placeholder_outside_loop",
+  "message": "{currency} is not a field of the loop item.",
+  "hint": "strictScope is on, so a tag inside a loop must name a
+           field of the item. Write {../currency} if you meant the
+           value from outside the loop.",
+  "details": { "field": "currency", "available": ["title","amount"],
+    "location": "word/document.xml, table 1 row 2, paragraph 5" }
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------- how ---- -->
+<section class="sec" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Three steps, and the second one is optional</p>
+      <h2 class="sec-title">How it fits together</h2>
+      <p>You author the template in Word, Excel or PowerPoint — the tool your finance team already uses — and type placeholders into it. There is no template editor to learn and no proprietary format.</p>
+    </div>
+    <ol class="steps">
+      <li>
+        <b>Upload it once, or send it inline</b>
+        <p><code>POST /v1/templates</code> stores it under a name <em>you</em> choose, and every upload is a new version. Or skip storage entirely and send the file as <code>template_base64</code> on every render.</p>
+      </li>
+      <li>
+        <b>Ask what it needs</b>
+        <p><code>GET /v1/templates/:name/fields</code> returns the placeholder list with locations. Free, and it never throws on a field you have not supplied yet.</p>
+      </li>
+      <li>
+        <b>Render</b>
+        <p><code>POST /v1/render</code> with your data. Ask for <code>document</code>, <code>pdf</code> or <code>both</code> — per request, not per template.</p>
+      </li>
+    </ol>
+
+    <div class="grid grid-4" style="margin-top:2.4rem">
+      <div class="tile">
+        <span class="kicker">one syntax</span>
+        <h3>Both brace styles</h3>
+        <p><code>{name}</code> and <code>{{name}}</code> both work in all three formats. A template written for docxtemplater and one written for Docupilot both render unchanged; no third syntax was invented.</p>
+      </div>
+      <div class="tile">
+        <span class="kicker">28 formatters</span>
+        <h3>Totals computed, not typed</h3>
+        <p><code>{items|sumProduct:qty:price|currency}</code>. An invoice template that writes its own total is an invoice template that is wrong the first time a line changes.</p>
+      </div>
+      <div class="tile">
+        <span class="kicker">split runs</span>
+        <h3>Real-world templates</h3>
+        <p>Word stores <code>{{na</code>+<code>me}}</code> as two runs the moment you edit the middle of a word. Every part is flattened and re-sliced, so a template that has been through Google Docs still works.</p>
+      </div>
+      <div class="tile">
+        <span class="kicker">spreadsheets</span>
+        <h3>Numbers stay numbers</h3>
+        <p>A cell holding the text "1234.5" is not a number: <code>SUM()</code> over a column of them returns 0 and nothing warns anybody. A cell that is one placeholder resolving to a number becomes a real numeric cell, keeping its format.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------- comparison -->
+<section class="sec tinted" id="compare">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Against the Office document generators</p>
+      <h2 class="sec-title">What is actually different</h2>
+      <p>Everything in this table was read off the vendors' own documentation and pricing pages, and everything in the DocMint column is verifiable against the live API on this domain.</p>
+    </div>
+
+    <div class="tablewrap">
+      <table class="cmp">
+        <thead>
+          <tr><th></th><th class="us">DocMint</th><th>Carbone</th><th>Docupilot</th><th>Formstack Documents</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Tells you the template's fields</td>
+            <td class="us">Yes — <code>GET /v1/templates/:name/fields</code>, free</td>
+            <td>No introspection endpoint</td>
+            <td>Not published</td>
+            <td>On template create, via the management API — not in any automation UI</td>
+          </tr>
+          <tr>
+            <td>A placeholder your data does not have</td>
+            <td class="us">HTTP 422, naming the field and its location</td>
+            <td>Renders blank, no error</td>
+            <td>Not published</td>
+            <td>Not published</td>
+          </tr>
+          <tr>
+            <td>Loop tag resolved from an outer scope</td>
+            <td class="us">Warned on every render; an error under <code>strictScope</code></td>
+            <td colspan="3">No competitor reports it</td>
+          </tr>
+          <tr>
+            <td>Output format</td>
+            <td class="us">Per request — <code>document</code>, <code>pdf</code> or <code>both</code></td>
+            <td>Per request</td>
+            <td>Fixed per template in their dashboard</td>
+            <td>Not published</td>
+          </tr>
+          <tr>
+            <td>Billing unit</td>
+            <td class="us">One credit per document produced; a PDF costs one more</td>
+            <td>Payload size: <code>(JSON + images + PDF bytes) / 1,000,000</code>. A 2.3 MB render costs 3 documents.</td>
+            <td>Per <em>delivery</em>. "Downloading generated document also consumes 1 credit."</td>
+            <td>Per delivery</td>
+          </tr>
+          <tr>
+            <td>At the quota ceiling</td>
+            <td class="us">402 until the next calendar month; no overage billing</td>
+            <td>Not published</td>
+            <td>Hard stop: "You will not be able to generate documents once you have hit 100% limit."</td>
+            <td>Not published</td>
+          </tr>
+          <tr>
+            <td>Entry price</td>
+            <td class="us">$9 / 2,000 docs = <b>$0.0045</b></td>
+            <td>EUR 29 / 1,000 = EUR 0.029</td>
+            <td>$29 / 100 = <b>$0.29</b></td>
+            <td>$250/mo annual / 250 deliveries = $1.00+</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="scroll-hint">Scroll the table sideways to see every column.</p>
+    <p class="cmp-note">Sources: each vendor's published pricing and documentation, read on 25 August 2026. "Not published" means exactly that — the vendor does not document the behaviour, and it was not guessed at. Deliberately absent from this table: <b>APITemplate.io</b>, which is often listed as a competitor here but has no Word, Excel or PowerPoint support of any kind — its live v2 API contains no <code>docx</code> endpoint and cannot accept a <code>.docx</code> even as input. Comparing against it on Office features would be a false comparison, so it is not made.</p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------- pricing -->
+<section class="sec" id="pricing">
+  <div class="wrap">
+    <div class="sec-head center">
+      <p class="eyebrow">Pricing</p>
+      <h2 class="sec-title">One credit per document</h2>
+      <p>A document costs one credit. Converting it to PDF costs one more, because LibreOffice costs roughly a hundred times the CPU of the fill itself and pretending otherwise would mean the cheap path subsidising the expensive one. Nothing else is metered — asking what fields a template needs is free, and so is downloading a template you already uploaded.</p>
+    </div>
+
+    <div class="price-grid">
+      <div class="pcard">
+        <div class="pname">Free</div>
+        <div class="amt">$0<small> /month</small></div>
+        <div class="docs">30 documents a month</div>
+        <div class="per">no card, self-serve over the API</div>
+        <p class="plan-for">Enough to wire a workflow end to end and see it work before deciding anything.</p>
+        <a class="l-btn l-btn-primary" href="/docs#signup">Get a key</a>
+      </div>
+      <div class="pcard">
+        <div class="pname">Starter</div>
+        <div class="amt">$9<small> /month</small></div>
+        <div class="docs">2,000 documents a month</div>
+        <div class="per">$0.0045 per document</div>
+        <p class="plan-for">A steady invoice or report flow out of one workflow.</p>
+        <a class="l-btn l-btn-ghost" href="/docs#pricing">How to upgrade</a>
+      </div>
+      <div class="pcard feat">
+        <div class="pname">Pro</div>
+        <div class="amt">$29<small> /month</small></div>
+        <div class="docs">20,000 documents a month</div>
+        <div class="per">$0.00145 per document</div>
+        <p class="plan-for">The same $29 that buys 100 documents at Docupilot buys 20,000 here.</p>
+        <a class="l-btn l-btn-primary" href="/docs#pricing">How to upgrade</a>
+      </div>
+      <div class="pcard">
+        <div class="pname">Scale</div>
+        <div class="amt">$99<small> /month</small></div>
+        <div class="docs">100,000 documents a month</div>
+        <div class="per">$0.00099 per document</div>
+        <p class="plan-for">Bulk statement, payslip and certificate runs.</p>
+        <a class="l-btn l-btn-ghost" href="/docs#pricing">How to upgrade</a>
+      </div>
+    </div>
+
+    <div class="plan-all">
+      <b>Every plan has every feature.</b> All three formats, PDF output, images, the field list, the missing-field contract, the outer-scope warning, template versioning and rollback, localisation, and the same limits: 25 MB per template, 8 MB of data per request, 20 versions kept per template, 120 requests a minute with a burst of 30. There is no feature ladder and no paid module — <a href="/docs#limits">the limits are all here</a>.
+    </div>
+    <p class="price-foot">Quotas are per calendar month and reset on the 1st. A failed render is refunded, so a 422 on a missing field costs nothing. <a href="/docs#quota">How quota works</a>.</p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------- honesty -->
+<section class="sec tinted" id="honest">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Read this before you build on it</p>
+      <h2 class="sec-title">What DocMint does not do yet</h2>
+      <p>Not everything is in our favour, and a landing page that only lists strengths is a landing page you will find out the truth about later, at a worse moment.</p>
+    </div>
+
+    <div class="gaps">
+      <div class="gap">
+        <b>No rich text, QR codes, maps or dynamic PDF passwords</b>
+        <span>Docupilot has all four — HTML and Markdown into a DOCX included. DocMint writes plain text, numbers, images and raw OOXML. If you need HTML flowed into a Word document, DocMint is not the tool today.</span>
+      </div>
+      <div class="gap">
+        <b>Carbone's formatter library is larger than ours</b>
+        <span>Theirs includes aggregates such as <code>aggSum</code> and <code>cumSum</code>, an i18n system, currency conversion at live rates, and <code>drop</code>/<code>keep</code> block operators. Ours is 28 formatters covering the common cases.</span>
+      </div>
+      <div class="gap">
+        <b>LibreOffice is the only PDF converter</b>
+        <span>Carbone lets you choose between LibreOffice, OnlyOffice, Chromium and their own engine, and offers PDF/A, watermarking and PDF encryption. DocMint has none of that: one converter, one PDF profile, ~2.7 s per conversion, one at a time per instance.</span>
+      </div>
+      <div class="gap">
+        <b>No delivery integrations</b>
+        <span>Carbone and Docupilot will email the document, or drop it in Drive or S3. DocMint returns the file and expects your workflow tool to do the delivering. For an n8n or Make user that is the right split — but it is a difference, not a strict advantage.</span>
+      </div>
+      <div class="gap">
+        <b>No charts, styling API, footnotes or subtemplates</b>
+        <span>These are not implemented. Whatever styling the placeholder carries in the template is inherited by the value that replaces it, and that is the whole styling story.</span>
+      </div>
+      <div class="gap">
+        <b>Macro-enabled templates lose their macros</b>
+        <span>A <code>.docm</code>, <code>.xlsm</code> or <code>.pptm</code> is filled correctly, but the macros are not guaranteed to survive the rewrite and the file comes back with the plain content type. The render response says so, as a warning.</span>
+      </div>
+      <div class="gap">
+        <b>Formula rewriting in spreadsheets has known edges</b>
+        <span>A range whose two ends are the same repeated row — <code>SUM(B3:B3)</code> over a per-group subtotal — widens to cover the rows in between. Chart series and pivot caches keep their own copies of ranges and are not rewritten. Column loops and sheet loops are not supported at all.</span>
+      </div>
+      <div class="gap">
+        <b>No paid checkout yet, and no dashboard</b>
+        <span>The free plan is fully self-serve over the API. Paid plans are priced but checkout is not live on this deployment yet; email <a href="mailto:info@productivity-boost.com">info@productivity-boost.com</a> to be moved onto one. There is no web dashboard: keys are managed with <code>POST /v1/keys</code> and <code>DELETE /v1/keys/:prefix</code>.</span>
+      </div>
+      <div class="gap">
+        <b>The n8n node is written but not published</b>
+        <span><code>n8n-nodes-docmint</code> exists in the repository and is not yet on npm, so it cannot be installed today. Until it is, the API is a plain HTTP call from any workflow tool.</span>
+      </div>
+      <div class="gap">
+        <b>No SLA, one region, one instance</b>
+        <span>The service runs in Frankfurt on a single small instance and restarts on every deploy. There is no third-party uptime monitor and no SOC 2 report. If an hour of downtime would damage your business, this is not yet the right dependency.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- -------------------------------------------------------------------- faq -->
+<section class="sec" id="faq">
+  <div class="wrap">
+    <div class="sec-head center">
+      <p class="eyebrow">Questions</p>
+      <h2 class="sec-title">The ones that come up first</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>What does a template look like?</summary>
+        <p>A perfectly ordinary <code>.docx</code>, <code>.xlsx</code> or <code>.pptx</code> with placeholders typed into it: <code>{customer.name}</code>, <code>{{invoice_no}}</code>, <code>{#items}…{/items}</code> around a table row, <code>{%logo}</code> where a picture goes. Nothing else changes; the file still opens in Word, and your finance team can keep editing it.</p>
+      </details>
+      <details>
+        <summary>Do I have to upload the template?</summary>
+        <p>No. Send it as <code>template_base64</code> on the render call and nothing is stored. Uploading it once and referring to it by a name you choose is usually nicer, because replacing the letterhead then does not mean editing every workflow that used it.</p>
+      </details>
+      <details>
+        <summary>What happens if my data has an extra field the template does not use?</summary>
+        <p>Nothing — extra data is ignored. It is the other direction that is an error: a placeholder with nothing behind it.</p>
+      </details>
+      <details>
+        <summary>Does a failed render cost a credit?</summary>
+        <p>No. The credit is reserved before the work and refunded if the work fails, so a 422 on a missing field costs nothing.</p>
+      </details>
+      <details>
+        <summary>Are my documents stored?</summary>
+        <p>Rendered documents are never written to the database — they are produced in memory and returned in the response. Templates you upload <em>are</em> stored, because that is what uploading them means. The <a href="/privacy">privacy policy</a> lists every row of every table.</p>
+      </details>
+      <details>
+        <summary>Why is the PDF so much slower than the Office file?</summary>
+        <p>Because it is a different kind of work. Filling a template is XML surgery in a few milliseconds; converting to PDF is a full LibreOffice process, measured at about 2.7 s on this instance and 219 MB of peak memory. That is also why a PDF costs two credits and why conversions run one at a time.</p>
+      </details>
+      <details>
+        <summary>Which brace style should I use?</summary>
+        <p>Whichever you already type. <code>{name}</code> is the docxtemplater and Carbone style; <code>{{name}}</code> is the mustache and n8n style. Both work everywhere, and <code>{{[Field With Spaces]}}</code> works too, because that is the Docupilot form.</p>
+      </details>
+      <details>
+        <summary>Is anything in my template or data used to train a model?</summary>
+        <p>No. Nothing is read, mined, sold or used to train anything, and the service sends no email at all.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- -------------------------------------------------------------------- cta -->
+<section class="cta">
+  <div class="wrap">
+    <h2>Fill your first template in about a minute</h2>
+    <p>Sign up over the API, upload a <code>.docx</code>, ask it what fields it needs, and render. Thirty documents a month, free, no card.</p>
+    <div class="hero-cta">
+      <a class="l-btn l-btn-primary l-btn-lg" href="/docs#signup">Get an API key</a>
+      <a class="l-btn l-btn-ghost l-btn-lg" href="/docs#quickstart">Read the quickstart</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ------------------------------------------------------------------- who -->
+<section class="l-who">
+  <div class="wrap">
+    <h2>Who runs this</h2>
+    <p class="muted">DocMint is built and operated by productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG in Passau, Germany. It is new, it is small, and the honest limits are listed above rather than buried in a footnote.</p>
+    <p class="muted">The document fill engine has no third-party dependencies — no docxtemplater, no Carbone, no JSZip. The only external program is LibreOffice, run as a separate process for the optional PDF step. The full list is in <a href="https://github.com/fstandhartinger/docmint/blob/main/THIRD-PARTY-NOTICES.md" rel="noopener">THIRD-PARTY-NOTICES.md</a>.</p>
+  </div>
+</section>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint · productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var tabs = document.querySelectorAll('.code-tabs [role="tab"]');
+  function show(id) {
+    tabs.forEach(function (t) {
+      var on = t.id === id;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+  tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.id); }); });
+
+  var btn = document.getElementById('copyBtn');
+  if (btn) btn.addEventListener('click', function () {
+    var open = document.querySelector('.code-panel:not([hidden]) code');
+    if (!open || !navigator.clipboard) return;
+    navigator.clipboard.writeText(open.innerText).then(function () {
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1400);
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

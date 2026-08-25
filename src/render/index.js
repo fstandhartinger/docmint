@@ -1,6 +1,7 @@
 'use strict';
 
 const { detect } = require('./detect');
+const { discover } = require('./fields');
 const { makeContext } = require('../template/resolve');
 const { TemplateError } = require('../template/errors');
 const { ApiError } = require('../errors');
@@ -105,12 +106,38 @@ async function fill(templateBuffer, data, opts = {}) {
   return { buffer: out.buffer, format, stats: { ...out.stats, ms }, warnings };
 }
 
-/** What does this template need? No data required, never throws on a missing field. */
+/**
+ * What does this template need? No data required, never throws on a missing field.
+ *
+ * Two answers are returned together because they answer different questions.
+ * `tags` is what is literally written in the file, with where each one is, which
+ * is what you want when a template is misbehaving. `fields` is the typed, scoped
+ * tree — what to SEND — which is what you want when building a form, and it is
+ * derived by actually running the renderer rather than by parsing a second time,
+ * so it cannot drift from what a real render would do.
+ */
 async function inspect(templateBuffer) {
   const { format } = detect(templateBuffer);
   const renderer = rendererFor(format);
   const out = await renderer.inspect(templateBuffer);
-  return { format, ...out };
+
+  let discovered = { fields: [], sample_data: {}, passes: 0 };
+  try {
+    discovered = await discover((data, opts) => renderer.render(templateBuffer, data, opts));
+  } catch (e) {
+    log.warn('inspect.discover_failed', { format, err: e });
+  }
+
+  return {
+    format,
+    parts: out.parts,
+    tags: out.tags,
+    // The flat list of names the renderer found, kept for anything already using
+    // it, and because it is the honest answer to "what is written in this file".
+    names: out.fields,
+    fields: discovered.fields,
+    sample_data: discovered.sample_data,
+  };
 }
 
 module.exports = { fill, inspect, detect, rendererFor };
