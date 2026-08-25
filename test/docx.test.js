@@ -171,6 +171,28 @@ test('marker-only rows are deleted and multi-row spans repeat together', async (
   assert.ok(!/[{}]/.test(text));
 });
 
+test('a loop inside one cell repeats paragraphs, not the row', async () => {
+  const out = await render(H.fixture('cells'), cellsData(), {});
+  const xml = H.partText(out.buffer, 'word/document.xml');
+  const text = H.visibleText(out.buffer);
+  // Two groups -> two rows; the members loop lives inside the second cell and
+  // repeats paragraphs there rather than duplicating the row.
+  assert.ok(text.includes('Alpha\n* Ada (lead)\n* Bob (dev)\n2 people'));
+  assert.ok(text.includes('Beta\n* Cleo (ops)\n1 people'));
+  assert.ok(!xml.includes('{#members}'));
+});
+
+test('a table nested in a cell loops independently of the outer one', async () => {
+  const out = await render(H.fixture('cells'), cellsData(), {});
+  const xml = H.partText(out.buffer, 'word/document.xml');
+  const text = H.visibleText(out.buffer);
+  assert.equal(H.count(xml, /<w:tbl>/g), 1 + 1 + 2, 'the inner table was not repeated once per department');
+  assert.equal(H.count(xml, /<w:tr>/g), 2 + 2 + 3);
+  assert.ok(text.includes('Eng\nAda\nA1\nBob\nA2'));
+  assert.ok(text.includes('Ops\nCleo\nB1'));
+  assert.ok(!/[{}]/.test(text));
+});
+
 // ---------------------------------------------------------------------------
 // Sections in every position
 // ---------------------------------------------------------------------------
@@ -476,6 +498,42 @@ test('a mismatched close names both sections', async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Places a placeholder actually turns up in real templates
+// ---------------------------------------------------------------------------
+
+test('both delimiter styles work in the same document', async () => {
+  const out = await render(H.fixture('letterhead'), letterheadData(), {});
+  const text = H.visibleText(out.buffer);
+  assert.ok(text.includes('Both delimiter styles: Globex Ltd and REF-7.'));
+  assert.ok(text.includes('Signed, A. Lovelace.'));
+});
+
+test('placeholders inside a text box and a hyperlink are filled', async () => {
+  const out = await render(H.fixture('letterhead'), letterheadData(), {});
+  const xml = H.partText(out.buffer, 'word/document.xml');
+  // LibreOffice writes the text box twice — once under mc:Choice for Word 2010+
+  // and once as a VML fallback. Both copies are what a reader might see, so both
+  // have to be filled or the document says different things in different apps.
+  assert.equal(H.count(xml, /Registered office: Berlin, DE/g), 2);
+  assert.ok(!xml.includes('{registered_office}'));
+  assert.match(xml, /<w:hyperlink[^>]*>[\s\S]*?Ada Lovelace on \+49 30 123[\s\S]*?<\/w:hyperlink>/);
+});
+
+test('a section inside a list item repeats without losing the numbering', async () => {
+  const out = await render(H.fixture('letterhead'), letterheadData(), {});
+  const xml = H.partText(out.buffer, 'word/document.xml');
+  assert.ok(H.visibleText(out.buffer).includes('onetwothree'));
+  assert.equal(H.count(xml, /<w:numPr>/g), 1, 'the list paragraph was duplicated or lost');
+});
+
+loTest('the letterhead still converts cleanly after filling', async () => {
+  const out = await render(H.fixture('letterhead'), letterheadData(), {});
+  const text = H.toPlainText(out.buffer, 'letterhead');
+  assert.ok(text.includes('Contact Ada Lovelace on +49 30 123 for questions.'));
+  assert.ok(!/[{}]/.test(text));
+});
+
+// ---------------------------------------------------------------------------
 // inspect()
 // ---------------------------------------------------------------------------
 
@@ -501,7 +559,7 @@ test('inspect lists every tag with its location and needs no data', async () => 
 });
 
 test('inspect does not throw on a template whose data does not exist', async () => {
-  for (const name of ['invoice', 'nested', 'misc', 'deep', 'split-runs']) {
+  for (const name of ['invoice', 'nested', 'misc', 'deep', 'cells', 'letterhead', 'split-runs']) {
     const out = await inspect(H.fixture(name));
     assert.ok(out.tags.length > 0, `${name} produced no tags`);
     assert.ok(out.fields.length > 0);
@@ -544,6 +602,31 @@ test('stats report what was done', async () => {
 });
 
 // ---------------------------------------------------------------------------
+
+function cellsData() {
+  return {
+    groups: [
+      { title: 'Alpha', members: [{ name: 'Ada', role: 'lead' }, { name: 'Bob', role: 'dev' }] },
+      { title: 'Beta', members: [{ name: 'Cleo', role: 'ops' }] },
+    ],
+    depts: [
+      { dept: 'Eng', people: [{ name: 'Ada', seat: 'A1' }, { name: 'Bob', seat: 'A2' }] },
+      { dept: 'Ops', people: [{ name: 'Cleo', seat: 'B1' }] },
+    ],
+  };
+}
+
+function letterheadData() {
+  return {
+    customer: 'Globex Ltd',
+    reference: 'REF-7',
+    registered_office: 'Berlin, DE',
+    contact: 'Ada Lovelace',
+    phone: '+49 30 123',
+    bullets: ['one', 'two', 'three'],
+    signatory: 'A. Lovelace',
+  };
+}
 
 function miscData(overrides = {}) {
   return {

@@ -1,0 +1,536 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DocMint example template: a commercial invoice.
+
+  Authored as flat ODF and converted to .docx by LibreOffice (see build.sh), so
+  what the renderer is tested against is a file with the same shape as one that
+  came out of Word: styles by name, <w:pPr> everywhere, headers and footers in
+  their own parts.
+
+  Every money figure in the totals block is computed by a formatter from the
+  line items. Nothing is typed in.
+-->
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+  office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.text">
+
+<office:font-face-decls>
+  <style:font-face style:name="Carlito" svg:font-family="Carlito" style:font-family-generic="swiss" style:font-pitch="variable"/>
+  <style:font-face style:name="Caladea" svg:font-family="Caladea" style:font-family-generic="roman" style:font-pitch="variable"/>
+</office:font-face-decls>
+
+<office:styles>
+  <style:default-style style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="10pt" fo:color="#1b2a38" fo:language="en" fo:country="GB"/>
+  </style:default-style>
+  <style:style style:name="Standard" style:family="paragraph">
+    <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0cm" fo:line-height="115%"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="10pt" fo:color="#1b2a38"/>
+  </style:style>
+</office:styles>
+
+<office:automatic-styles>
+
+  <!-- page -->
+  <style:page-layout style:name="pm1">
+    <style:page-layout-properties fo:page-width="21cm" fo:page-height="29.7cm"
+      style:print-orientation="portrait"
+      fo:margin-top="1.5cm" fo:margin-bottom="1.5cm" fo:margin-left="2cm" fo:margin-right="2cm"/>
+    <style:header-style>
+      <style:header-footer-properties fo:min-height="0.7cm" fo:margin-bottom="0.6cm" style:dynamic-spacing="false"/>
+    </style:header-style>
+    <style:footer-style>
+      <style:header-footer-properties fo:min-height="0.7cm" fo:margin-top="0.6cm" style:dynamic-spacing="false"/>
+    </style:footer-style>
+  </style:page-layout>
+
+  <!-- text spans -->
+  <style:style style:name="TBold" style:family="text">
+    <style:text-properties fo:font-weight="bold"/>
+  </style:style>
+  <style:style style:name="TMute" style:family="text">
+    <style:text-properties fo:color="#6b7b8b"/>
+  </style:style>
+
+  <!-- paragraphs -->
+  <style:style style:name="PHead" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end" fo:padding-bottom="0.12cm"
+      fo:border-bottom="0.5pt solid #d8e0e8" fo:border-top="none" fo:border-left="none" fo:border-right="none"/>
+    <style:text-properties fo:font-size="8pt" fo:color="#6b7b8b" fo:letter-spacing="0.02cm"/>
+  </style:style>
+  <style:style style:name="PFoot" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:padding-top="0.12cm"
+      fo:border-top="0.5pt solid #d8e0e8" fo:border-bottom="none" fo:border-left="none" fo:border-right="none">
+      <style:tab-stops>
+        <style:tab-stop style:position="17cm" style:type="right"/>
+      </style:tab-stops>
+    </style:paragraph-properties>
+    <style:text-properties fo:font-size="7.5pt" fo:color="#6b7b8b"/>
+  </style:style>
+
+  <style:style style:name="PLogo" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-bottom="0.22cm"/>
+  </style:style>
+  <style:style style:name="PCompany" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-bottom="0.05cm"/>
+    <style:text-properties style:font-name="Caladea" fo:font-size="15pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="PTag" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="8.5pt" fo:color="#6b7b8b" fo:letter-spacing="0.03cm"/>
+  </style:style>
+  <style:style style:name="PAddrR" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end" fo:line-height="132%"/>
+    <style:text-properties fo:font-size="8.5pt" fo:color="#546575"/>
+  </style:style>
+
+  <style:style style:name="PRule" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-top="0.45cm" fo:margin-bottom="0.42cm"
+      fo:border-top="1.5pt solid #12395b" fo:border-bottom="none" fo:border-left="none" fo:border-right="none"/>
+    <style:text-properties fo:font-size="1pt"/>
+  </style:style>
+
+  <style:style style:name="PTitle" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-bottom="0.08cm"/>
+    <style:text-properties style:font-name="Caladea" fo:font-size="24pt" fo:font-weight="bold"
+      fo:color="#12395b" fo:letter-spacing="0.04cm"/>
+  </style:style>
+  <style:style style:name="PSub" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="9pt" fo:color="#6b7b8b"/>
+  </style:style>
+
+  <style:style style:name="PLabel" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-bottom="0.16cm"/>
+    <style:text-properties fo:font-size="7.5pt" fo:font-weight="bold" fo:color="#8494a3"
+      fo:letter-spacing="0.06cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PName" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-bottom="0.08cm"/>
+    <style:text-properties fo:font-size="11.5pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="PBody" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:line-height="122%"/>
+    <style:text-properties fo:font-size="9.5pt" fo:color="#31424f"/>
+  </style:style>
+  <style:style style:name="PBodySpaced" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:line-height="122%" fo:margin-top="0.18cm"/>
+    <style:text-properties fo:font-size="9.5pt" fo:color="#31424f"/>
+  </style:style>
+
+  <style:style style:name="PMetaL" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="9pt" fo:color="#6b7b8b"/>
+  </style:style>
+  <style:style style:name="PMetaV" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="9pt" fo:font-weight="bold" fo:color="#1b2a38"/>
+  </style:style>
+
+  <style:style style:name="PTh" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="8pt" fo:font-weight="bold" fo:color="#ffffff"
+      fo:letter-spacing="0.05cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PThR" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="8pt" fo:font-weight="bold" fo:color="#ffffff"
+      fo:letter-spacing="0.05cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PTd" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="9.5pt"/>
+  </style:style>
+  <style:style style:name="PTdStrong" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="9.5pt" fo:font-weight="bold" fo:color="#1b2a38"/>
+  </style:style>
+  <style:style style:name="PTdNote" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-top="0.04cm"/>
+    <style:text-properties fo:font-size="8pt" fo:color="#7c8b99"/>
+  </style:style>
+  <style:style style:name="PTdC" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="center"/>
+    <style:text-properties fo:font-size="9.5pt" fo:color="#546575"/>
+  </style:style>
+  <style:style style:name="PTdR" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="9.5pt"/>
+  </style:style>
+  <style:style style:name="PTdRStrong" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="9.5pt" fo:font-weight="bold" fo:color="#1b2a38"/>
+  </style:style>
+
+  <style:style style:name="PTotL" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="9.5pt" fo:color="#546575"/>
+  </style:style>
+  <style:style style:name="PTotV" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="9.5pt" fo:font-weight="bold"/>
+  </style:style>
+  <style:style style:name="PGrandL" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties fo:font-size="10pt" fo:font-weight="bold" fo:color="#12395b"
+      fo:letter-spacing="0.04cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PGrandV" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties style:font-name="Caladea" fo:font-size="14pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+
+  <style:style style:name="PBadge" style:family="paragraph" style:parent-style-name="Standard">
+    <style:text-properties fo:font-size="10pt" fo:font-weight="bold"/>
+  </style:style>
+  <style:style style:name="PBadgeSub" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-top="0.06cm"/>
+    <style:text-properties fo:font-size="8.5pt" fo:color="#546575"/>
+  </style:style>
+
+  <style:style style:name="PClose" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-top="0.45cm" fo:line-height="122%"/>
+    <style:text-properties fo:font-size="8.5pt" fo:color="#6b7b8b"/>
+  </style:style>
+  <style:style style:name="PGapL" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0cm" fo:line-height="100%"/>
+    <style:text-properties fo:font-size="11pt"/>
+  </style:style>
+  <style:style style:name="PGapS" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:margin-top="0cm" fo:margin-bottom="0cm" fo:line-height="100%"/>
+    <style:text-properties fo:font-size="7pt"/>
+  </style:style>
+  <style:style style:name="PThC" style:family="paragraph" style:parent-style-name="Standard">
+    <style:paragraph-properties fo:text-align="center"/>
+    <style:text-properties fo:font-size="8pt" fo:font-weight="bold" fo:color="#ffffff"
+      fo:letter-spacing="0.05cm" fo:text-transform="uppercase"/>
+  </style:style>
+
+  <!-- graphics -->
+  <style:style style:name="gr-logo" style:family="graphic">
+    <style:graphic-properties style:vertical-pos="top" style:vertical-rel="baseline"
+      style:horizontal-pos="left" style:horizontal-rel="paragraph" style:wrap="none"/>
+  </style:style>
+
+  <!-- tables -->
+  <style:style style:name="TaFull" style:family="table">
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="TaParties" style:family="table">
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.5cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="TaPanel" style:family="table">
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.45cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="TaBanner" style:family="table">
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.4cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="TaItems" style:family="table">
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.15cm" fo:margin-bottom="0cm"/>
+  </style:style>
+  <style:style style:name="TaTotals" style:family="table">
+    <style:table-properties style:width="17cm" table:align="margins" fo:margin-top="0.35cm" fo:margin-bottom="0cm"/>
+  </style:style>
+
+  <style:style style:name="cLetterL" style:family="table-column"><style:table-column-properties style:column-width="9.2cm"/></style:style>
+  <style:style style:name="cLetterR" style:family="table-column"><style:table-column-properties style:column-width="7.8cm"/></style:style>
+
+  <style:style style:name="cBill"  style:family="table-column"><style:table-column-properties style:column-width="8.2cm"/></style:style>
+  <style:style style:name="cGap"   style:family="table-column"><style:table-column-properties style:column-width="0.6cm"/></style:style>
+  <style:style style:name="cMetaL" style:family="table-column"><style:table-column-properties style:column-width="4.3cm"/></style:style>
+  <style:style style:name="cMetaV" style:family="table-column"><style:table-column-properties style:column-width="3.9cm"/></style:style>
+
+  <style:style style:name="cNo"    style:family="table-column"><style:table-column-properties style:column-width="0.9cm"/></style:style>
+  <style:style style:name="cDesc"  style:family="table-column"><style:table-column-properties style:column-width="7.2cm"/></style:style>
+  <style:style style:name="cQty"   style:family="table-column"><style:table-column-properties style:column-width="1.55cm"/></style:style>
+  <style:style style:name="cUnit"  style:family="table-column"><style:table-column-properties style:column-width="1.35cm"/></style:style>
+  <style:style style:name="cPrice" style:family="table-column"><style:table-column-properties style:column-width="2.9cm"/></style:style>
+  <style:style style:name="cAmt"   style:family="table-column"><style:table-column-properties style:column-width="3.1cm"/></style:style>
+
+  <style:style style:name="cSpacer" style:family="table-column"><style:table-column-properties style:column-width="9.5cm"/></style:style>
+  <style:style style:name="cTotL"   style:family="table-column"><style:table-column-properties style:column-width="4.0cm"/></style:style>
+  <style:style style:name="cTotV"   style:family="table-column"><style:table-column-properties style:column-width="3.5cm"/></style:style>
+
+  <!-- cells -->
+  <style:style style:name="ceBare" style:family="table-cell">
+    <style:table-cell-properties fo:border="none" fo:padding="0cm" style:vertical-align="top"/>
+  </style:style>
+  <style:style style:name="ceBareTop" style:family="table-cell">
+    <style:table-cell-properties fo:border="none" fo:padding="0cm" fo:padding-top="0.05cm" style:vertical-align="top"/>
+  </style:style>
+  <style:style style:name="ceHeadL" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#12395b" fo:border="none"
+      fo:padding-top="0.16cm" fo:padding-bottom="0.16cm" fo:padding-left="0.22cm" fo:padding-right="0.1cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceHead" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#12395b" fo:border="none"
+      fo:padding-top="0.16cm" fo:padding-bottom="0.16cm" fo:padding-left="0.1cm" fo:padding-right="0.1cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceHeadR" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#12395b" fo:border="none"
+      fo:padding-top="0.16cm" fo:padding-bottom="0.16cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceRowL" style:family="table-cell">
+    <style:table-cell-properties fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
+      fo:padding-top="0.15cm" fo:padding-bottom="0.15cm" fo:padding-left="0.22cm" fo:padding-right="0.1cm"
+      style:vertical-align="top"/>
+  </style:style>
+  <style:style style:name="ceRow" style:family="table-cell">
+    <style:table-cell-properties fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
+      fo:padding-top="0.15cm" fo:padding-bottom="0.15cm" fo:padding-left="0.1cm" fo:padding-right="0.1cm"
+      style:vertical-align="top"/>
+  </style:style>
+  <style:style style:name="ceRowR" style:family="table-cell">
+    <style:table-cell-properties fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
+      fo:padding-top="0.15cm" fo:padding-bottom="0.15cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      style:vertical-align="top"/>
+  </style:style>
+  <style:style style:name="ceTot" style:family="table-cell">
+    <style:table-cell-properties fo:border="none"
+      fo:padding-top="0.1cm" fo:padding-bottom="0.1cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceGrand" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#eef3f8" fo:border="none"
+      fo:border-top="1.5pt solid #12395b"
+      fo:padding-top="0.2cm" fo:padding-bottom="0.2cm" fo:padding-left="0.1cm" fo:padding-right="0.22cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceBadgeOver" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#fdf1ef" fo:border="none"
+      fo:border-left="3pt solid #b23a2e"
+      fo:padding-top="0.22cm" fo:padding-bottom="0.22cm" fo:padding-left="0.3cm" fo:padding-right="0.3cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceBadgePaid" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#eef7f2" fo:border="none"
+      fo:border-left="3pt solid #1e7a55"
+      fo:padding-top="0.22cm" fo:padding-bottom="0.22cm" fo:padding-left="0.3cm" fo:padding-right="0.3cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="cePanel" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#f5f8fb" fo:border="none"
+      fo:padding-top="0.28cm" fo:padding-bottom="0.28cm" fo:padding-left="0.3cm" fo:padding-right="0.3cm"
+      style:vertical-align="top"/>
+  </style:style>
+  <style:style style:name="cePanelGap" style:family="table-cell">
+    <style:table-cell-properties fo:border="none" fo:padding="0cm" style:vertical-align="top"/>
+  </style:style>
+
+  <style:style style:name="rowKeep" style:family="table-row">
+    <style:table-row-properties fo:keep-together="always"/>
+  </style:style>
+
+</office:automatic-styles>
+
+<office:master-styles>
+  <style:master-page style:name="Standard" style:page-layout-name="pm1">
+    <style:header>
+      <text:p text:style-name="PHead">Invoice {invoice_no}<text:s/>&#183;<text:s/>{company.name}</text:p>
+    </style:header>
+    <style:footer>
+      <text:p text:style-name="PFoot">{company.legal_line}<text:tab/>Invoice {invoice_no}<text:s/>&#183;<text:s/>Page <text:page-number text:select-page="current">1</text:page-number> of <text:page-count>1</text:page-count></text:p>
+    </style:footer>
+  </style:master-page>
+</office:master-styles>
+
+<office:body><office:text>
+
+<!-- ============================= letterhead ============================= -->
+<table:table table:name="Letterhead" table:style-name="TaFull">
+  <table:table-column table:style-name="cLetterL"/>
+  <table:table-column table:style-name="cLetterR"/>
+  <table:table-row>
+    <table:table-cell table:style-name="ceBare" office:value-type="string">
+      <text:p text:style-name="PLogo">{%logo}</text:p>
+      <text:p text:style-name="PCompany">{company.name}</text:p>
+      <text:p text:style-name="PTag">{company.tagline}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceBareTop" office:value-type="string">
+      <text:p text:style-name="PAddrR">{company.address}</text:p>
+      <text:p text:style-name="PAddrR">VAT {company.vat_id}<text:s/>&#183;<text:s/>{company.registration}</text:p>
+      <text:p text:style-name="PAddrR">{company.email}<text:s/>&#183;<text:s/>{company.phone}</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+
+<text:p text:style-name="PRule"/>
+
+<text:p text:style-name="PTitle">INVOICE</text:p>
+<text:p text:style-name="PSub">{items|count} line items<text:s/>&#183;<text:s/>issued {issued|date:DD MMMM YYYY}</text:p>
+
+<!-- ======================= bill-to and invoice meta ===================== -->
+<table:table table:name="Parties" table:style-name="TaParties">
+  <table:table-column table:style-name="cBill"/>
+  <table:table-column table:style-name="cGap"/>
+  <table:table-column table:style-name="cMetaL"/>
+  <table:table-column table:style-name="cMetaV"/>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceBare" office:value-type="string" table:number-rows-spanned="5">
+      <text:p text:style-name="PLabel">Bill to</text:p>
+      <text:p text:style-name="PName">{customer.name}</text:p>
+      <text:p text:style-name="PBody">{customer.attention}</text:p>
+      <text:p text:style-name="PBody">{customer.address}</text:p>
+      <text:p text:style-name="PBodySpaced">VAT {customer.vat_id}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaL">Invoice number</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaV">{invoice_no}</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:covered-table-cell/>
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaL">Invoice date</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaV">{issued|date:DD MMMM YYYY}</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:covered-table-cell/>
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaL">Payment due</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaV">{due|date:DD MMMM YYYY}</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:covered-table-cell/>
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaL">Payment terms</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaV">Net {terms_days} days</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:covered-table-cell/>
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaL">Your reference</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceBare" office:value-type="string"><text:p text:style-name="PMetaV">{purchase_order}</text:p></table:table-cell>
+  </table:table-row>
+</table:table>
+
+<!-- ============================= line items ============================= -->
+<text:p text:style-name="PGapL"/>
+
+<table:table table:name="Items" table:style-name="TaItems">
+  <table:table-column table:style-name="cNo"/>
+  <table:table-column table:style-name="cDesc"/>
+  <table:table-column table:style-name="cQty"/>
+  <table:table-column table:style-name="cUnit"/>
+  <table:table-column table:style-name="cPrice"/>
+  <table:table-column table:style-name="cAmt"/>
+
+  <table:table-header-rows>
+    <table:table-row table:style-name="rowKeep">
+      <table:table-cell table:style-name="ceHeadL" office:value-type="string"><text:p text:style-name="PTh">#</text:p></table:table-cell>
+      <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PTh">Description</text:p></table:table-cell>
+      <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PThR">Qty</text:p></table:table-cell>
+      <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PThC">Unit</text:p></table:table-cell>
+      <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PThR">Unit price</text:p></table:table-cell>
+      <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p text:style-name="PThR">Amount</text:p></table:table-cell>
+    </table:table-row>
+  </table:table-header-rows>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceRowL" office:value-type="string">
+      <text:p text:style-name="PTdC">{#items}{$index1}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceRow" office:value-type="string">
+      <text:p text:style-name="PTdStrong">{description}</text:p>
+      <text:p text:style-name="PTdNote">{detail}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceRow" office:value-type="string">
+      <text:p text:style-name="PTdR">{qty}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceRow" office:value-type="string">
+      <text:p text:style-name="PTdC">{unit}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceRow" office:value-type="string">
+      <text:p text:style-name="PTdR">{unit_price|currency:EUR}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="ceRowR" office:value-type="string">
+      <text:p text:style-name="PTdRStrong">{line_total|currency:EUR}{/items}</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+
+<!-- =============================== totals ============================== -->
+<table:table table:name="Totals" table:style-name="TaTotals">
+  <table:table-column table:style-name="cSpacer"/>
+  <table:table-column table:style-name="cTotL"/>
+  <table:table-column table:style-name="cTotV"/>
+
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotL">Subtotal (net)</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotV">{items|sumProduct:qty:unit_price|currency:EUR}</text:p></table:table-cell>
+  </table:table-row>
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotL">VAT at {vat_rate|percent}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTot" office:value-type="string"><text:p text:style-name="PTotV">{items|sumProduct:qty:unit_price:vat_rate|currency:EUR}</text:p></table:table-cell>
+  </table:table-row>
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceBare"/>
+    <table:table-cell table:style-name="ceGrand" office:value-type="string"><text:p text:style-name="PGrandL">Amount due</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceGrand" office:value-type="string"><text:p text:style-name="PGrandV">{items|sumProduct:qty:unit_price:vat_factor|currency:EUR}</text:p></table:table-cell>
+  </table:table-row>
+</table:table>
+
+<!-- ===================== conditional status banner ===================== -->
+<text:p>{#paid}</text:p>
+<table:table table:name="BannerPaid" table:style-name="TaBanner">
+  <table:table-column table:style-name="cLetterL"/>
+  <table:table-column table:style-name="cLetterR"/>
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceBadgePaid" office:value-type="string" table:number-columns-spanned="2">
+      <text:p text:style-name="PBadge"><text:span text:style-name="TBold">PAID IN FULL</text:span></text:p>
+      <text:p text:style-name="PBadgeSub">Settled on {paid_on|date:DD MMMM YYYY}. No further action is needed &#8212; thank you.</text:p>
+    </table:table-cell>
+    <table:covered-table-cell/>
+  </table:table-row>
+</table:table>
+<text:p>{/paid}</text:p>
+
+<text:p>{^paid}</text:p>
+<table:table table:name="BannerOverdue" table:style-name="TaBanner">
+  <table:table-column table:style-name="cLetterL"/>
+  <table:table-column table:style-name="cLetterR"/>
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="ceBadgeOver" office:value-type="string" table:number-columns-spanned="2">
+      <text:p text:style-name="PBadge">OVERDUE</text:p>
+      <text:p text:style-name="PBadgeSub">Payment was due on {due|date:DD MMMM YYYY}. Please settle {items|sumProduct:qty:unit_price:vat_factor|currency:EUR} quoting reference {invoice_no}.</text:p>
+    </table:table-cell>
+    <table:covered-table-cell/>
+  </table:table-row>
+</table:table>
+<text:p>{/paid}</text:p>
+
+<!-- ========================= payment and terms ========================= -->
+<table:table table:name="Payment" table:style-name="TaPanel">
+  <table:table-column table:style-name="cBill"/>
+  <table:table-column table:style-name="cGap"/>
+  <table:table-column table:style-name="cMetaL"/>
+  <table:table-column table:style-name="cMetaV"/>
+  <table:table-row table:style-name="rowKeep">
+    <table:table-cell table:style-name="cePanel" office:value-type="string">
+      <text:p text:style-name="PLabel">Payment details</text:p>
+      <text:p text:style-name="PBody">{bank.name}</text:p>
+      <text:p text:style-name="PBody">IBAN<text:s/><text:span text:style-name="TBold">{bank.iban}</text:span></text:p>
+      <text:p text:style-name="PBody">BIC<text:s/>{bank.bic}<text:s/>&#183;<text:s/>Reference<text:s/><text:span text:style-name="TBold">{invoice_no}</text:span></text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="cePanelGap"/>
+    <table:table-cell table:style-name="cePanel" office:value-type="string" table:number-columns-spanned="2">
+      <text:p text:style-name="PLabel">Terms</text:p>
+      <text:p text:style-name="PBody">{terms_note}</text:p>
+    </table:table-cell>
+    <table:covered-table-cell/>
+  </table:table-row>
+</table:table>
+
+<text:p text:style-name="PClose">{closing_note}</text:p>
+
+</office:text></office:body></office:document>

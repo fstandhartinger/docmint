@@ -1,7 +1,6 @@
 'use strict';
 
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
@@ -164,8 +163,6 @@ const JPEG_8x5 = (() => {
   return Buffer.concat([soi, sof, eoi]);
 })();
 
-const tmpFile = (suffix) => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'docmint-')), suffix);
-
 module.exports = {
   ROOT,
   FIXTURES,
@@ -185,7 +182,6 @@ module.exports = {
   tableRowCount,
   libreOfficeAvailable,
   toPdf,
-  tmpFile,
   PNG_64x32,
   GIF_6x3,
   JPEG_8x5,

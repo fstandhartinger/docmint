@@ -1,0 +1,101 @@
+{
+  "invoice_no": "MFS-2026-0417",
+  "issued": "2026-07-14",
+  "due": "2026-08-13",
+  "terms_days": 30,
+  "purchase_order": "PO-88213",
+  "currency": "EUR",
+  "vat_rate": 0.21,
+  "paid": false,
+  "paid_on": "2026-08-11",
+  "company": {
+    "name": "Meridian Field Systems B.V.",
+    "tagline": "Environmental monitoring hardware and telemetry",
+    "address": "Keizersgracht 452\n1016 GD Amsterdam\nNetherlands",
+    "vat_id": "NL812345678B01",
+    "registration": "KvK 34215567",
+    "email": "billing@meridianfield.example",
+    "phone": "+31 20 262 4180",
+    "legal_line": "Meridian Field Systems B.V. · Keizersgracht 452, 1016 GD Amsterdam · KvK 34215567"
+  },
+  "customer": {
+    "name": "Brightline Retail Group B.V.",
+    "attention": "Attn. Sanne de Vries, Facilities",
+    "address": "Weena 505\n3013 AL Rotterdam\nNetherlands",
+    "vat_id": "NL854112900B01"
+  },
+  "bank": {
+    "name": "ING Bank N.V., Amsterdam",
+    "iban": "NL91 INGB 0002 4455 88",
+    "bic": "INGBNL2A"
+  },
+  "terms_note": "Payment is due within 30 days of the invoice date, by bank transfer in EUR, quoting the invoice number as the payment reference. Late payment carries statutory interest. Goods remain our property until paid in full.",
+  "closing_note": "Questions about this invoice? Reply to billing@meridianfield.example quoting MFS-2026-0417 and we will come back to you within one business day.",
+  "items": [
+    {
+      "description": "MFS-220 multi-channel data logger",
+      "detail": "Firmware 4.2, 3-year warranty, factory sealed",
+      "qty": 24,
+      "unit": "unit",
+      "unit_price": 465,
+      "line_total": 11160,
+      "vat_rate": 0.21,
+      "vat_factor": 1.21
+    },
+    {
+      "description": "RH-9 humidity and temperature probe",
+      "detail": "Factory calibrated to ISO 17025, IP67",
+      "qty": 48,
+      "unit": "unit",
+      "unit_price": 118.5,
+      "line_total": 5688,
+      "vat_rate": 0.21,
+      "vat_factor": 1.21
+    },
+    {
+      "description": "Field enclosure with pole-mount kit",
+      "detail": "Powder-coated aluminium, brackets included",
+      "qty": 24,
+      "unit": "set",
+      "unit_price": 74,
+      "line_total": 1776,
+      "vat_rate": 0.21,
+      "vat_factor": 1.21
+    },
+    {
+      "description": "On-site commissioning",
+      "detail": "Two engineers, Rotterdam distribution centre",
+      "qty": 3,
+      "unit": "day",
+      "unit_price": 980,
+      "line_total": 2940,
+      "vat_rate": 0.21,
+      "vat_factor": 1.21
+    },
+    {
+      "description": "Telemetry subscription",
+      "detail": "12 months from 1 August 2026, 24 devices",
+      "qty": 1,
+      "unit": "year",
+      "unit_price": 3840,
+      "line_total": 3840,
+      "vat_rate": 0.21,
+      "vat_factor": 1.21
+    },
+    {
+      "description": "Extended support, gold tier",
+      "detail": "12 months, four-hour response, 24/7",
+      "qty": 1,
+      "unit": "year",
+      "unit_price": 1450,
+      "line_total": 1450,
+      "vat_rate": 0.21,
+      "vat_factor": 1.21
+    }
+  ],
+  "logo": {
+    "data": "data:image/png;base64,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",
+    "width": 58,
+    "alt": "Meridian Field Systems"
+  }
+}

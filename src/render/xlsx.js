@@ -34,6 +34,35 @@ const { TemplateError } = require('../template/errors');
  *    to a number becomes a numeric cell, keeping its `s=` style so the number
  *    format, font, border and fill all survive.
  *
+ *    The rules, in the order they are applied to a cell whose entire content is
+ *    one placeholder:
+ *      JS number, or an arithmetic formatter (sum, sumProduct, count, round,
+ *        multiply, add, subtract, divide)        -> numeric cell, `t` dropped
+ *      JS boolean                                -> t="b", 1 or 0
+ *      a Date or an ISO date string in a cell that already carries a date number
+ *        format                                  -> the Excel serial, so the cell
+ *                                                   sorts, charts and reformats
+ *      anything else, including a numeric string -> inline string
+ *    A formatter that returns formatted text — currency, number, percent, date —
+ *    produces text on purpose: the caller asked for that exact string. To get a
+ *    real number that still *displays* as money, format the cell in the template
+ *    and write a bare {total}; the cell's own number format then does the work,
+ *    and SUM() over the column still adds up. A numeric string in the JSON
+ *    ("30") also stays text, because turning "007" into 7 would quietly ruin
+ *    part numbers and postcodes; write {n|add:0} if you want it coerced.
+ *
+ *    Not supported, and deliberately so: column loops (a section whose two tags
+ *    sit in one row is a row loop, because a loop that repeated part of a row
+ *    would leave the rest of the line behind) and sheet loops.
+ *
+ *    Known limits of the formula rewriting, worth knowing before relying on it:
+ *    a range whose two ends are the same repeated row — SUM(B3:B3) over a
+ *    per-group subtotal row — widens to first..last occurrence and therefore
+ *    covers the rows in between as well, so a grand total is better written as a
+ *    sum of the detail rows than as a sum of the subtotals. Chart series and
+ *    pivot caches keep their own copies of the ranges they read and are not
+ *    rewritten.
+ *
  * 3. ROW GEOMETRY. Repeating rows moves everything below them. Row indices, cell
  *    references, merged ranges, the dimension, conditional formatting, data
  *    validation, hyperlinks, autofilter, defined names, drawing anchors and —
@@ -778,7 +807,14 @@ function renderRows(rows, node, stack, outRows, group, env) {
  * leaving a hole where it stood would put a stray empty row in every document
  * whose {^empty} branch did not fire.
  */
-function numberRows(outRows, presentRows) {
+function numberRows(outRows, presentRows, sheetName) {
+  if (outRows.length > MAX_ROWS) {
+    throw new TemplateError('too_many_rows',
+      `Sheet "${sheetName}" would need ${outRows.length} rows, and a worksheet holds ${MAX_ROWS}.`, {
+        location: sheetName,
+        hint: 'Send fewer items, or split the data across several requests.',
+      });
+  }
   const occ = new Map();
   let prevSrc = null;
   let prevNew = 0;
@@ -978,7 +1014,7 @@ function renderSheet(prep, sheet, stack, env) {
   if (parsed.rows.length) renderRows(parsed.rows, blocks, stack, outRows, { parent: null, map: new Map() }, env);
 
   const presentRows = new Set(parsed.rows.map((r) => r.r));
-  const occ = numberRows(outRows, presentRows);
+  const occ = numberRows(outRows, presentRows, sheet.name);
   const sortedSrc = [...occ.keys()].sort((a, b) => a - b);
   const lastSrc = parsed.rows.length ? parsed.rows[parsed.rows.length - 1].r : 0;
   const lastNew = outRows.length ? outRows[outRows.length - 1].newRow : 0;
@@ -1427,7 +1463,10 @@ function fixWorkbook(zip, workbookPath, sheets, mappers, touched, opts) {
 
 async function render(buffer, data, opts = {}) {
   const zip = readZip(buffer);
-  const ctx = makeContext(opts);
+  // The dispatcher builds one context per render and reads the warnings it
+  // collected back off it afterwards. Making a private one here silently drops
+  // every `resolved_from_outer_scope` warning, which was the case until this line.
+  const ctx = opts.ctx || makeContext(opts);
   const workbookPath = findWorkbookPath(zip);
   const sheets = listSheets(zip, workbookPath);
   const shared = readSharedStrings(zip);

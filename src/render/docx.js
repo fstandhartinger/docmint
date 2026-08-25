@@ -278,8 +278,6 @@ function buildLevel(units, ownedTest, repeatBoundary, parseUnit, cx) {
   const owned = new Map();
   for (const p of pairs) {
     if (!ownedTest(p)) continue;
-    p.o.pair = p;
-    p.c.pair = p;
     if (!owned.has(p.o.unit)) owned.set(p.o.unit, []);
     if (!owned.has(p.c.unit)) owned.set(p.c.unit, []);
     owned.get(p.o.unit).push(p.o);
@@ -301,6 +299,9 @@ function buildLevel(units, ownedTest, repeatBoundary, parseUnit, cx) {
     const contentful = !markerOnly(u, ms.map((m) => m.tag));
     const firstOpen = ms.findIndex((m) => m.tag.kind !== 'close');
     const firstClose = ms.findIndex((m) => m.tag.kind === 'close');
+    // Where, among this unit's markers, the unit itself is emitted. A row goes
+    // inside the section it opens (the row is the line item); a paragraph goes
+    // before it (the paragraph is the heading above the loop, not part of it).
     let emitAt;
     if (repeatBoundary) emitAt = firstOpen !== -1 ? firstOpen + 1 : (firstClose !== -1 ? firstClose : ms.length);
     else emitAt = firstOpen !== -1 ? firstOpen : ms.length;
@@ -546,7 +547,7 @@ function parseParagraph(pXml, cx) {
   if (cutTags.length === 1 && cutTags[0].kind === 'raw'
       && flat.text.slice(0, cutTags[0].start).trim() === ''
       && flat.text.slice(cutTags[0].end).trim() === '') {
-    return { k: 'raw', tag: cutTags[0], loc, id: cutTags[0].id, block: true };
+    return { k: 'raw', tag: cutTags[0], loc, id: cutTags[0].id };
   }
 
   const blanked = blankTags(pXml, cutTags);

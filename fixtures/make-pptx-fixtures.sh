@@ -274,9 +274,12 @@ sudo docker run --rm -m 1g -v "$work:/w" -e HOME=/tmp docmint-lo-probe \
   soffice --headless --norestore --convert-to pptx --outdir /w \
   /w/report.fodp /w/chapters.fodp /w/cards.fodp /w/nested.fodp >/dev/null 2>&1
 
+mkdir -p "$here/src"
 for f in report chapters cards nested; do
   sudo chown "$(id -u):$(id -g)" "$work/$f.pptx"
   cp "$work/$f.pptx" "$here/$f.pptx"
-  cp "$work/$f.fodp" "$here/$f.fodp"
+  # The flat-ODF source is kept beside the other fixture sources: it is diffable,
+  # and it is the only readable record of what each template actually says.
+  cp "$work/$f.fodp" "$here/src/$f.fodp"
   echo "wrote fixtures/$f.pptx ($(stat -c%s "$here/$f.pptx") bytes)"
 done

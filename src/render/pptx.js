@@ -1299,7 +1299,9 @@ function selfCheck(zip) {
 
 async function render(buffer, data, opts = {}) {
   const zip = readZip(buffer);
-  const ctx = makeContext(opts);
+  // The dispatcher builds a context for the whole request; reuse it so locale,
+  // currency and onMissing are the ones it validated.
+  const ctx = opts.ctx || makeContext(opts);
   ctx.stats = { tags: 0, resolved: 0, sections: 0, images: 0 };
   ctx.imagesOpt = opts.images && typeof opts.images === 'object' ? opts.images : null;
 

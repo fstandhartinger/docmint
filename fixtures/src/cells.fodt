@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.text">
+<office:body><office:text>
+
+<table:table table:name="Cells">
+  <table:table-column table:number-columns-repeated="2"/>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{#groups}{title}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string">
+      <text:p>{#members}</text:p>
+      <text:p>* {name} ({role})</text:p>
+      <text:p>{/members}</text:p>
+      <text:p>{members|count} people{/groups}</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+
+<text:p>Nested tables</text:p>
+
+<table:table table:name="Outer">
+  <table:table-column table:number-columns-repeated="2"/>
+  <table:table-row>
+    <table:table-cell office:value-type="string"><text:p>{#depts}{dept}</text:p></table:table-cell>
+    <table:table-cell office:value-type="string">
+      <table:table table:name="Inner">
+        <table:table-column table:number-columns-repeated="2"/>
+        <table:table-row>
+          <table:table-cell office:value-type="string"><text:p>{#people}{name}</text:p></table:table-cell>
+          <table:table-cell office:value-type="string"><text:p>{seat}{/people}</text:p></table:table-cell>
+        </table:table-row>
+      </table:table>
+      <text:p>{/depts}</text:p>
+    </table:table-cell>
+  </table:table-row>
+</table:table>
+
+<text:p>End.</text:p>
+
+</office:text></office:body></office:document>
