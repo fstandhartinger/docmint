@@ -37,6 +37,29 @@ app.use((req, res, next) => {
   next();
 });
 
+/**
+ * One page, one URL. If DocMint ever answers on a second hostname — a real
+ * domain in front of the Render one — a search engine would otherwise see two
+ * copies of every page and have to guess. Browsers get a 301 to whatever
+ * PUBLIC_URL says is the real host.
+ *
+ * Only GET and HEAD, and never on the API surface: the Stripe webhook, the n8n
+ * node and every hosted-file link were issued against the host the caller
+ * already had, and a redirect would break them.
+ */
+const CANONICAL_HOST = config.publicUrl ? new URL(config.publicUrl).host : '';
+const NEVER_REDIRECT = ['/v1/', '/stripe/', '/f/', '/healthz'];
+
+app.use((req, res, next) => {
+  if (!CANONICAL_HOST) return next();
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (NEVER_REDIRECT.some((p) => req.path === p || req.path.startsWith(p))) return next();
+  const host = (req.get('host') || '').toLowerCase();
+  if (!host || host === CANONICAL_HOST) return next();
+  if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return next();
+  return res.redirect(301, `${config.publicUrl}${req.originalUrl}`);
+});
+
 // Stripe verifies a signature over the exact bytes it sent, so this route must be
 // mounted before the JSON parser gets to rewrite them.
 app.use('/stripe', express.raw({ type: 'application/json' }), billing.router);

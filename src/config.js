@@ -91,8 +91,12 @@ const config = {
   fileTtlMinutesMax: num(process.env.FILE_TTL_MINUTES_MAX, 10080), // 7 days
   maxStoredFileBytes: num(process.env.MAX_STORED_FILE_BYTES, 40 * 1024 * 1024),
 
+  // Identifies this deployment in the usage log. It used to be derived from
+  // PUBLIC_URL containing 'onrender.com', which meant that putting a real domain
+  // in front would silently demote production to 'dev'. Deployment identity is
+  // not a function of which hostname we happen to answer on.
   origin: process.env.DOCMINT_ORIGIN
-    || ((process.env.PUBLIC_URL || '').includes('onrender.com') ? 'production' : 'dev'),
+    || (process.env.NODE_ENV === 'production' ? 'production' : 'dev'),
 
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY || '',
