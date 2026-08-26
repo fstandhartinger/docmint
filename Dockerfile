@@ -10,6 +10,15 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 
+# curl is here for the orchestrator, not for us. node:20-bookworm-slim installs
+# curl and wget to fetch node, then runs `apt-mark auto '.*'` and
+# `apt-get purge --auto-remove`, which takes both back out. Coolify's container
+# health check shells out to curl inside the container, so on the untouched base
+# image it can never pass: the app starts, answers /healthz perfectly well over
+# the network, and the deployment is still marked failed and the container
+# stopped. That cost two failed deploys before it was found. The HEALTHCHECK
+# below deliberately uses node's own fetch and needs none of this.
+
 # LibreOffice is the only reason this image is large: it adds about 700 MB to a
 # 200 MB base. Only the three format filters we actually convert are installed —
 # writer, calc and impress — and not libreoffice-core's optional extras, which is
@@ -25,6 +34,7 @@ RUN npm ci --omit=dev \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
       libreoffice-writer libreoffice-calc libreoffice-impress \
+      curl \
       default-jre-headless \
       fonts-crosextra-carlito \
       fonts-crosextra-caladea \
