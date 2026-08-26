@@ -38,6 +38,21 @@ app.use((req, res, next) => {
 });
 
 /**
+ * A deployment that is not the one customers are sent to must not compete with
+ * the one that is. Set NOINDEX=1 on a staging or migration instance and every
+ * response carries X-Robots-Tag: noindex, so a crawler that stumbles onto the
+ * infrastructure hostname does not file it as a duplicate of the real site.
+ *
+ * Off by default: production must never be able to hide itself by accident.
+ */
+if (process.env.NOINDEX === '1') {
+  app.use((req, res, next) => {
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
+}
+
+/**
  * One page, one URL. If DocMint ever answers on a second hostname — a real
  * domain in front of the Render one — a search engine would otherwise see two
  * copies of every page and have to guess. Browsers get a 301 to whatever
