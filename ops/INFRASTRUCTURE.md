@@ -59,7 +59,7 @@ whether anyone is actually waiting.
 
 - **Render web service** `docmint` — id `srv-da6l2s61egvs7394d030`, region
   frankfurt, Docker runtime, auto-deploys from `master` of
-  `fstandhartinger/docmint`. URL `https://docmint-832s.onrender.com`.
+  `fstandhartinger/docmint`. URL `https://docmint.app.mintapis.com`.
 - **Neon project** `docmint` — id `cool-cake-82817336`, database `neondb`,
   branch `main`. Tables: accounts, api_keys,
   templates, template_versions, files, usage_events, sessions, stripe_events.

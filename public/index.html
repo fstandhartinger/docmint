@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DocMint — fill Word, Excel and PowerPoint templates from JSON</title>
 <meta name="description" content="DocMint is a document generation API. POST your data against a .docx, .xlsx or .pptx template and get the Office file, a PDF, or both. It tells you what fields the template needs, and refuses to render one that is missing. 30 documents a month free, no card.">
-<link rel="canonical" href="https://docmint-832s.onrender.com/">
+<link rel="canonical" href="https://docmint.app.mintapis.com/">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="google-site-verification" content="Uo2yXvxWr5xyjBWINwryQSLpDGamKQlQUdfO-k0jz_U">
-<meta property="og:url" content="https://docmint-832s.onrender.com/">
+<meta property="og:url" content="https://docmint.app.mintapis.com/">
 <meta property="og:site_name" content="DocMint">
-<meta property="og:image" content="https://docmint-832s.onrender.com/og-image.png">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="DocMint — fill Word, Excel and PowerPoint templates from JSON">
@@ -71,7 +71,7 @@
         </div>
 
         <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre><code><span class="tok-c"># A saved .docx and your data. The PDF comes straight back.</span>
-curl -X POST https://docmint-832s.onrender.com/v1/render \
+curl -X POST https://docmint.app.mintapis.com/v1/render \
   -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
   -d <span class="tok-s">'{"template":"quote",
@@ -81,7 +81,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/render \
 
         <div class="code-panel" role="tabpanel" id="panel-fields" hidden><pre><code><span class="tok-c"># What does this template actually need? Free, no render.</span>
 curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
-  https://docmint-832s.onrender.com/v1/templates/lines/fields
+  https://docmint.app.mintapis.com/v1/templates/lines/fields
 
 <span class="tok-c">{ "name": "lines", "format": "docx", "version": 1,</span>
 <span class="tok-c">  "fields": [</span>
@@ -100,7 +100,7 @@ curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
 <span class="tok-c">                "qty": 0, "price": 0 }] } }</span></code></pre></div>
 
         <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre><code><span class="tok-c"># No dashboard to click through. The key is in the response.</span>
-curl -X POST https://docmint-832s.onrender.com/v1/signup \
+curl -X POST https://docmint.app.mintapis.com/v1/signup \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
   -d <span class="tok-s">'{"email":"you@example.com",
        "password":"a-long-enough-password"}'</span>
@@ -225,7 +225,7 @@ curl -X POST https://docmint-832s.onrender.com/v1/signup \
                 the data has no \"price\".",
     "hint": "Add \"price\" to the data, or write
              {price|default:} to allow it to be absent.",
-    "docs": "https://docmint-832s.onrender.com/docs#errors",
+    "docs": "https://docmint.app.mintapis.com/docs#errors",
     "details": {
       "field": "price",
       "location":

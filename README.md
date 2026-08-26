@@ -9,7 +9,7 @@ what fields a template needs before you send any data, and it **refuses to rende
 document with an unresolved placeholder** instead of shipping one with a hole in it.
 
 There is a hosted service at
-**[docmint-832s.onrender.com](https://docmint-832s.onrender.com)** — 30 documents a
+**[docmint.app.mintapis.com](https://docmint.app.mintapis.com)** — 30 documents a
 month free, no card — and an
 [n8n community node](https://github.com/fstandhartinger/n8n-nodes-docmint) that turns a
 template's placeholders into real n8n fields.
@@ -17,7 +17,7 @@ template's placeholders into real n8n fields.
 This repository is the API behind both.
 
 ```bash
-curl -X POST https://docmint-832s.onrender.com/v1/render \
+curl -X POST https://docmint.app.mintapis.com/v1/render \
   -H "Authorization: Bearer dm_live_xxx" \
   -H "Content-Type: application/json" \
   -d '{"template":"quote",
@@ -54,7 +54,7 @@ loudly on an unresolved placeholder, by name and by location.
 LibreOffice (MPL-2.0, from the Debian archive) does the PDF conversion.
 
 The full reference is at
-[docmint-832s.onrender.com/docs](https://docmint-832s.onrender.com/docs).
+[docmint.app.mintapis.com/docs](https://docmint.app.mintapis.com/docs).
 
 ## Plans
 

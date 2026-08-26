@@ -1,4 +1,4 @@
-# DocMint — https://docmint-832s.onrender.com
+# DocMint — https://docmint.app.mintapis.com
 # The API is behind a key; there is nothing there for a crawler.
 
 User-agent: *
@@ -7,4 +7,4 @@ Disallow: /v1/
 Disallow: /stripe/
 Disallow: /f/
 
-Sitemap: https://docmint-832s.onrender.com/sitemap.xml
+Sitemap: https://docmint.app.mintapis.com/sitemap.xml
