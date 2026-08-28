@@ -11,6 +11,7 @@ const api = require('./api');
 const jobs = require('./jobs');
 const pdf = require('./pdf');
 const billing = require('./billing');
+const web = require('./web');
 const log = require('./log');
 
 const app = express();
@@ -156,6 +157,7 @@ app.get('/f/:token', async (req, res, next) => {
 });
 
 app.use('/v1', api.router);
+app.use(web.router);
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', extensions: ['html'] }));
 
 app.use((req, res) => {
