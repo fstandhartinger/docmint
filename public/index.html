@@ -517,8 +517,8 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         <span>Everything is the API: keys are managed with <code>POST /v1/keys</code> and <code>DELETE /v1/keys/:prefix</code>, usage with <code>GET /v1/usage</code>, and a subscription is started with <code>POST /v1/billing/checkout</code>, which hands back a Stripe URL to open. There is also no self-service account deletion; that is a request by email today.</span>
       </div>
       <div class="gap">
-        <b>The n8n node is written but not published</b>
-        <span><code>n8n-nodes-docmint</code> exists in the repository and is not yet on npm, so it cannot be installed today. Until it is, the API is a plain HTTP call from any workflow tool.</span>
+        <b>The n8n node is on npm, but not yet installable on n8n Cloud</b>
+        <span><code>n8n-nodes-docmint</code> is published &mdash; version 0.2.0, and npm counted 304 installs in the week to 28 August 2026 &mdash; so <b>self-hosted n8n can install it today</b> from Settings &rarr; Community nodes. <b>n8n Cloud cannot yet</b>: Cloud installs only from n8n’s verified registry, and the node is still in their manual review. You can check that yourself without an account by searching <code>api.n8n.io/api/community-nodes</code> for the package name. On Cloud, use a plain HTTP Request node in the meantime &mdash; <a href="/n8n-word-template">both routes are written out here</a>.</span>
       </div>
       <div class="gap">
         <b>No SLA, one region, one instance</b>
@@ -586,6 +586,39 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
 
 </main>
 
+<!-- -------------------------------------------------------------- compare -->
+<section class="sec tinted" id="reading">
+  <div class="wrap">
+    <div class="sec-head center">
+      <p class="eyebrow">Before you decide</p>
+      <h2 class="sec-title">Written out in full, including the parts against us</h2>
+      <p class="muted">Every competitor price on these pages was read off the vendor&rsquo;s own page on 29&nbsp;August&nbsp;2026, and every DocMint number was measured against this API the same day. Each one names the cases where you should pick the other product.</p>
+    </div>
+    <div class="gaps">
+      <div class="gap">
+        <b><a href="/word-template-api">Word template API &mdash; the whole job, and five products side by side</a></b>
+        <span>What filling a template actually involves, the five parts that are hard, when to build it yourself instead, and why the billing units do not compare: Carbone counts a megabyte, Docupilot counts a delivery, Docmosis counts a page.</span>
+      </div>
+      <div class="gap">
+        <b><a href="/n8n-word-template">Filling Word templates in n8n &mdash; the three ways</a></b>
+        <span>n8n has no core node for this. The community node, a plain HTTP Request node, and a Code node with docxtemplater &mdash; including which of them works on n8n Cloud today, and which does not.</span>
+      </div>
+      <div class="gap">
+        <b><a href="/carbone-alternative">Carbone alternative</a></b>
+        <span>&euro;159 against $29 for the same 20,000 documents &mdash; and their free tier is three times ours, their studio is real, and we have no charts.</span>
+      </div>
+      <div class="gap">
+        <b><a href="/docupilot-alternative">Docupilot alternative</a></b>
+        <span>The same $29 buys 100 documents there and 20,000 here &mdash; but their price includes an editor, eSignatures and 70 integrations, and ours includes a render.</span>
+      </div>
+      <div class="gap">
+        <b><a href="/docxtemplater-alternative">docxtemplater alternative</a></b>
+        <span>The core is free and often the right answer. Excel, slides, images and error locations are modules at &euro;500 per module per year.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ------------------------------------------------------------------- who -->
 <section class="l-who">
   <div class="wrap">
@@ -600,6 +633,11 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
     <span>DocMint · productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG</span>
     <nav>
       <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/n8n-word-template">n8n</a>
+      <a href="/carbone-alternative">vs Carbone</a>
+      <a href="/docupilot-alternative">vs Docupilot</a>
+      <a href="/docxtemplater-alternative">vs docxtemplater</a>
       <a href="/legal">Imprint</a>
       <a href="/privacy">Privacy</a>
       <a href="/terms">Terms</a>

@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>docxtemplater alternative — what the free version leaves out, and what it costs to add</title>
+<meta name="description" content="docxtemplater's core is MIT-licensed and free; Excel, PowerPoint slides, images, HTML and error locations are paid modules at 500 EUR per module per year. A measured comparison with DocMint, including the cases where running docxtemplater yourself is the right answer.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/docxtemplater-alternative">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/docxtemplater-alternative">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="docxtemplater alternative — what the free version leaves out, and what it costs to add">
+<meta property="og:description" content="docxtemplater's core is MIT-licensed and free; Excel, PowerPoint slides, images, HTML and error locations are paid modules at 500 EUR per module per year. A measured comparison with DocMint, including the cases where running docxtemplater yourself is the right answer.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#short">The short version</a></li>
+      <li><a href="#free">What the free version actually does</a></li>
+      <li><a href="#modules">The module prices, read today</a></li>
+      <li><a href="#undefined">The literal word undefined</a></li>
+      <li><a href="#errors">Where the tag failed is a paid module</a></li>
+      <li><a href="#build">When running it yourself is right</a></li>
+      <li><a href="#cannot">What we cannot claim</a></li>
+      <li><a href="#moving">Moving a template across</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+      <li><a href="/carbone-alternative">Carbone alternative</a></li>
+      <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>docxtemplater alternative</h1>
+
+<p class="lede">docxtemplater is the default answer to "how do I fill a Word template from
+JavaScript", and for a lot of projects it is the correct answer. It is also the comparison most
+often made unfairly, in both directions — people call it free when the part they need is not, and
+vendors call it limited without saying which limits are lifted by a licence. So: every price and
+capability below was read off <a href="https://docxtemplater.com/pricing/" rel="nofollow noopener">docxtemplater.com/pricing</a>
+on <b>29 August 2026</b>. This page is written by the people who build DocMint. The section on when
+to use docxtemplater instead of us is not a formality.</p>
+
+<h2 id="short">The short version</h2>
+
+<p>docxtemplater is a library you run; DocMint is an API you call. The interesting difference is not
+that one is a library — it is <b>where the line between free and paid falls</b>. docxtemplater's
+core is genuinely free and MIT/GPLv3 dual-licensed, and it covers <code>{tag}</code> replacement,
+conditions, loops and custom delimiters. Excel templating, PowerPoint slide control, images, HTML
+and knowing where a tag failed are separate commercial modules.</p>
+
+<h2 id="free">What the free version actually does</h2>
+
+<p>From their pricing page, the Open source tier lists exactly this: <code>{tag}</code> replacement,
+conditions, loops, change delimiters, community support, MIT License. That is a real and useful
+feature set, and for a Word-only invoice with a repeating table it may be all you ever need.</p>
+
+<p>What it does not include, because each is a separately-sold module: the <b>Xlsx Module</b>
+("Template Excel files using Docxtemplater, using <code>{tag}</code>, <code>{#loops}</code>"), the
+<b>Slides Module</b> ("Conditionally add or remove slides. Repeat a slide multiple times"), the
+<b>Image Module</b>, the <b>Html Module</b>, the <b>Table Module</b>, the <b>Chart Module</b> and
+the <b>Error-location Module</b>.</p>
+
+<h2 id="modules">The module prices, read today</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Tier</th><th>Price</th><th>What you get</th></tr></thead>
+<tbody>
+<tr><td>Open source</td><td>Free</td><td>Core only. MIT or GPLv3, dual licensed. Community support on GitHub.</td></tr>
+<tr><td>One module</td><td>&euro;500 / year</td><td>One module of your choice. Email support, 48 h average.</td></tr>
+<tr><td>PRO</td><td>&euro;1,250 / year</td><td>Four modules of your choice.</td></tr>
+<tr><td>ENTERPRISE</td><td>&euro;3,000 / year</td><td>All modules, plus a preconfigured Docker image exposing an HTTP API.</td></tr>
+<tr><td>Premium</td><td>&euro;9,000 / year</td><td>All modules, full browser build, 4 days of expert time, monthly call.</td></tr>
+</tbody></table></div>
+
+<p>A note on a small inconsistency, since we are quoting them: the ENTERPRISE card says "Access to
+all 18 modules" while the comparison table below it says "All 19 modules". We do not know which is
+current, and it does not change the arithmetic.</p>
+
+<p>That arithmetic is the honest headline of this page. If your requirement is <i>Word and Excel and
+PowerPoint, with images</i> — which is what a finance team's template folder actually looks like —
+you are at four modules, which is the <b>PRO tier at &euro;1,250 a year</b>. Add error locations,
+because you will want them, and you are shopping at ENTERPRISE. DocMint's Pro plan is <b>$29 a
+month</b> and includes all three formats, images, PDF output and the error locations, because there
+is no feature ladder — every plan has every feature we have.</p>
+
+<div class="note">
+<p><b>The comparison is not like-for-like, and pretending otherwise would be dishonest.</b> A
+docxtemplater licence is perpetual-ish in feel and has no per-document meter: render ten million
+documents on your own hardware and the price does not move. DocMint meters. Above roughly a million
+documents a year the licence is the cheaper shape, and at that volume you should buy it.</p>
+</div>
+
+<h2 id="undefined">The literal word undefined</h2>
+
+<p>docxtemplater's documented default for a tag whose data is missing is to render the string
+<code>undefined</code> into the document. It is configurable — <code>nullGetter</code> exists
+precisely for this — but it is what you get if you do not know to change it, and a document that
+says <code>undefined</code> where the customer's name goes is worse than no document, because
+nothing fails and nobody notices until it has been sent.</p>
+
+<p>DocMint's default is the other way round: a placeholder with nothing behind it is
+<b>HTTP 422, no document, no credit charged</b>. Measured live on 29 August 2026:</p>
+
+<div class="code"><pre><code>{ "error": {
+    "code": "placeholder_unresolved",
+    "message": "The template uses {price|currency} but the data has no \"price\".",
+    "hint": "Add \"price\" to the data, or write {price|default:} to allow it to be absent.",
+    "details": { "field": "price",
+                 "location": "word/document.xml, paragraph 2",
+                 "available": ["invoice_no","customer","items","description","qty"] } } }</code></pre></div>
+
+<p>"No credit charged" is a measurement, not a promise: eight deliberately-failed renders while this
+page was written, and <code>GET /v1/usage</code> reported <code>credits: 0</code> against all of
+them, with <code>used</code> unchanged at 7 before and after the last one.</p>
+
+<h2 id="errors">Where the tag failed is a paid module</h2>
+
+<p>This is the single comparison that decided the shape of DocMint. docxtemplater sells the
+<b>Error-location Module</b> — "Show template errors as comments in the Word/PowerPoint document" —
+as one of the modules, so on the Open source tier a broken template is a stack trace without a
+place. At &euro;500 a year for one module, finding out <i>where</i> a template broke is a line item.</p>
+
+<p>In DocMint every failure carries the location by construction, and asking a template what it
+needs is a free endpoint that produces no document:</p>
+
+<div class="code"><pre><code>POST /v1/inspect        HTTP 200, 0 credits
+
+{ "fields": [
+    { "name": "items", "scope": "", "type": "array", "repeating": true,
+      "formatters": ["sumProduct","currency"],
+      "locations": ["word/document.xml, paragraph 2",
+                    "word/document.xml, paragraph 4"] },
+    { "name": "price", "scope": "items", "type": "number",
+      "required": true, "inferred": true } ],
+  "sample_data": { … a skeleton you can POST straight back … } }</code></pre></div>
+
+<p>There is a second failure DocMint reports that we have not seen reported anywhere else. Inside
+<code>{#items}</code>, a tag may legitimately reach outwards to the document root — <code>{currency}</code>
+is a reasonable thing to write. But if your rows have <code>product_name</code> and you write
+<code>{name}</code>, and <code>name</code> happens to exist at the root, <b>every row silently prints
+the same value</b>. Nothing errors. The document looks plausible. docxtemplater's own documentation
+presents <code>{#products}{name}{/products}</code>, with <code>name</code> at the root, as normal
+behaviour. DocMint allows it too, but reports every occurrence in the render response with the field
+name and location, and <code>strictScope: true</code> turns the warning into a 422.</p>
+
+<h2 id="build">When running it yourself is right</h2>
+
+<p>Do not call an API for this if one of these is true:</p>
+
+<ul>
+<li><b>The document must never leave your network.</b> Payroll, medical records, anything where the
+data protection question is settled by the data not moving. A library in your own process wins that
+argument outright; no amount of DPA text beats it.</li>
+<li><b>You are already in Node and the core covers you.</b> Word only, no images, no Excel, and you
+are happy setting <code>nullGetter</code> yourself: docxtemplater's free tier does that well and
+costs nothing. Adding a network hop and a vendor for it would be silly.</li>
+<li><b>Volume above roughly a million documents a year.</b> A flat annual licence beats any
+per-document meter at that point, including ours.</li>
+<li><b>You need it offline, in the browser, or embedded in a desktop app.</b> The Premium tier ships
+a full browser build. We are an HTTPS endpoint and nothing else.</li>
+<li><b>You want charts driven from your JSON.</b> Their Chart Module does it. We have no charts and
+none planned.</li>
+</ul>
+
+<p>What you take on when you self-host: LibreOffice for the PDF step (a process, a memory footprint
+and a queue — measured on our instance at 1,346 ms and about 219 MB peak), Word's habit of splitting
+<code>{{na + me}}</code> across runs the moment somebody edits the middle of a word, formula ranges
+in spreadsheets that must be widened when a loop adds rows, and content types that change when a
+macro-enabled file is rewritten. None of it is impossible. All of it is a fortnight you did not plan
+for.</p>
+
+<h2 id="cannot">What we cannot claim</h2>
+
+<ul>
+<li><b>No paying customer from outside our own circle yet.</b> docxtemplater's page says "Trusted by
+800+ companies". We have nothing comparable and will not invent one.</li>
+<li><b>Our free tier is 30 documents a month.</b> docxtemplater's free tier is unlimited documents,
+because it is a library. On the free-versus-free comparison we lose, and it is not close.</li>
+<li><b>Our formatter library is 43 entries.</b> Broader tools have more.</li>
+<li><b>One region, one instance, no SLA, no SOC 2.</b> Frankfurt, a single small instance that
+restarts on every deploy. If an hour of downtime would damage your business, this is not yet the
+right dependency.</li>
+<li><b>No charts, no HTML-into-Word, no rich text, no footnotes, no subtemplates, no delivery
+integrations, no web dashboard.</b> The full list is on <a href="/#honest">the home page</a> under
+"What DocMint does not do yet".</li>
+</ul>
+
+<h2 id="moving">Moving a template across</h2>
+
+<p>A docxtemplater template is usually a DocMint template already. Both use <code>{tag}</code>, both
+use <code>{#section}…{/section}</code>, and DocMint additionally accepts <code>{{tag}}</code>
+everywhere so a mustache-style or n8n-style template also renders unchanged. No third syntax was
+invented. What changes is the call:</p>
+
+<div class="code"><pre><code># Upload once, render by name — or skip storage and send template_base64 per request.
+curl -X POST https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template":"invoice",
+       "data":{"invoice_no":"2026-0042","customer":"Acme GmbH",
+               "items":[{"description":"Widget","qty":3,"price":12.5}]},
+       "output":"pdf"}' \
+  --output invoice.pdf</code></pre></div>
+
+<p>Measured on this template on 29 August 2026: five consecutive <code>.docx</code> renders at
+10 ms server-side (54&ndash;74 ms round trip from Germany), the PDF variant at 1,346 ms server-side.
+A key is one <code>POST /v1/signup</code> away, no card. The <a href="/docs">API reference</a> has
+every error code; the <a href="/n8n-word-template">n8n page</a> covers the workflow route.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/n8n-word-template">Word templates in n8n</a>
+      <a href="/carbone-alternative">Carbone alternative</a>
+      <a href="/docupilot-alternative">Docupilot alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>

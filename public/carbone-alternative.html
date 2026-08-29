@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Carbone alternative — DocMint, compared honestly (August 2026)</title>
+<meta name="description" content="A measured comparison of DocMint and Carbone for filling Word, Excel and PowerPoint templates from JSON: pricing per document, how each counts a document, template introspection, missing-field behaviour — and the cases where Carbone is the better choice.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/carbone-alternative">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/carbone-alternative">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="Carbone alternative — DocMint, compared honestly (August 2026)">
+<meta property="og:description" content="A measured comparison of DocMint and Carbone for filling Word, Excel and PowerPoint templates from JSON: pricing per document, how each counts a document, template introspection, missing-field behaviour — and the cases where Carbone is the better choice.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#short">The short version</a></li>
+      <li><a href="#counting">What counts as one document</a></li>
+      <li><a href="#price">Price per document, worked through</a></li>
+      <li><a href="#fields">Asking a template what it needs</a></li>
+      <li><a href="#missing">A placeholder your data does not have</a></li>
+      <li><a href="#stay">When to stay with Carbone</a></li>
+      <li><a href="#cannot">What we cannot claim</a></li>
+      <li><a href="#switch">If you do want to switch</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+      <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+      <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>Carbone alternative</h1>
+
+<p class="lede">Carbone and DocMint solve the same problem: you have a Word, Excel or PowerPoint
+file with placeholders in it, you have JSON, and you want the filled document back. This page is
+the comparison written by the people who build DocMint, so read it as such — every number about
+Carbone was read off <a href="https://carbone.io/pricing.html" rel="nofollow noopener">carbone.io/pricing.html</a>
+on <b>29 August 2026</b>, and every number about DocMint was measured against the live API on this
+domain on the same day. The last section is the one about when you should not switch.</p>
+
+<h2 id="short">The short version</h2>
+
+<p>Carbone is the older, larger and more capable product. It has a template studio, a bigger
+formatter library, a choice of PDF converters, on-premise and private-cloud licensing, and a free
+tier three times the size of ours. DocMint is a narrower tool with two properties Carbone does not
+have — it will tell you what a template needs before you send data, and it refuses to render a
+document with a placeholder behind which there is nothing — and it is roughly an order of magnitude
+cheaper per document at volume.</p>
+
+<div class="note">
+<p><b>The one-line version:</b> if the thing that costs you time is <i>guessing which JSON keys a
+template wants</i> and <i>documents going out with silently empty fields</i>, DocMint was built for
+exactly that. If the thing you need is a studio, charts, barcodes or an on-premise licence, Carbone
+has them and we do not.</p>
+</div>
+
+<h2 id="counting">What counts as one document</h2>
+
+<p>This is the first thing to get straight, because the sticker prices are not comparable until you
+have. Carbone's pricing page defines its unit like this, verbatim:</p>
+
+<div class="code"><pre><code>"A Document is counted each time a report is generated with an injected data
+(JSON + images) smaller than 1 MB. Examples:
+ - 0.5 MB = 1 document
+ - 1.2 MB = 2 documents
+ - 2.3 MB = 3 documents."</code></pre></div>
+
+<p>So a Carbone "document" is a megabyte of input, not a document. Push a 2.3 MB payload — an
+invoice with a few embedded photographs will do it — and one PDF costs three. The page also says
+that anything over your plan's allowance "will be invoiced separately", so the meter does not stop
+at the ceiling.</p>
+
+<p>DocMint counts differently and, we would argue, more predictably: <b>one credit per document
+produced</b>. Converting that document to PDF costs one more, because the conversion is a full
+LibreOffice process and costs about a hundred times the CPU of the fill. Nothing else is metered.
+Payload size does not enter into it, up to the flat 8 MB request limit.</p>
+
+<p>The two units disagree in both directions, and it is worth being honest about that: a workflow
+that renders many <i>small</i> documents is cheaper per document under Carbone's rule than the
+headline price suggests, because several small payloads still cost one each — no, they do not
+aggregate; each render is its own count. A workflow that renders <i>large</i> documents, or embeds
+images, is where the rule bites.</p>
+
+<h2 id="price">Price per document, worked through</h2>
+
+<p>Carbone Cloud, monthly billing, read on 29 August 2026. DocMint's plans are on
+<a href="/#pricing">the pricing section</a> of the home page.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Plan</th><th>Price</th><th>Documents / month</th><th>Per document</th></tr></thead>
+<tbody>
+<tr><td>Carbone Free</td><td>&euro;0</td><td>100</td><td>&mdash;</td></tr>
+<tr><td>Carbone Essential</td><td>&euro;29 (&euro;26 billed annually)</td><td>1,000</td><td>&euro;0.029</td></tr>
+<tr><td>Carbone Advanced</td><td>&euro;159 (&euro;149 billed annually)</td><td>20,000</td><td>&euro;0.008</td></tr>
+<tr><td>DocMint Free</td><td>$0</td><td>30</td><td>&mdash;</td></tr>
+<tr><td>DocMint Starter</td><td>$9</td><td>2,000</td><td>$0.0045</td></tr>
+<tr><td>DocMint Pro</td><td>$29</td><td>20,000</td><td>$0.00145</td></tr>
+<tr><td>DocMint Scale</td><td>$99</td><td>100,000</td><td>$0.00099</td></tr>
+</tbody></table></div>
+
+<p>The row that does the work is the 20,000-document row: <b>&euro;159 against $29</b> for the same
+number of documents, and that is before Carbone's megabyte rule is applied to a payload with images
+in it. At the other end, <b>Carbone's free tier is 100 documents a month against our 30</b> — more
+than three times ours. If you are evaluating, or if 100 documents a month is genuinely your volume,
+Carbone's free tier is the better free tier and you should use it.</p>
+
+<p>One more thing the table does not show: Carbone's free plan runs the Community Edition. Their own
+pricing page says the Enterprise Features — "dynamic images, colors, barcodes, charts, HTML,
+aggregations, PDF operations and more" — are unlocked by a licence, and "without a license, Carbone
+runs the free Community Edition". DocMint has no feature ladder; every plan including the free one
+has every feature we have. That is less impressive than it sounds, because the list of features we
+have is shorter.</p>
+
+<h2 id="fields">Asking a template what it needs</h2>
+
+<p>Here is the loop this replaces. You have a <code>.docx</code> from your finance team. The
+placeholder names are inside a zipped binary that your workflow tool cannot open. So you guess the
+keys, render, open the result in Word, look for the field that came out empty, and guess again.</p>
+
+<p>DocMint answers the question directly. <code>POST /v1/inspect</code> takes the template and
+returns a typed, nested field list — free, no document produced, no credit charged. Run live on
+29 August 2026 against a three-placeholder invoice template, abridged:</p>
+
+<div class="code"><pre><code>POST /v1/inspect        HTTP 200, 0 credits
+
+{ "fields": [
+    { "name": "invoice_no", "scope": "", "type": "string", "required": true,
+      "locations": ["word/document.xml, paragraph 1"] },
+    { "name": "items", "scope": "", "type": "array", "repeating": true,
+      "formatters": ["sumProduct", "currency"],
+      "locations": ["word/document.xml, paragraph 2",
+                    "word/document.xml, paragraph 4"] },
+    { "name": "price", "scope": "items", "type": "number", "required": true,
+      "inferred": true } ],
+  "names": ["invoice_no","customer","description","qty","price","items"],
+  "sample_data": { … a skeleton you can POST straight back … } }</code></pre></div>
+
+<p><code>scope</code> is what makes this a tree rather than a flat list of names:
+<code>price</code> lives inside <code>items</code>, and the response says so instead of leaving you
+to infer it. That is precisely the shape a form builder — or n8n's <code>resourceMapper</code> —
+needs in order to render a repeating section instead of a raw JSON textarea.</p>
+
+<p>Carbone's API has no equivalent. Its <code>GET /templates</code> family covers upload, download
+and deletion; <code>GET /templates/tags</code> returns organisational folder labels, not the
+placeholders inside the file. If you know of an introspection endpoint we have missed, tell us and
+this paragraph gets corrected — we would rather be wrong in public than wrong on a customer's
+invoice.</p>
+
+<h2 id="missing">A placeholder your data does not have</h2>
+
+<p>In Carbone, a tag whose data is absent renders as nothing. The request succeeds, you get a file,
+and the gap is only discovered by whoever opens the document — which, for an invoice, is usually the
+customer.</p>
+
+<p>DocMint treats this as an error by default. Measured live on 29 August 2026, with
+<code>price</code> removed from the first line item:</p>
+
+<div class="code"><pre><code>POST /v1/render        HTTP 422 — no document, no credit
+
+{ "error": {
+    "code": "placeholder_unresolved",
+    "message": "The template uses {price|currency} but the data has no \"price\".",
+    "hint": "Add \"price\" to the data, or write {price|default:} to allow it to be absent.",
+    "details": {
+      "field": "price",
+      "location": "word/document.xml, paragraph 2",
+      "available": ["invoice_no","customer","items","description","qty"],
+      "format": "docx" },
+    "request_id": "dm_T2VKsfB09yAc" } }</code></pre></div>
+
+<p>Three things in that response are the point: the <b>location</b> is where a human would look
+(<code>Invoice!C5</code> in Excel, <code>slide 2, table "Items 5", row 2, cell 3</code> in
+PowerPoint), the <b>available</b> list tells you which names <i>do</i> exist at that point in your
+data, and the failure <b>costs nothing</b>. That last one is not a claim, it is a reading: eight
+failed renders during the writing of this page, and <code>GET /v1/usage</code> reported
+<code>credits: 0</code> against all of them, with <code>used</code> unchanged at 7 before and after.</p>
+
+<p>If you want Carbone's behaviour, you can have it: <code>onMissing: "empty"</code> relaxes the rule
+wholesale, and <code>{price|default:&mdash;}</code> does it for one field. The difference is which way
+round the default points.</p>
+
+<h2 id="stay">When to stay with Carbone</h2>
+
+<p>These are real, and none of them is on a roadmap we can promise you.</p>
+
+<ul>
+<li><b>You want a studio.</b> Carbone Studio lets somebody design and preview a template in the
+browser, and can be embedded white-label in your own application. DocMint has no template editor at
+all and none planned; you author in Word and upload the file.</li>
+<li><b>You need charts, barcodes, HTML-into-Word, or PDF operations.</b> Carbone's Enterprise
+Edition has all of them. DocMint writes plain text, numbers, images and raw OOXML. If you need
+formatted HTML flowed into a Word document, DocMint is the wrong tool today.</li>
+<li><b>You need on-premise or a private cloud.</b> Carbone sells both, with a lifetime licence
+option. DocMint is one hosted service in Frankfurt and nothing else.</li>
+<li><b>You want a choice of PDF engine.</b> Carbone offers LibreOffice, OnlyOffice, Chromium and
+their own, plus PDF/A, watermarking and encryption. DocMint has one converter, one profile, no
+options.</li>
+<li><b>Their formatter library is bigger than ours.</b> Aggregates such as <code>aggSum</code> and
+<code>cumSum</code>, an i18n system, live currency conversion, block operators. Ours is 43
+formatters covering the common cases.</li>
+<li><b>You are at or under 100 documents a month.</b> Their free tier is bigger. Use it.</li>
+<li><b>Uptime matters more than price.</b> See the next section.</li>
+</ul>
+
+<h2 id="cannot">What we cannot claim</h2>
+
+<p>A comparison page that only lists the author's strengths is one you find out the truth about
+later, at a worse moment.</p>
+
+<ul>
+<li><b>No paying customer from outside our own circle yet.</b> DocMint is new. Carbone has years of
+production users behind it and we have none to point at.</li>
+<li><b>The smallest free tier here.</b> 30 documents a month against Carbone's 100.</li>
+<li><b>One region, one instance, no SLA.</b> Frankfurt, a single small instance that restarts on
+every deploy, no third-party uptime monitor, no SOC 2 report. If an hour of downtime would damage
+your business, this is not yet the right dependency.</li>
+<li><b>PDF conversion runs one at a time per instance.</b> Measured today: 1,346 ms server-side for
+a one-page PDF. A burst queues rather than slows. Carbone's Advanced plan does 10 renders in
+parallel.</li>
+<li><b>Known edges in spreadsheet formula rewriting</b>, macros that do not survive a
+<code>.docm</code> round trip, no delivery integrations, no web dashboard. All of them are listed on
+<a href="/#honest">the home page</a> in the section headed "What DocMint does not do yet", which is
+there so you read it before you build on it, not after.</li>
+</ul>
+
+<h2 id="switch">If you do want to switch</h2>
+
+<p>Templates mostly move without editing. Carbone uses <code>{d.name}</code>-style tags; DocMint
+accepts both <code>{name}</code> and <code>{{name}}</code> in all three formats, so a template
+written for docxtemplater or for a mustache-style tool renders unchanged, and a Carbone template
+needs its <code>d.</code> prefixes dropped. Sections use <code>{#items}…{/items}</code>.</p>
+
+<div class="code"><pre><code># 1. What does this template actually need? Free, no render.
+curl -X POST https://docmint.app.mintapis.com/v1/inspect \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template_base64":"'"$(base64 -w0 invoice.docx)"'"}'
+
+# 2. Render it. Ask for document, pdf, or both — per request.
+curl -X POST https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template":"invoice","data":{…},"output":"pdf"}' \
+  --output invoice.pdf</code></pre></div>
+
+<p>A key is one <code>POST /v1/signup</code> away, no card and no dashboard, and the free tier is
+enough to wire a workflow end to end and see it work before deciding anything. The full
+<a href="/docs">API reference</a> documents every error code, and the
+<a href="/n8n-word-template">n8n page</a> covers the workflow route.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/n8n-word-template">Word templates in n8n</a>
+      <a href="/docupilot-alternative">Docupilot alternative</a>
+      <a href="/docxtemplater-alternative">docxtemplater alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>

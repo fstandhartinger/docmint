@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fill a Word, Excel or PowerPoint template in n8n — the three ways, compared</title>
+<meta name="description" content="n8n has no built-in node that fills a .docx, .xlsx or .pptx template. Here are the three routes that work — the DocMint community node, a plain HTTP Request node, and a Code node with docxtemplater — with the trade-offs of each and what installing on n8n Cloud requires.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/n8n-word-template">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/n8n-word-template">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="Fill a Word, Excel or PowerPoint template in n8n — the three ways, compared">
+<meta property="og:description" content="n8n has no built-in node that fills a .docx, .xlsx or .pptx template. Here are the three routes that work — the DocMint community node, a plain HTTP Request node, and a Code node with docxtemplater — with the trade-offs of each and what installing on n8n Cloud requires.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#nocore">n8n has no core node for this</a></li>
+      <li><a href="#three">The three routes</a></li>
+      <li><a href="#node">Route 1: the community node</a></li>
+      <li><a href="#install">Installing it — Cloud and self-hosted</a></li>
+      <li><a href="#http">Route 2: a plain HTTP Request node</a></li>
+      <li><a href="#code">Route 3: a Code node and a library</a></li>
+      <li><a href="#fields">The thing that saves the most time</a></li>
+      <li><a href="#pick">Which one to pick</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/carbone-alternative">Carbone alternative</a></li>
+      <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+      <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>Filling Word, Excel and PowerPoint templates in n8n</h1>
+
+<p class="lede">This page answers the question completely, including the two routes that do not
+involve us. It is written by the people who build DocMint, so the recommendation at the end is not
+neutral — but the facts are checkable, and where a route is better than ours we say so. Everything
+here was verified on <b>29 August 2026</b>.</p>
+
+<h2 id="nocore">n8n has no core node for this</h2>
+
+<p>Worth stating plainly, because it is the first thing people search for and the answer is short:
+<b>n8n ships no built-in node that fills a <code>.docx</code>, <code>.xlsx</code> or
+<code>.pptx</code> template from workflow data.</b> The Convert to File and Extract from File nodes
+handle CSV, JSON, spreadsheets-as-data and binary conversion; none of them opens a Word template and
+replaces placeholders in it. The Google Docs node can do a text replacement inside a Google
+document, which is a different thing and only works if your template lives in Google Docs.</p>
+
+<p>So the choice is between a community node, an HTTP call to a rendering service, and running a
+templating library yourself inside a Code node.</p>
+
+<h2 id="three">The three routes</h2>
+
+<div class="tw"><table>
+<thead><tr><th></th><th>Community node</th><th>HTTP Request node</th><th>Code node + library</th></tr></thead>
+<tbody>
+<tr><td>Setup</td><td>Install once, credentials once</td><td>None — the node is built in</td><td>Self-hosted n8n only</td></tr>
+<tr><td>Works on n8n Cloud</td><td>Only if the node is verified</td><td>Yes</td><td>No</td></tr>
+<tr><td>Placeholders as real fields</td><td>Yes</td><td>No — you write the JSON</td><td>No</td></tr>
+<tr><td>Data leaves your network</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+<tr><td>Cost</td><td>Per document</td><td>Per document</td><td>Free core; paid modules for Excel, slides, images</td></tr>
+</tbody></table></div>
+
+<h2 id="node">Route 1: the community node</h2>
+
+<p><code>n8n-nodes-docmint</code> is on npm — version <b>0.2.0</b>, published 25 August 2026, and
+<b>304 installs in the week to 28 August</b> according to npm's own download API. It exposes three
+resources:</p>
+
+<ul>
+<li><b>Document</b> — <i>Fill</i> a template with your data and return the <code>.docx</code>,
+<code>.xlsx</code>, <code>.pptx</code>, a PDF, or both; and <i>Inspect</i>, which reports what a
+template needs without producing anything.</li>
+<li><b>Template</b> — upload, list, get, list versions, roll back, download, delete.</li>
+<li><b>Account</b> — usage and credits.</li>
+</ul>
+
+<p>The template picker is a searchable list rather than a name you have to remember, and the fill
+operation uses n8n's <code>resourceMapper</code>: <b>the template's own placeholders are fetched and
+shown as real n8n fields</b>, each one mappable to an expression, instead of a JSON textarea you fill
+in blind. There is still a raw-JSON toggle for when a whole object arrives from an earlier node.</p>
+
+<h2 id="install">Installing it — Cloud and self-hosted</h2>
+
+<p>Be careful with claims here, including ours. There are two different install paths and they have
+different requirements:</p>
+
+<div class="note">
+<p><b>Self-hosted n8n: available now.</b> Settings &rarr; Community nodes &rarr; Install, enter
+<code>n8n-nodes-docmint</code>. Or set
+<code>N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true</code> and install from npm in the usual way.
+This works today; that is what the 304 installs are.</p>
+<p><b>n8n Cloud: not yet.</b> Cloud installs only nodes that appear in n8n's verified community-node
+registry, and <code>n8n-nodes-docmint</code> is still in n8n's manual review — we checked all 1,498
+entries of <code>api.n8n.io/api/community-nodes</code> on 29 August 2026 and it is not among them.
+Until it is, use the HTTP Request route below on Cloud. You can check this yourself without an
+account: fetch that URL and search for the package name.</p>
+</div>
+
+<p>Then add a credential: <b>DocMint API</b>, with a key that starts <code>dm_live_</code>. A key is
+one API call away and needs no card:</p>
+
+<div class="code"><pre><code>curl -X POST https://docmint.app.mintapis.com/v1/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"you@example.com","password":"a-long-enough-password"}'
+
+{ "email": "you@example.com",
+  "api_key": "dm_live_…",
+  "plan": { "id": "free", "name": "Free", "credits": 30 },
+  "note": "This is the only time the key is shown. Store it now." }</code></pre></div>
+
+<h2 id="http">Route 2: a plain HTTP Request node</h2>
+
+<p>This needs nothing installed and works on n8n Cloud today. One HTTP Request node, and the binary
+comes back on the item.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Setting</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Method</td><td><code>POST</code></td></tr>
+<tr><td>URL</td><td><code>https://docmint.app.mintapis.com/v1/render</code></td></tr>
+<tr><td>Authentication</td><td>Generic &rarr; Header Auth &rarr; <code>Authorization</code>: <code>Bearer dm_live_…</code></td></tr>
+<tr><td>Send Body</td><td>on, JSON</td></tr>
+<tr><td>Response &rarr; Format</td><td><b>File</b> &mdash; this is the setting people miss; leave it on JSON and you get bytes as mangled text</td></tr>
+</tbody></table></div>
+
+<div class="code"><pre><code>{
+  "template": "invoice",
+  "data": {
+    "invoice_no": "{{ $json.number }}",
+    "customer":   "{{ $json.customer.name }}",
+    "items":      {{ JSON.stringify($json.lines) }}
+  },
+  "output": "pdf"
+}</code></pre></div>
+
+<p>The document comes back as binary on the item, ready for the Gmail, Google Drive or S3 node that
+follows. Ask for <code>"output": "document"</code> for the Office file, <code>"pdf"</code> for a PDF,
+or <code>"both"</code> — that is per request, not fixed per template.</p>
+
+<p>Two response headers are worth mapping into your workflow:
+<code>x-docmint-credits-remaining</code>, and <code>x-docmint-warnings</code>, which is non-zero when
+the render succeeded but something in it deserves a look.</p>
+
+<h2 id="code">Route 3: a Code node and a library</h2>
+
+<p>On self-hosted n8n you can skip the network entirely: allow an external module
+(<code>NODE_FUNCTION_ALLOW_EXTERNAL=docxtemplater,pizzip</code>) and fill the template inside a Code
+node. <b>If your documents must not leave your network, this is the right answer and no API can beat
+it</b> — the data protection argument is settled by the data not moving.</p>
+
+<p>What you take on: docxtemplater's free core covers <code>{tag}</code> replacement, conditions and
+loops in Word. Excel templating, PowerPoint slide control, images, HTML and knowing where a tag
+failed are separate commercial modules at &euro;500 per module per year, per their pricing page on
+29 August 2026. There is also no PDF step — you would need LibreOffice on the n8n host. And the
+default for a missing value is to write the literal word <code>undefined</code> into the document,
+which is configurable but is what you get if you do not know to change it. The
+<a href="/docxtemplater-alternative">longer comparison is here</a>.</p>
+
+<h2 id="fields">The thing that saves the most time</h2>
+
+<p>Whichever route you take, the loop that actually costs you the afternoon is this: the placeholder
+names live inside a zipped binary, so you guess the JSON keys, render, open the file in Word, find
+the field that came out empty, and guess again.</p>
+
+<p>Ask instead. <code>POST /v1/inspect</code>, or the node's <i>Inspect</i> operation, returns a
+typed, nested field list with a ready-to-POST skeleton — free, no document, no credit. Live output
+from 29 August 2026, abridged:</p>
+
+<div class="code"><pre><code>{ "format": "docx",
+  "fields": [
+    { "name": "invoice_no", "scope": "", "type": "string", "required": true,
+      "locations": ["word/document.xml, paragraph 1"] },
+    { "name": "items", "scope": "", "type": "array", "repeating": true,
+      "formatters": ["sumProduct", "currency"] },
+    { "name": "price", "scope": "items", "type": "number", "required": true } ],
+  "names": ["invoice_no","customer","description","qty","price","items"],
+  "sample_data": { … a skeleton you can POST straight back … } }</code></pre></div>
+
+<p><code>scope</code> is why the node can render a repeating section instead of a textarea:
+<code>price</code> lives inside <code>items</code>, and the response says so.</p>
+
+<p>And when the data is wrong anyway, the render fails loudly instead of quietly. Measured live
+today, with <code>price</code> missing from a line item:</p>
+
+<div class="code"><pre><code>HTTP 422 — no document, and the credit is refunded
+
+{ "error": {
+    "code": "placeholder_unresolved",
+    "message": "The template uses {price|currency} but the data has no \"price\".",
+    "hint": "Add \"price\" to the data, or write {price|default:} to allow it to be absent.",
+    "details": { "field": "price",
+                 "location": "word/document.xml, paragraph 2",
+                 "available": ["invoice_no","customer","items","description","qty"] } } }</code></pre></div>
+
+<p>In n8n that arrives as a node error with the message intact, so "Continue on Fail" plus an alert
+branch gives you a workflow that never emails a customer a document with a blank total. The refund
+is a measurement, not a promise: eight failed renders while this page was written, and
+<code>GET /v1/usage</code> reported <code>credits: 0</code> for all of them.</p>
+
+<h2 id="pick">Which one to pick</h2>
+
+<ul>
+<li><b>On n8n Cloud today:</b> the HTTP Request node. The community node is not installable there
+until n8n's review finishes, and we will not pretend otherwise.</li>
+<li><b>On self-hosted n8n, if a person edits the templates:</b> the community node, for the field
+mapping.</li>
+<li><b>If the data must not leave your network:</b> the Code node with docxtemplater, and buy the
+modules you need.</li>
+<li><b>Above roughly a million documents a year:</b> a flat annual licence beats any per-document
+meter, including ours.</li>
+</ul>
+
+<p>Some honest limits before you build on this: DocMint runs on one small instance in Frankfurt with
+no SLA and no SOC 2 report, PDF conversion runs one at a time (1,346 ms server-side, measured today,
+so bursts queue rather than slow), the free tier is 30 documents a month, and there is no web
+dashboard. The full list is on <a href="/#honest">the home page</a> under "What DocMint does not do
+yet". Measured the same day: five consecutive <code>.docx</code> renders at 10 ms server-side,
+54&ndash;74 ms round trip from Germany.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/carbone-alternative">Carbone alternative</a>
+      <a href="/docupilot-alternative">Docupilot alternative</a>
+      <a href="/docxtemplater-alternative">docxtemplater alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>

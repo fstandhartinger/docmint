@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Word template API — filling .docx, .xlsx and .pptx from JSON, compared (August 2026)</title>
+<meta name="description" content="What it actually takes to fill a Word, Excel or PowerPoint template from an API: the six steps, the five hard parts, when to build it yourself instead — and five products side by side with prices read on 29 August 2026.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/word-template-api">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/word-template-api">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="Word template API — filling .docx, .xlsx and .pptx from JSON, compared (August 2026)">
+<meta property="og:description" content="What it actually takes to fill a Word, Excel or PowerPoint template from an API: the six steps, the five hard parts, when to build it yourself instead — and five products side by side with prices read on 29 August 2026.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#job">What the job actually is</a></li>
+      <li><a href="#hard">The five parts that are hard</a></li>
+      <li><a href="#build">When to build it yourself</a></li>
+      <li><a href="#units">The billing units do not match</a></li>
+      <li><a href="#table">Five products side by side</a></li>
+      <li><a href="#pick">Choosing, in four questions</a></li>
+      <li><a href="#cannot">What we cannot claim</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+      <li><a href="/carbone-alternative">Carbone alternative</a></li>
+      <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+      <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>Word template API</h1>
+
+<p class="lede">You have a <code>.docx</code>, <code>.xlsx</code> or <code>.pptx</code> that
+somebody in finance maintains, you have JSON, and you want the filled document back — ideally as a
+PDF. This page describes the whole job, including the parts that are unpleasant, and compares the
+products that do it. It is written by the people who build DocMint, one of the five. Every
+competitor price was read off the vendor's own pricing page on <b>29 August 2026</b>; where a vendor
+does not publish something, this page says "not published" rather than guessing.</p>
+
+<h2 id="job">What the job actually is</h2>
+
+<p>It looks like string replacement. It is six steps, and the fourth is the one that surprises
+people.</p>
+
+<ol>
+<li><b>Open the file.</b> All three formats are ZIP archives of XML. Word's text lives in
+<code>word/document.xml</code>, Excel's in <code>xl/worksheets/sheet1.xml</code> plus a shared string
+table, PowerPoint's in one XML part per slide.</li>
+<li><b>Find the placeholders.</b> Harder than a regex, see below.</li>
+<li><b>Join them to your data</b>, including nested arrays for repeating table rows.</li>
+<li><b>Repeat the structure, not just the text.</b> A loop over line items must clone a table
+<i>row</i> — the surrounding <code>&lt;w:tr&gt;</code> — not paste text four times. In Excel it must
+insert rows and then rewrite every formula range that should have grown. In PowerPoint it may mean
+duplicating a slide.</li>
+<li><b>Write the archive back</b> with the right content types, so Word opens it without the
+repair dialog.</li>
+<li><b>Optionally convert to PDF</b>, which means LibreOffice, which means a process, a few hundred
+megabytes of memory and a queue.</li>
+</ol>
+
+<h2 id="hard">The five parts that are hard</h2>
+
+<ul>
+<li><b>Word splits placeholders across runs.</b> Type <code>{{name}}</code>, then go back and edit
+the middle of the word, and Word stores it as <code>{{na</code> + <code>me}}</code> in two separate
+<code>&lt;w:r&gt;</code> elements — sometimes because of a spell-check marker you cannot see. A naive
+scanner finds nothing and reports a template with no placeholders. Every serious implementation
+flattens the runs, matches, and then re-slices them so the formatting survives.</li>
+<li><b>Numbers in spreadsheets stop being numbers.</b> Write <code>"1234.5"</code> into a cell as
+text and <code>SUM()</code> over that column returns 0. Nothing warns anybody. A cell that is one
+placeholder resolving to a number has to become a real numeric cell, keeping its number format.</li>
+<li><b>Formula ranges must grow with the loop.</b> Insert four line-item rows and
+<code>SUM(B3:B6)</code> has to become <code>SUM(B3:B9)</code>. Chart series and pivot caches keep
+their own copies of those ranges — this is where most implementations, including ours, have
+edges.</li>
+<li><b>The placeholder names are invisible.</b> They live inside a zipped binary. Your workflow tool
+cannot open it, so you guess the JSON keys, render, open the result in Word, find the field that came
+out empty, and guess again. This is the loop that costs the afternoon.</li>
+<li><b>Silent failure is the default almost everywhere.</b> A missing value renders as an empty cell,
+or as the literal word <code>undefined</code>. Nothing errors. The document looks plausible, and
+nobody notices until it has been emailed to a customer.</li>
+</ul>
+
+<h2 id="build">When to build it yourself</h2>
+
+<p>Genuinely often. Do not buy an API if one of these holds:</p>
+
+<ul>
+<li><b>The documents must not leave your network.</b> Payroll, medical records, anything where the
+compliance question is answered by the data not moving. A library in your own process wins that
+argument outright.</li>
+<li><b>Word only, no images, no Excel, no PDF.</b> <a href="https://docxtemplater.com" rel="nofollow noopener">docxtemplater</a>'s
+MIT-licensed core does <code>{tag}</code> replacement, conditions and loops for free and does it well.
+Adding a vendor and a network hop for that would be silly. Python users have
+<code>docxtpl</code>; .NET users have OpenXML SDK.</li>
+<li><b>Above roughly a million documents a year.</b> A flat annual licence beats any per-document
+meter, including ours.</li>
+<li><b>You need it in the browser or offline.</b> An HTTPS endpoint cannot help you.</li>
+</ul>
+
+<p>Buy one when you want the PDF step without operating LibreOffice, when you need Excel and
+PowerPoint as well as Word, or when the render has to fail loudly rather than silently and you would
+rather not build that yourself.</p>
+
+<h2 id="units">The billing units do not match</h2>
+
+<p>Comparing sticker prices is misleading until you know what each vendor counts. Read on
+29 August 2026, from each vendor's own page:</p>
+
+<div class="tw"><table>
+<thead><tr><th>Product</th><th>One unit is</th></tr></thead>
+<tbody>
+<tr><td>Carbone</td><td><b>1 MB of injected data.</b> Their words: "0.5 MB = 1 document, 1.2 MB = 2 documents, 2.3 MB = 3 documents." Overage "will be invoiced separately".</td></tr>
+<tr><td>Docupilot</td><td><b>One delivery.</b> Their documentation: "Downloading generated document also consumes 1 credit." Hard stop at the ceiling.</td></tr>
+<tr><td>Docmosis Cloud</td><td><b>One page.</b> "The total number of pages in all documents successfully generated in one calendar month." A ten-page report is ten units. No overage charges and no blocking at quota.</td></tr>
+<tr><td>docxtemplater</td><td><b>Nothing is metered</b> &mdash; it is a library. You pay per module, per year.</td></tr>
+<tr><td>DocMint</td><td><b>One document.</b> A PDF conversion costs one more. Failed renders are refunded; asking what a template needs is free.</td></tr>
+</tbody></table></div>
+
+<h2 id="table">Five products side by side</h2>
+
+<div class="tw"><table>
+<thead><tr><th></th><th>DocMint</th><th>Carbone</th><th>Docupilot</th><th>Docmosis</th><th>docxtemplater</th></tr></thead>
+<tbody>
+<tr><td>Free tier</td><td>30 docs/mo</td><td><b>100 docs/mo</b></td><td>14-day trial</td><td>Free trial</td><td><b>Unlimited</b> (core, self-run)</td></tr>
+<tr><td>Entry paid</td><td>$9 / 2,000</td><td>&euro;29 / 1,000</td><td>$29 / 100</td><td>$49 / 4,000 pages</td><td>&euro;500 / yr, one module</td></tr>
+<tr><td>Same money, more docs</td><td>$29 / 20,000</td><td>&euro;159 / 20,000</td><td>$199 / 2,000</td><td>tiered by pages</td><td>&euro;1,250 / yr, 4 modules</td></tr>
+<tr><td>Word / Excel / PowerPoint</td><td>All three, every plan</td><td>All three</td><td>Word, PDF focus</td><td>All three</td><td>Word free; Excel and slides are paid modules</td></tr>
+<tr><td>Tells you the template's fields</td><td>Yes, free endpoint</td><td>No introspection endpoint</td><td>Not published</td><td>Not published</td><td>No</td></tr>
+<tr><td>Missing placeholder</td><td>HTTP 422 with field and location</td><td>Renders blank</td><td>Not published</td><td>Not published</td><td>Writes <code>undefined</code> by default</td></tr>
+<tr><td>Template editor in a browser</td><td>No, and none planned</td><td>Yes, Studio</td><td>Yes</td><td>Yes</td><td>No</td></tr>
+<tr><td>Charts, barcodes, HTML into Word</td><td>No</td><td>Yes (Enterprise Edition)</td><td>Rich text, QR, maps</td><td>Yes</td><td>Paid modules</td></tr>
+<tr><td>Delivery (email, Drive, S3)</td><td>No &mdash; returns the file</td><td>Yes</td><td>Yes, ~70 integrations</td><td>Varies</td><td>No</td></tr>
+<tr><td>On-premise</td><td>No</td><td>Yes</td><td>No</td><td>Yes, from $3,795 perpetual</td><td>Yes, it is a library</td></tr>
+</tbody></table></div>
+
+<p class="muted">Scroll the table sideways to see every column. Sources: each vendor's published
+pricing and documentation, read on 29 August 2026. "Not published" means the vendor does not document
+the behaviour and it was not guessed at.</p>
+
+<p><b>Deliberately absent:</b> APITemplate.io, which is often listed as a competitor in this
+category but has no Word, Excel or PowerPoint support of any kind — its live v2 API has no docx
+endpoint and cannot accept a <code>.docx</code> even as input. Comparing it on Office features would
+be a false comparison, so it is not made.</p>
+
+<h2 id="pick">Choosing, in four questions</h2>
+
+<ol>
+<li><b>Can the data leave your network?</b> If no, stop here and self-host a library.</li>
+<li><b>Who edits the templates?</b> If it is somebody who will not open a code editor, you want a
+product with a browser studio — Carbone, Docupilot or Docmosis. DocMint has no editor and none
+planned.</li>
+<li><b>What is in the documents?</b> Charts, barcodes, formatted HTML flowed into Word, QR codes,
+signatures: the bigger platforms have them. Plain text, numbers, images, tables and totals: the
+cheap end is enough.</li>
+<li><b>How many, and how big?</b> Under a hundred a month, the free tiers decide it and Carbone's
+is the largest of the hosted ones. Tens of thousands, the unit definitions above decide it. Over a
+million a year, buy a licence.</li>
+</ol>
+
+<h2 id="cannot">What we cannot claim</h2>
+
+<p>DocMint is one of the five products in that table and the newest by a wide margin. So, plainly:
+<b>no paying customer from outside our own circle yet</b>; <b>the smallest free tier of the hosted
+options</b>, 30 documents a month against Carbone's 100; <b>one region, one instance, no SLA and no
+SOC 2 report</b> — Frankfurt, a single small instance that restarts on every deploy; <b>PDF
+conversion runs one at a time</b>, measured at 1,346 ms server-side on 29 August 2026, so a burst
+queues rather than slows; <b>no browser template editor, no charts, no HTML into Word, no delivery
+integrations and no web dashboard</b>. The full list lives on <a href="/#honest">the home page</a>
+under "What DocMint does not do yet", where you can read it before you build on it rather than
+after.</p>
+
+<p>What we will stand behind, because it is measurable from outside: five consecutive
+<code>.docx</code> renders at 10 ms server-side and 54&ndash;74 ms round trip from Germany on
+29 August 2026; a free key from one <code>POST /v1/signup</code> with no card and no dashboard; and
+a failed render costing nothing, verified across eight deliberate failures with
+<code>GET /v1/usage</code> reporting <code>credits: 0</code> for every one of them.</p>
+
+<p>Next: the <a href="/n8n-word-template">n8n routes</a>, or the detailed comparisons with
+<a href="/carbone-alternative">Carbone</a>, <a href="/docupilot-alternative">Docupilot</a> and
+<a href="/docxtemplater-alternative">docxtemplater</a>.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/n8n-word-template">Word templates in n8n</a>
+      <a href="/carbone-alternative">Carbone alternative</a>
+      <a href="/docupilot-alternative">Docupilot alternative</a>
+      <a href="/docxtemplater-alternative">docxtemplater alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>

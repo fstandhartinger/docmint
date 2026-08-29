@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Docupilot alternative — the per-delivery meter, priced out (August 2026)</title>
+<meta name="description" content="Docupilot bills per document delivered and starts at $29 for 100 a month. A measured comparison with DocMint's $29 for 20,000 — including eSignatures, delivery integrations and the other places where Docupilot is the better fit.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/docupilot-alternative">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/docupilot-alternative">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="Docupilot alternative — the per-delivery meter, priced out (August 2026)">
+<meta property="og:description" content="Docupilot bills per document delivered and starts at $29 for 100 a month. A measured comparison with DocMint's $29 for 20,000 — including eSignatures, delivery integrations and the other places where Docupilot is the better fit.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#short">The short version</a></li>
+      <li><a href="#meter">Per delivery, and what that means</a></li>
+      <li><a href="#price">The prices, read today</a></li>
+      <li><a href="#shape">Two different products, honestly</a></li>
+      <li><a href="#fields">What DocMint adds</a></li>
+      <li><a href="#stay">When Docupilot is the right choice</a></li>
+      <li><a href="#cannot">What we cannot claim</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+      <li><a href="/carbone-alternative">Carbone alternative</a></li>
+      <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>Docupilot alternative</h1>
+
+<p class="lede">Docupilot is a document automation platform: templates, a web editor, eSignatures,
+delivery to email and Drive and Dropbox, 70-odd integrations, user seats. DocMint is an API that
+fills a Word, Excel or PowerPoint template from JSON and hands the file back. Comparing them on
+price alone would be misleading, so this page does the price comparison <i>and</i> says plainly
+where the extra money goes. Docupilot figures were read off
+<a href="https://www.docupilot.app/pricing" rel="nofollow noopener">docupilot.app/pricing</a> on
+<b>29 August 2026</b>; DocMint figures were measured against the live API on this domain the same
+day. Written by the people who build DocMint.</p>
+
+<h2 id="short">The short version</h2>
+
+<p>If you need a platform — non-technical staff building templates in a browser, documents that
+sign themselves and post themselves to Dropbox — Docupilot is a platform and DocMint is not, and no
+price comparison changes that. If what you need is the render step inside a workflow you are already
+building in n8n, Make or code, then the meter is the whole story, and the meter is where these two
+differ by a factor of roughly two hundred.</p>
+
+<h2 id="meter">Per delivery, and what that means</h2>
+
+<p>Docupilot's plan lines read "<b>Documents Delivered/month</b>". Their documentation is explicit
+that the meter counts deliveries rather than renders, including the download: "Downloading generated
+document also consumes 1 credit." So a document generated, downloaded to check it, and then emailed
+is not necessarily one unit.</p>
+
+<p>Their help documentation also states the ceiling is hard: "You will not be able to generate
+documents once you have hit 100% limit." No overage billing, and no documents either, until the
+next period.</p>
+
+<p>DocMint counts one credit per document produced, plus one more if you ask for the PDF conversion,
+because converting costs roughly a hundred times the CPU of the fill. Downloading a template you
+already uploaded is free. Asking a template what fields it needs is free. A failed render is
+refunded. At the ceiling you get <code>402</code> until the next calendar month, and there is no
+overage billing here either — that part is the same.</p>
+
+<h2 id="price">The prices, read today</h2>
+
+<div class="tw"><table>
+<thead><tr><th>Plan</th><th>Price / month</th><th>Documents</th><th>Per document</th><th>Seats</th></tr></thead>
+<tbody>
+<tr><td>Docupilot Starter</td><td>$29</td><td>100 delivered</td><td>$0.29</td><td>1</td></tr>
+<tr><td>Docupilot Plus</td><td>$99</td><td>500 delivered</td><td>$0.198</td><td>3</td></tr>
+<tr><td>Docupilot Pro</td><td>$149</td><td>1,000 delivered</td><td>$0.149</td><td>5</td></tr>
+<tr><td>Docupilot Premium</td><td>$199</td><td>2,000 delivered</td><td>$0.0995</td><td>&mdash;</td></tr>
+<tr><td>DocMint Free</td><td>$0</td><td>30</td><td>&mdash;</td><td>n/a &mdash; no seats</td></tr>
+<tr><td>DocMint Starter</td><td>$9</td><td>2,000</td><td>$0.0045</td><td>n/a</td></tr>
+<tr><td>DocMint Pro</td><td>$29</td><td>20,000</td><td>$0.00145</td><td>n/a</td></tr>
+<tr><td>DocMint Scale</td><td>$99</td><td>100,000</td><td>$0.00099</td><td>n/a</td></tr>
+</tbody></table></div>
+
+<p>Two rows are worth reading twice. <b>The same $29 buys 100 documents at Docupilot and 20,000
+here.</b> And <b>the same $99 buys 500 there and 100,000 here.</b> Docupilot's cheapest per-document
+rate, on their $199 plan, is $0.0995 — still about 68&times; DocMint's Pro rate.</p>
+
+<p>Docupilot also sells eSignatures as an add-on and additional user seats separately; those are not
+in the table because they are priced on request and we will not guess. DocMint has neither, which is
+not a saving so much as an absence.</p>
+
+<h2 id="shape">Two different products, honestly</h2>
+
+<p>The reason the numbers diverge that far is that they are not selling the same thing, and a
+comparison page that hides this is doing you a disservice. Docupilot's price includes a browser
+template editor a non-developer can use, an eSignature flow, delivery to email, Drive, Dropbox, S3
+and roughly 70 integrations, user seats with permissions, and a support organisation. DocMint's
+price includes a render.</p>
+
+<p>Put differently: if you would otherwise pay a person to click through a document process,
+Docupilot's $149 is cheap. If you have already built the workflow and the only missing piece is
+"turn this JSON and that .docx into a PDF", you are paying platform prices for a subroutine.</p>
+
+<h2 id="fields">What DocMint adds</h2>
+
+<p>Two behaviours, both of which exist because of the same failure mode: a document that goes out
+wrong and nobody notices.</p>
+
+<p><b>It tells you what the template needs, before you send any data.</b>
+<code>POST /v1/inspect</code> returns a typed, nested field list plus a ready-to-POST
+<code>sample_data</code> skeleton. Free, no document produced. Run live on 29 August 2026:</p>
+
+<div class="code"><pre><code>{ "fields": [
+    { "name": "items", "scope": "", "type": "array", "repeating": true,
+      "formatters": ["sumProduct","currency"],
+      "locations": ["word/document.xml, paragraph 2"] },
+    { "name": "price", "scope": "items", "type": "number", "required": true } ],
+  "names": ["invoice_no","customer","description","qty","price","items"] }</code></pre></div>
+
+<p>Docupilot does not publish an equivalent — their management API returns the field list when a
+template is created, which proves the demand, but it is not surfaced where an automation would use
+it. We say "does not publish" rather than "does not have", because that is the limit of what we
+checked.</p>
+
+<p><b>It refuses to render a document with a placeholder behind which there is nothing.</b>
+HTTP 422, naming the field, the exact place it was written, and which names <i>do</i> exist in your
+data at that point — and the failure costs no credit. That last part is measured: eight failed
+renders while this page was written, <code>credits: 0</code> on all of them in
+<code>GET /v1/usage</code>.</p>
+
+<h2 id="stay">When Docupilot is the right choice</h2>
+
+<ul>
+<li><b>A non-developer owns the templates.</b> Docupilot has a browser editor. DocMint has no
+editor at all — you author in Word and upload the file, which is fine for a developer and no help to
+anybody else.</li>
+<li><b>You need eSignatures.</b> They have them as an add-on. We have none and none planned.</li>
+<li><b>You need the document delivered.</b> Email, Drive, Dropbox, S3, roughly 70 integrations.
+DocMint returns the file and expects your workflow tool to do the delivering. For an n8n or Make
+user that split is right; for anyone else it is a missing feature.</li>
+<li><b>You need rich text, QR codes, maps or dynamic PDF passwords.</b> Docupilot has all four,
+including HTML and Markdown flowed into a DOCX. DocMint writes plain text, numbers, images and raw
+OOXML.</li>
+<li><b>You need seats and permissions.</b> Docupilot's plans are built around them. DocMint has API
+keys and no concept of a user.</li>
+<li><b>Your volume is genuinely under a hundred documents a month</b> and the platform saves a
+person an hour a week. Then $29 is not the expensive option, it is the cheap one.</li>
+</ul>
+
+<h2 id="cannot">What we cannot claim</h2>
+
+<ul>
+<li><b>No paying customer from outside our own circle yet.</b> DocMint is new.</li>
+<li><b>No trial period, and the smallest free tier around:</b> 30 documents a month, no card. That is
+enough to wire a workflow end to end and not much more. Docupilot offers a 14-day trial with no card.</li>
+<li><b>One region, one instance, no SLA, no SOC 2 report.</b> Frankfurt, a single small instance that
+restarts on every deploy. PDF conversion runs one at a time — 1,346 ms server-side, measured today —
+so a burst queues rather than slows.</li>
+<li><b>No web dashboard at all.</b> Keys, usage and billing are API calls; a subscription is
+<code>POST /v1/billing/checkout</code>, which hands back a Stripe URL. Account deletion is an email
+today.</li>
+<li><b>The full list of gaps</b> is on <a href="/#honest">the home page</a> under "What DocMint does
+not do yet", including known edges in spreadsheet formula rewriting and macro-enabled templates
+losing their macros.</li>
+</ul>
+
+<p>If the render is the part you need, a key is one <code>POST /v1/signup</code> away, no card. See
+the <a href="/docs">API reference</a> or the <a href="/n8n-word-template">n8n workflow page</a>.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/n8n-word-template">Word templates in n8n</a>
+      <a href="/carbone-alternative">Carbone alternative</a>
+      <a href="/docxtemplater-alternative">docxtemplater alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>
