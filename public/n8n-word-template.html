@@ -52,6 +52,7 @@
       <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
       <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
       <li><a href="/docs">API reference</a></li>
+      <li><a href="https://mailmint.app.mintapis.com/n8n">Email to JSON (MailMint)</a></li>
     </ul>
   </div>
 </aside>
@@ -238,6 +239,14 @@ modules you need.</li>
 <li><b>Above roughly a million documents a year:</b> a flat annual licence beats any per-document
 meter, including ours.</li>
 </ul>
+
+<p><b>Where the data comes from, if it arrives as an email.</b> The mapping step assumes you
+already have fields. When the source is a mailbox &mdash; an order confirmation, a delivery note, a
+supplier invoice &mdash; the step in front of DocMint is a parser, not another template engine.
+<a href="https://mailmint.app.mintapis.com/n8n">MailMint</a> is ours and does that half: an inbound
+address or an IMAP mailbox in, structured JSON out, with the message&rsquo;s own SPF, DKIM and DMARC
+verdict attached. Same caveat as the community node above &mdash; n8n&rsquo;s review of it is still
+running, so it needs self-hosted n8n.</p>
 
 <p>Some honest limits before you build on this: DocMint runs on one small instance in Frankfurt with
 no SLA and no SOC 2 report, PDF conversion runs one at a time (1,346 ms server-side, measured today,
