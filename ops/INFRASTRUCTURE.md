@@ -3,6 +3,39 @@
 Written because infrastructure nobody wrote down is infrastructure that runs
 unnoticed. `ops/reap.sh` tears all of it down.
 
+## Where the service actually runs — read this before you deploy
+
+*Measured 2026-08-30. The table below was written on 25.08, when Render was the whole
+story. It is no longer.*
+
+`docmint.app.mintapis.com` resolves to **65.109.49.103**, the Sandy/Hetzner box, and is
+served by the **Coolify application `docmint`** (`fvcw7spr3oj1xobjibvtjnsl`). The Render
+service `docmint` (`srv-da6l2s61egvs7394d030`) **also still answers**, on
+`https://docmint-832s.onrender.com` (`/healthz` 200 today). Two hosts, both live.
+
+1. **Deploying only to Render ships nothing to the canonical domain.** Render reports
+   `status: live` with your commit while `docmint.app.mintapis.com` keeps serving the old
+   bytes — a silent failure with a green light on it. Deploy the Coolify app too and then
+   read the live URL. For ~30 s after a Coolify deploy the two containers answer
+   alternately, so take five consecutive samples before believing either answer.
+
+2. **Do not suspend the Render service while n8n is reviewing the node.** n8n is reviewing
+   `n8n-nodes-docmint` **v0.1.0**, and that version names `https://docmint-832s.onrender.com`
+   in **15 files** and the canonical host in **none**; v0.2.0 on npm is exactly the reverse
+   (counted in both published tarballs with `npm pack`, 2026-08-30). A reviewer testing the
+   submitted version calls Render. If it is approved as-is, every n8n Cloud installer will
+   too.
+
+**The two hosts share one database.** Measured, not assumed: an account created through the
+signup form on `docmint.app.mintapis.com` then logs in on `docmint-832s.onrender.com` —
+302 to `/dashboard`, not a rejection. An API key therefore works on either host and credits
+are counted once.
+
+**That shared database is not necessarily the Neon project listed below.** The same check on
+PDFMint's Neon project found live-signup accounts missing from it; DocMint's
+`cool-cake-82817336` was measured the same way on 2026-08-27 with the same result. Find the
+real `DATABASE_URL` on the Coolify app before quoting a user or render count from Neon.
+
 ## Monthly cost
 
 | What | Where | Plan | Cost |
@@ -13,7 +46,7 @@ unnoticed. `ops/reap.sh` tears all of it down.
 | GitHub repos + Actions | `fstandhartinger/docmint`, `fstandhartinger/n8n-nodes-docmint` | public | $0.00 |
 | Document libraries | none — the fill engine is ours | — | **$0.00** |
 | LibreOffice | MPL-2.0, from the Debian archive | — | **$0.00** |
-| Domain | none bought — runs on the Render subdomain | — | $0.00 |
+| Domain | `mintapis.com` — `docmint.app.mintapis.com` is the canonical host and points at Sandy, not at Render (see above) | — | not billed here |
 | **Total** | | | **$7.00 / month** |
 
 **This is $7/month on top of what already ran before this project.** Audited with
@@ -72,7 +105,7 @@ No EC2, no GPU, no queues, no object storage, no CDN, no cron service, no domain
 
 ```bash
 ops/reap.sh --list      # show everything and what it costs, change nothing
-ops/reap.sh --suspend   # stop the Render service billing, keep the data
+ops/reap.sh --suspend   # stop the Render service billing, keep the data  <-- BREAKS the n8n node review, see above
 ops/reap.sh --destroy   # delete the Render service and the Neon project
 ```
 
