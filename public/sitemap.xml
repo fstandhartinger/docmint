@@ -7,6 +7,8 @@
   <url><loc>https://docmint.app.mintapis.com/terms</loc><lastmod>2026-08-26</lastmod><changefreq>yearly</changefreq><priority>0.2</priority></url>
   <url><loc>https://docmint.app.mintapis.com/word-template-api</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://docmint.app.mintapis.com/n8n-word-template</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://docmint.app.mintapis.com/excel-report-api</loc><lastmod>2026-08-30</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://docmint.app.mintapis.com/powerpoint-generation-api</loc><lastmod>2026-08-30</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
   <url><loc>https://docmint.app.mintapis.com/carbone-alternative</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://docmint.app.mintapis.com/docupilot-alternative</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
   <url><loc>https://docmint.app.mintapis.com/docxtemplater-alternative</loc><lastmod>2026-08-29</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>

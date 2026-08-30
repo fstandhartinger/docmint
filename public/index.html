@@ -600,6 +600,14 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         <span>What filling a template actually involves, the five parts that are hard, when to build it yourself instead, and why the billing units do not compare: Carbone counts a megabyte, Docupilot counts a delivery, Docmosis counts a page.</span>
       </div>
       <div class="gap">
+        <b><a href="/excel-report-api">Excel report API &mdash; so the formulas still add up</a></b>
+        <span>Three things decide whether a filled workbook is a report or a spreadsheet with the right text in it: the shared string table that leaks your template back, numbers stored as text that make SUM() return 0, and formulas that have to move when the rows do. Measured 30&nbsp;August&nbsp;2026.</span>
+      </div>
+      <div class="gap">
+        <b><a href="/powerpoint-generation-api">PowerPoint generation API &mdash; one slide per record</a></b>
+        <span>Repeating a slide means rewriting four parts of the package in step. LibreOffice opens the wreckage; PowerPoint refuses the file and does not say why. A 4-slide template and six regions came back as a 9-slide deck in 53&nbsp;ms, speaker notes and all.</span>
+      </div>
+      <div class="gap">
         <b><a href="/n8n-word-template">Filling Word templates in n8n &mdash; the three ways</a></b>
         <span>n8n has no core node for this. The community node, a plain HTTP Request node, and a Code node with docxtemplater &mdash; including which of them works on n8n Cloud today, and which does not.</span>
       </div>
@@ -634,6 +642,8 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
     <nav>
       <a href="/docs">Docs</a>
       <a href="/word-template-api">Word template API</a>
+      <a href="/excel-report-api">Excel report API</a>
+      <a href="/powerpoint-generation-api">PowerPoint API</a>
       <a href="/n8n-word-template">n8n</a>
       <a href="/carbone-alternative">vs Carbone</a>
       <a href="/docupilot-alternative">vs Docupilot</a>

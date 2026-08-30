@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Excel report API — filling an .xlsx template from JSON so the formulas still add up</title>
+<meta name="description" content="Generating an Excel report from a template and JSON: why the shared string table, cell types and formula rewriting decide whether the file is usable — measured against the live API on 30 August 2026.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/excel-report-api">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/excel-report-api">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="Excel report API — filling an .xlsx template from JSON so the formulas still add up">
+<meta property="og:description" content="Generating an Excel report from a template and JSON: why the shared string table, cell types and formula rewriting decide whether the file is usable — measured against the live API on 30 August 2026.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#job">The job, and the three ways it goes wrong</a></li>
+      <li><a href="#strings">1. The shared string table leaks your template</a></li>
+      <li><a href="#types">2. A number that is text makes SUM() return 0</a></li>
+      <li><a href="#formulas">3. Rows move, and formulas have to move with them</a></li>
+      <li><a href="#call">The call, measured today</a></li>
+      <li><a href="#errors">When it goes wrong, it names the cell</a></li>
+      <li><a href="#limits">What this does not do</a></li>
+      <li><a href="#cannot">What we cannot claim</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/powerpoint-generation-api">PowerPoint generation API</a></li>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/n8n-word-template">Templates in n8n</a></li>
+      <li><a href="/carbone-alternative">Carbone alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>Excel report API</h1>
+
+<p class="lede">Somebody in finance maintains a monthly report as an <code>.xlsx</code>. It has a
+header block, a table that grows, a total row with real formulas, and a second sheet. You have the
+numbers as JSON and you want that workbook back, filled, on a schedule. This page is about the
+three things that decide whether the file you get back is a <em>report</em> or just a spreadsheet
+with the right text in it. Every number below was measured against the live API from Germany on
+<b>30 August 2026</b>, with a free key, using the sales report in
+<a href="https://github.com/fstandhartinger/docmint/tree/master/examples" rel="noopener">examples/</a>.</p>
+
+<h2 id="job">The job, and the three ways it goes wrong</h2>
+
+<p>A <code>.docx</code> is a stream of text; filling one is mostly a matter of finding placeholders
+that Word has split across runs. A workbook is a different animal, and each of its three
+peculiarities is a place where a naive filler produces a file that <b>opens fine and is wrong</b>.
+Nobody gets an error. The recipient gets a report whose total says something else than the rows
+above it.</p>
+
+<h2 id="strings">1. The shared string table leaks your template back to the reader</h2>
+
+<p>Excel does not store cell text in the cell. It stores an index into
+<code>xl/sharedStrings.xml</code>, and two cells with the same text share one entry. That has a
+consequence most fillers never notice: after the render, the <em>old</em> entry is still in the
+package. Nothing points at it any more, Excel ignores it, and it sits there holding the template.</p>
+
+<p>Run this on any delivered workbook, yours or ours:</p>
+
+<pre><code>unzip -p report.xlsx xl/sharedStrings.xml | grep -o '{[a-z#/][^}]*}'</code></pre>
+
+<p>On the template we sent, that prints the whole placeholder vocabulary:</p>
+
+<pre><code>{company}
+{period|date:MMMM YYYY}
+{generated|date:DD MMMM YYYY}
+{source}
+{currency}
+{#rows}
+{region}
+{rep}
+...</code></pre>
+
+<p>On the workbook that came back, the same command prints <b>nothing — zero matches</b>. The last
+thing a render does is blank every shared-string entry that still holds template text and that no
+cell points at any more. This matters where a document leaves your building: a DLP scan, an
+eDiscovery export, or simply a customer who opens the file with something other than Excel reads
+whatever is in that part. A leftover <code>{internal_margin}</code> is a small thing until it is in
+a file you sent a client.</p>
+
+<h2 id="types">2. A number that is text makes SUM() return 0</h2>
+
+<p>A cell containing the characters <code>1234.5</code> is not the number 1234.5. Sum a column of
+those and Excel answers 0, the chart is empty, and nothing warns anybody. This is the single
+biggest difference between a spreadsheet filler that is useful and one that is not.</p>
+
+<p>So a cell whose entire content is one placeholder that resolves to a number becomes a real
+numeric cell, and keeps its <code>s=</code> style, so the number format, font, border and fill the
+author chose all survive. From the workbook measured today,
+<code>unzip -p sales-out.xlsx xl/worksheets/sheet1.xml</code>:</p>
+
+<pre><code>&lt;c r="A10" s="6" t="inlineStr"&gt;&lt;is&gt;&lt;t&gt;DACH&lt;/t&gt;...   &lt;- text stays text
+&lt;c r="D10" s="7"&gt;&lt;v&gt;2140&lt;/v&gt;&lt;/c&gt;                   &lt;- no t=, so a number
+&lt;c r="E10" s="8"&gt;&lt;v&gt;59706&lt;/v&gt;&lt;/c&gt;                  &lt;- style 8 kept: € format survives</code></pre>
+
+<p>The rules, in the order they are applied to a cell that is exactly one placeholder:</p>
+
+<ul>
+<li>a JSON number, or an arithmetic formatter (<code>sum</code>, <code>count</code>,
+<code>round</code>, <code>multiply</code>, …) &rarr; <b>numeric cell</b>;</li>
+<li>a JSON boolean &rarr; <code>t="b"</code>;</li>
+<li>a date, or an ISO date string, in a cell that already carries a date number format &rarr; the
+<b>Excel serial</b>, so the cell sorts, charts and reformats like a date;</li>
+<li>anything else, <b>including a numeric string</b>, &rarr; text.</li>
+</ul>
+
+<p>That last rule is deliberate and occasionally annoying. <code>"30"</code> in your JSON stays
+text, because coercing strings would turn the part number <code>"007"</code> into 7 and the German
+postcode <code>"01067"</code> into 1067. If you want it coerced, ask:
+<code>{n|add:0}</code>. And to get a real number that still <em>displays</em> as money, format the
+cell in the template and write a bare <code>{total}</code> — the cell's own number format does the
+display work and <code>SUM()</code> over the column still adds up. A formatter like
+<code>currency</code> produces text on purpose, because you asked for that exact string.</p>
+
+<h2 id="formulas">3. Rows move, and formulas have to move with them</h2>
+
+<p>This is the one that separates a filler from a report generator, and it is easy to check on any
+product you are evaluating. Our template's loop row and total row look like this:</p>
+
+<pre><code>row 6 (the loop body)   G6: IF(F6=0,"",E6/F6-1)      H6: E6/E7
+row 7 (the total)       D7: SUM(D6:D6)               H7: SUM(H6:H6)</code></pre>
+
+<p>Note <code>H6: E6/E7</code> — each row's share of the total, pointing at the total row directly
+below it. Twelve data rows later, the total row is no longer row 7, it is row 18. Here is the
+workbook that came back today:</p>
+
+<pre><code>G6:  IF(F6=0,"",E6/F6-1)      H6:  E6/E18
+G7:  IF(F7=0,"",E7/F7-1)      H7:  E7/E18
+...
+G15: IF(F15=0,"",E15/F15-1)   H15: E15/E18
+row 18 (the total)  D18: SUM(D6:D17)   E18: SUM(E6:E17)   H18: SUM(H6:H17)</code></pre>
+
+<p>Two different things happened, and both had to. Inside a repeated row, a reference to a cell of
+the same row moved with the copy (<code>F6</code> became <code>F7</code>, <code>F8</code>, …). A
+reference to a row <em>outside</em> the loop followed that row down (<code>E7</code> became
+<code>E18</code> in <b>every</b> copy, not <code>E19</code>, <code>E20</code>, …). And the total
+row's ranges widened over the whole expanded body. Those are Excel's insert-rows semantics rather
+than copy-paste semantics, which is what a human doing this by hand would get.</p>
+
+<p>The same rewriting moves merged ranges, the sheet dimension, conditional formatting, data
+validation, hyperlinks, autofilter and defined names, because leaving an autofilter behind after
+inserting rows is a file Excel opens with a repair prompt.</p>
+
+<p><b>The known limit, said before you rely on it:</b> a range whose two ends are the same repeated
+row — <code>SUM(B3:B3)</code> over a per-group subtotal row — widens to first..last occurrence and
+therefore covers the rows in between too. Write a grand total as a sum of the detail rows rather
+than a sum of the subtotals. And chart series and pivot caches keep their own private copies of the
+ranges they read; those are <b>not</b> rewritten.</p>
+
+<h2 id="call">The call, measured today</h2>
+
+<pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer $DOCMINT_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "template_base64": "&lt;your .xlsx, base64&gt;",
+        "data": { "company": "Meridian Field Systems B.V.",
+                  "period": "2026-07-01",
+                  "rows": [ { "region": "Benelux", "units": 1240, "revenue": 52700 }, ... ] },
+        "output": "document"
+      }' -o report.xlsx</code></pre>
+
+<table>
+<thead><tr><th>What</th><th>Measured, 30 August 2026</th></tr></thead>
+<tbody>
+<tr><td><code>output: "document"</code></td><td><b>61.8 ms</b> server-side, <b>78 ms</b> round trip
+from Germany. 25 tags, 112 substitutions, 2 sections, 4 parts rewritten. 8,109 B template &rarr;
+9,484 B workbook. <b>1 credit.</b></td></tr>
+<tr><td><code>output: "pdf"</code></td><td><b>1,575.8 ms</b> server-side — of which <b>1,556.4 ms
+is LibreOffice</b> and 9.6 ms is the fill. 2 pages, 36,037 B. <b>2 credits.</b></td></tr>
+</tbody>
+</table>
+
+<p>Read that second row honestly: the PDF step is 99% of the time and it is not our code. It runs
+<b>one conversion at a time</b>, so a burst queues rather than slows. If you want the workbook, ask
+for the workbook; it is twenty times faster and half the price. The PDF text layer of the run above
+reads back with <code>pdftotext</code> as
+<code>Meridian Field Systems B.V. / Sales by region and channel — July 2026 / … Page 1 of 2</code>,
+so the header and footer the template author set survive the conversion.</p>
+
+<p>Both sheets are handled: the run above touched
+<code>xl/sharedStrings.xml</code>, <code>xl/workbook.xml</code>,
+<code>xl/worksheets/sheet1.xml</code> <b>and</b> <code>xl/worksheets/sheet2.xml</code> in one call.</p>
+
+<h2 id="errors">When it goes wrong, it names the cell</h2>
+
+<p>A spreadsheet error that says "missing field" and nothing else means opening the template and
+hunting. Three deliberate failures, run today against the live API:</p>
+
+<pre><code>{"code": "placeholder_unresolved",
+ "message": "The template uses {company} but the data has no \"company\".",
+ "hint": "Add \"company\" to the data, or write {company|default:} to allow it to be absent.",
+ "details": {"field": "company", "location": "Monthly sales!A1",
+             "available": ["period","generated","currency","source","rows","regions"],
+             "format": "xlsx"}}</code></pre>
+
+<p><code>location</code> is the sheet name and the cell. The second failure sent
+<code>"ouput"</code> instead of <code>"output"</code> and got back
+<i>There is no field called "ouput" - did you mean "output"?</i> with the full list of accepted
+fields. The third sent <code>"rows": "value"</code> — a string where the template expects a list —
+and got <code>The template uses {region} but the data has no "region"</code>, pointing at
+<code>Monthly sales!A6</code>, with <i>Did you mean "regions"?</i> A section that is present but is
+not a list does <b>not</b> quietly render an empty table.</p>
+
+<p><b>None of those three cost anything.</b> <code>GET /v1/usage</code> read
+<code>{"used": 6, "limit": 30, "remaining": 24}</code> before them and
+<code>{"used": 6, …}</code> after. Credits are taken before the work and refunded when the work
+fails, so a run that errors on a missing field is free.</p>
+
+<h2 id="limits">What this does not do</h2>
+
+<ul>
+<li><b>No chart or pivot rewriting.</b> A chart whose series points at the loop range keeps the
+range it was saved with. If your report needs a chart over a table that grows, point the series at
+a whole column or a defined name that covers more rows than you will ever have.</li>
+<li><b>No column loops and no sheet loops.</b> A section whose two tags sit in one row is treated
+as a row loop, because repeating part of a row would leave the rest of the line behind. One sheet
+per template, repeated rows within it.</li>
+<li><b>No new formatting.</b> Everything visual comes from the template — this is a filler, not a
+spreadsheet builder. There is no browser template editor, and none is planned.</li>
+<li><b>Nothing is evaluated.</b> Formulas are rewritten as text and computed by Excel or
+LibreOffice when the file is opened; no expression in your data is ever compiled or executed. That
+is the whole reason this service carries no sandbox with published escape CVEs.</li>
+</ul>
+
+<h2 id="cannot">What we cannot claim</h2>
+
+<p>DocMint is new and small. <b>No paying outside customer yet</b>, no uptime history worth
+quoting, no SLA, no SOC 2, one region. The free plan is 30 credits from a single
+<code>POST /v1/signup</code> with no card — that is what this page was measured with, and 30
+credits is small on purpose. The PDF step is a single LibreOffice process; if your month-end is
+five hundred workbooks converted to PDF in one minute, we are not that today, and
+<a href="/docs#batch"><code>POST /v1/render/batch</code></a> is the honest answer for volume rather
+than a claim about speed.</p>
+
+<p>What is checkable from outside, and was checked today: the numbers in the table above, the
+zero-match shared-string scrub, the rewritten formulas, and the three refused calls that cost
+nothing.</p>
+
+<p>Next: the same engine on a deck — <a href="/powerpoint-generation-api">PowerPoint generation
+API</a> — or the wider comparison on the <a href="/word-template-api">Word template API</a> page.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/excel-report-api">Excel report API</a>
+      <a href="/powerpoint-generation-api">PowerPoint generation API</a>
+      <a href="/n8n-word-template">Word templates in n8n</a>
+      <a href="/carbone-alternative">Carbone alternative</a>
+      <a href="/docupilot-alternative">Docupilot alternative</a>
+      <a href="/docxtemplater-alternative">docxtemplater alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>

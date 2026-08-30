@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PowerPoint generation API — one slide per record, from a .pptx template and JSON</title>
+<meta name="description" content="Generating a PowerPoint deck from a template and JSON: repeating a slide means rewriting four parts of the package in step, and PowerPoint refuses the file if any one of them disagrees. Measured against the live API on 30 August 2026.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/powerpoint-generation-api">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/powerpoint-generation-api">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="PowerPoint generation API — one slide per record, from a .pptx template and JSON">
+<meta property="og:description" content="Generating a PowerPoint deck from a template and JSON: repeating a slide means rewriting four parts of the package in step, and PowerPoint refuses the file if any one of them disagrees. Measured against the live API on 30 August 2026.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/app.css?v=1">
+<link rel="stylesheet" href="/docs.css?v=1">
+</head>
+<body class="docs">
+
+<header class="docs-top">
+  <a class="logo" href="/">Doc<span>Mint</span></a>
+  <nav>
+    <a href="/">Home</a>
+    <a href="/docs">Docs</a>
+    <a href="/#pricing">Pricing</a>
+    <a class="cta" href="/signup">Get an API key</a>
+  </nav>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#job">The job: one slide per record</a></li>
+      <li><a href="#package">Why a deck is harder than a document</a></li>
+      <li><a href="#measured">What came back, measured today</a></li>
+      <li><a href="#notes">The speaker notes travel with the slide</a></li>
+      <li><a href="#check">The self-check before the bytes leave</a></li>
+      <li><a href="#call">The call</a></li>
+      <li><a href="#limits">What this does not do</a></li>
+      <li><a href="#cannot">What we cannot claim</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/excel-report-api">Excel report API</a></li>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/n8n-word-template">Templates in n8n</a></li>
+      <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content">
+
+<h1>PowerPoint generation API</h1>
+
+<p class="lede">The recurring deck: a title slide, an agenda, <b>one slide per region / customer /
+product</b>, and a closing slide. Somebody rebuilds it every quarter by duplicating a slide and
+retyping numbers. The template exists, the numbers are in a system, and the only missing piece is
+something that repeats a slide correctly. This page is about why "correctly" is the hard word.
+Every number below was measured against the live API from Germany on <b>30 August 2026</b> with a
+free key, using the quarterly deck in
+<a href="https://github.com/fstandhartinger/docmint/tree/master/examples" rel="noopener">examples/</a>.</p>
+
+<h2 id="job">The job: one slide per record</h2>
+
+<p>You mark a slide as the body of a loop, the same way you would mark a table row in Word:</p>
+
+<pre><code>{#regions}   ... the slide, with {name}, {lead}, {revenue}, a table ...   {/regions}</code></pre>
+
+<p>Send six regions, get six slides, each with that region's numbers, its own layout
+untouched, and the slides before and after it still in place. That is the whole feature, and it is
+the reason a deck is a different problem from a document.</p>
+
+<h2 id="package">Why a deck is harder than a document</h2>
+
+<p>A <code>.docx</code> is one body part. A <code>.pptx</code> is <b>a part per slide</b>, plus a
+presentation part that lists them in order, plus a relationship file that names them, plus a
+content-type override for each one. Duplicating a slide means touching all four in step. And here
+is the asymmetry that makes it expensive to get wrong: <b>LibreOffice will happily open the
+wreckage</b>, so a filler tested against LibreOffice looks fine — while PowerPoint refuses the
+whole file if any one of the four disagrees, with the message <i>"PowerPoint found a problem with
+content"</i> and no hint which of the four it was.</p>
+
+<p>Three specific traps, all of which have to be handled at once:</p>
+
+<ul>
+<li><b>Slide ids are constrained.</b> PowerPoint requires every <code>sldId</code> to be a distinct
+value in [256, 2147483648). Copy a slide and copy its id and the file is refused.</li>
+<li><b>Order is not the file name.</b> Slide order lives in the presentation part's
+<code>&lt;p:sldIdLst&gt;</code>, not in <code>slide1.xml</code>, <code>slide2.xml</code>, …
+Inserting four copies in the middle must not move the closing slide to the front.</li>
+<li><b>Every copy needs its own relationships.</b> A slide that references an image, a layout or a
+notes page has a <code>_rels</code> file of its own. Share one between copies and the copies fight
+over it.</li>
+</ul>
+
+<h2 id="measured">What came back, measured today</h2>
+
+<p>The template has <b>4 slides</b>: a title, a scorecard slide whose table loops over the regions, the per-region slide, and a closing slide. The data has <b>six</b> regions. Verify it the way we did — the
+commands are ordinary <code>unzip</code>:</p>
+
+<pre><code>unzip -l deck.pptx | grep -c 'ppt/slides/slide'          -&gt; 9    (title + scorecard + 6 region slides + closing)
+unzip -p deck.pptx ppt/presentation.xml | grep -o '&lt;p:sldId id="[0-9]*" r:id="[^"]*"'
+  &lt;p:sldId id="256" r:id="rId4"&gt;    &lt;- title
+  &lt;p:sldId id="257" r:id="rId5"&gt;
+  &lt;p:sldId id="258" r:id="rId6"&gt;
+  &lt;p:sldId id="259" r:id="rId9"&gt;    &lt;- five new slide parts, spliced in
+  &lt;p:sldId id="260" r:id="rId10"&gt;
+  &lt;p:sldId id="261" r:id="rId11"&gt;
+  &lt;p:sldId id="262" r:id="rId12"&gt;
+  &lt;p:sldId id="263" r:id="rId13"&gt;
+  &lt;p:sldId id="264" r:id="rId7"&gt;    &lt;- the closing slide, still last</code></pre>
+
+<p>Nine distinct ids, counting up from 256, and the relationship ids tell the story: the closing
+slide is still <code>rId7</code> — the id it had in the template — and it is still at the end,
+after five slide parts that did not exist when the file was written were created and placed in front of it.</p>
+
+<table>
+<thead><tr><th>What</th><th>Measured, 30 August 2026</th></tr></thead>
+<tbody>
+<tr><td><code>output: "document"</code></td><td><b>53.2 ms</b> server-side, <b>74 ms</b> round trip
+from Germany. 210 placeholders found, <b>210 resolved</b>, 9 sections, 1 image, 33 package parts
+rewritten. 37,275 B template &rarr; 58,030 B deck. <b>1 credit.</b></td></tr>
+<tr><td><code>output: "pdf"</code></td><td><b>1,415.1 ms</b> server-side, 1,434 ms round trip.
+<b>9 pages</b> — one per slide — 57,345 B. <b>2 credits.</b></td></tr>
+</tbody>
+</table>
+
+<p>Almost all of that second row is LibreOffice, not the fill; on the workbook measured on the
+<a href="/excel-report-api">Excel page</a> the split was 1,556 ms of conversion against 10 ms of
+fill. Conversion runs one at a time, so a burst queues rather than slows. Ask for the
+<code>.pptx</code> when you can — people usually want to edit the deck anyway.</p>
+
+<p>Page 3 of that PDF reads back with <code>pdftotext</code> as:</p>
+
+<pre><code>REGIONAL REVIEW · Q2 2026
+DACH
+Regional lead Lukas Brandt · 26 people · 148 active accounts
+REVENUE   GROWTH YEAR ON YEAR   UNITS SHIPPED
+Q2 2025: €441,800.00
+Group average 8.4%</code></pre>
+
+<h2 id="notes">The speaker notes travel with the slide</h2>
+
+<p>This is the detail that decides whether the generated deck is usable in the meeting. The
+template's notes page for the loop slide holds placeholders:</p>
+
+<pre><code>{name} — {lead}
+{notes}
+Ask the room: {question}</code></pre>
+
+<p>In the deck that came back, the notes part belonging to one of the generated region slides,
+<code>ppt/notesSlides/notesSlide7.xml</code>, reads:</p>
+
+<pre><code>UK &amp; Ireland — Owen Marsh
+The only region down year on year. Be straight about the lost account and the recovery plan.
+Ask the room: What is the realistic date for replacing the lost volume?</code></pre>
+
+<p>Each copy got <b>its own</b> notes part, its own relationship pointing at it
+(<code>ppt/slides/_rels/slide7.xml.rels</code> &rarr;
+<code>../notesSlides/notesSlide7.xml</code>) and its own content-type override. Tables inside a
+slide repeat too: a section over a table produces one <code>&lt;a:tr&gt;</code> per array element,
+which is the shape a reporting deck's table actually needs.</p>
+
+<h2 id="check">The self-check before the bytes leave</h2>
+
+<p>Because PowerPoint's failure mode is "the file is refused and you are not told why", the last
+step of a render re-derives the package invariants from the <em>finished</em> bytes and throws if
+any of them fails, rather than handing you a deck that opens on your laptop and not on the
+customer's. That is also why the <code>parts</code> list comes back in the response: you can see
+exactly which of the 33 parts were rewritten in your call.</p>
+
+<h2 id="call">The call</h2>
+
+<pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer $DOCMINT_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+        "template_base64": "&lt;your .pptx, base64&gt;",
+        "data": { "title": "Quarterly business review",
+                  "regions": [ { "name": "DACH", "lead": "Lukas Brandt", "revenue": 478900 }, ... ] },
+        "output": "document"
+      }'</code></pre>
+
+<p>With <code>Accept: application/json</code> the deck comes back base64 in a JSON envelope
+together with <code>stats</code> — tags found, tags resolved, sections, slides, and the list of
+parts that were rewritten — which is what the numbers in the table above are read from. Leave the
+header off and you get the <code>.pptx</code> bytes with a
+<code>Content-Disposition</code> filename. A stored template works the same way: upload it once
+with <code>PUT /v1/templates/quarterly-deck</code> and then send only <code>"template":
+"quarterly-deck"</code> and the data. Storing, reading and listing templates cost no credits &mdash; measured today:
+<code>GET /v1/usage</code> read <code>{"used": 6, "remaining": 24}</code> both before and after a
+<code>PUT</code> of this deck.</p>
+
+<p>A stored template also answers <code>GET /v1/templates/{name}/fields</code> with the form a
+client should put on screen &mdash; each placeholder with its type, whether it repeats, and
+<b>where in the deck it sits</b>. For this template that reads
+<code>{"name": "regions", "type": "array", "repeating": true, "used": 18, "locations": ["slide 3",
+"slide 2, table \"Scorecard\"", ...]}</code>. That is what the n8n node and the Make module build
+their input fields from, instead of asking someone to retype field names from memory.</p>
+
+<h2 id="limits">What this does not do</h2>
+
+<ul>
+<li><b>No charts.</b> A chart in a slide keeps the data it was saved with. If the deck needs a
+chart that changes, today the honest answer is to render the chart as an image somewhere else and
+place it with the <a href="/docs#images">image feature</a>.</li>
+<li><b>It fills, it does not design.</b> Every font, colour, position and master comes from your
+template. There is no browser deck editor and none is planned.</li>
+<li><b>No animations or transitions authored by us</b> — whatever the template carries survives,
+nothing is added.</li>
+<li><b>Nothing is evaluated.</b> No expression in your data is ever compiled or executed.</li>
+</ul>
+
+<h2 id="cannot">What we cannot claim</h2>
+
+<p>DocMint is new and small: <b>no paying outside customer yet</b>, no uptime history worth
+quoting, no SLA, no SOC 2, one region. The free plan is 30 credits from a single
+<code>POST /v1/signup</code> with no card, which is what produced every number on this page. The
+PDF step is one LibreOffice process. And the honest scope note: this is a
+<em>template filler</em>. If what you want is a deck generated from a prompt with no template, that
+is a different product and we are not it.</p>
+
+<p>What is checkable from outside without an account: the source is
+<a href="https://github.com/fstandhartinger/docmint" rel="noopener">on GitHub</a>, including the
+example deck and its data, so every command above can be run against your own render.</p>
+
+<p>Next: the <a href="/excel-report-api">Excel report API</a>, where the interesting problem is
+formulas rather than packages, or the <a href="/word-template-api">Word template API</a> for the
+comparison with Carbone, Docupilot and docxtemplater.</p>
+
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <span>DocMint &middot; productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG</span>
+    <nav>
+      <a href="/docs">Docs</a>
+      <a href="/word-template-api">Word template API</a>
+      <a href="/excel-report-api">Excel report API</a>
+      <a href="/powerpoint-generation-api">PowerPoint generation API</a>
+      <a href="/n8n-word-template">Word templates in n8n</a>
+      <a href="/carbone-alternative">Carbone alternative</a>
+      <a href="/docupilot-alternative">Docupilot alternative</a>
+      <a href="/docxtemplater-alternative">docxtemplater alternative</a>
+      <a href="/legal">Imprint</a>
+      <a href="/privacy">Privacy</a>
+      <a href="/terms">Terms</a>
+      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="/docs.js?v=1"></script>
+
+</body>
+</html>
