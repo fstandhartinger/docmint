@@ -5,9 +5,10 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 
 const { render, inspect, toExcelSerial, rewriteFormula } = require('../src/render/xlsx');
-const { readZip, readText } = require('../src/ooxml/zip');
+const { readZip, readText, writeEntry, addEntry, writeZip } = require('../src/ooxml/zip');
 const { decodeXml } = require('../src/ooxml/xml');
 const { scan } = require('../src/template/scan');
+const { makeContext } = require('../src/template/resolve');
 const {
   FIXTURES, fixture, writeOut, tinyPng, partText, partBytes, partNames, cells,
   toCsvRows, toCsvSheets, money,
@@ -581,4 +582,42 @@ test('a template tag left in a shared string is only kept when a cell is still s
       }
     }
   }
+});
+
+test('a shared string a cell is still showing is kept, and reported, rather than blanked', async () => {
+  // The guard that makes blanking safe: an entry only goes if nothing points at
+  // it. Proven with a worksheet part the workbook does not list — the renderer
+  // never fills it, so its t="s" cells still display what the table says, and
+  // emptying entry 0 would empty a cell somebody can see.
+  const zip = readZip(fixture('invoice.xlsx'));
+  assert.match(partText(fixture('invoice.xlsx'), 'xl/sharedStrings.xml'), /<si><t xml:space="preserve">INVOICE \{invoice.number\}<\/t><\/si>/);
+  addEntry(zip, 'xl/worksheets/sheet99.xml',
+    '<?xml version="1.0"?><worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row></sheetData></worksheet>');
+
+  const ctx = makeContext({});
+  const { buffer } = await render(writeZip(zip), INVOICE_DATA(LINES), { ctx });
+  const after = partText(buffer, 'xl/sharedStrings.xml');
+
+  assert.match(after, /<si><t xml:space="preserve">INVOICE \{invoice.number\}<\/t><\/si>/,
+    'entry 0 is live, so it stays exactly as it was');
+  assert.ok(!after.includes('{invoice.date}'), 'the entries nobody points at are still blanked');
+  assert.deepEqual(ctx.warnings.list.filter((w) => w.code === 'template_text_in_shared_strings').length, 1,
+    'a leak that could not be removed has to be reported, not swallowed');
+});
+
+test('a sheet this renderer cannot parse leaves the whole table alone', async () => {
+  // Every element name here is matched literally, so a workbook written with an
+  // `x:` prefix parses nowhere — which means its cells were never filled and are
+  // still showing the table. Blanking would empty them, so nothing is blanked.
+  const zip = readZip(fixture('invoice.xlsx'));
+  const sheet2 = zip.byName.get('xl/worksheets/sheet2.xml');
+  writeEntry(sheet2, readText(sheet2).replace(/<(\/?)sheetData/g, '<$1x:sheetData'));
+  const src = writeZip(zip);
+
+  const ctx = makeContext({});
+  const { buffer, stats } = await render(src, INVOICE_DATA(LINES), { ctx });
+  assert.equal(partText(buffer, 'xl/sharedStrings.xml'), partText(src, 'xl/sharedStrings.xml'),
+    'the table comes through byte-for-byte rather than risking a visibly empty cell');
+  assert.ok(!stats.parts.includes('xl/sharedStrings.xml'));
+  assert.equal(ctx.warnings.list.filter((w) => w.code === 'template_text_in_shared_strings').length, 1);
 });

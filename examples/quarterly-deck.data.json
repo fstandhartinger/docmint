@@ -1,0 +1,147 @@
+{
+  "title": "Q2 2026 Business Review",
+  "subtitle": "Group performance, regional detail and the priorities we are asking the board to approve for Q3.",
+  "date": "2026-07-15",
+  "presenter": "Anneke Visser, Chief Commercial Officer",
+  "company": "Meridian Field Systems B.V.",
+  "confidentiality": "Board and leadership team only",
+  "deck_kicker": "Q2 2026 business review",
+  "deck_period": "Q2 2026",
+  "prior_period": "Q2 2025",
+  "table_title": "Group performance by region",
+  "table_note": "Revenue is recognised on shipment. Prior-year comparatives are restated for the 2025 France/Iberia territory split.",
+  "group_growth": 0.083656,
+  "opening_note": "Twenty minutes on the numbers, twenty on the regions, ten on the Q3 asks. Hold questions on headcount until the last slide.",
+  "scorecard_note": "Every regional figure on this slide is summed from the same array the regional slides use, so the table and the detail cannot disagree.",
+  "closing_title": "What we are asking for in Q3",
+  "closing_note": "Three asks, one decision each. If we leave without the RH-9 allocation decision, the DACH forecast is not credible.",
+  "priorities": [
+    "Secure RH-9 probe allocation for Q3 and Q4, or reforecast DACH down by roughly EUR 120,000.",
+    "Sign a second Benelux partner before the autumn tender round to cut concentration risk.",
+    "Fund one additional field engineer in Iberia from September.",
+    "Complete the French-language catalogue documentation by 30 September to hold the public-sector listing.",
+    "Move Nordic contract pricing to EUR from Q4 to stop currency noise reaching the regional numbers."
+  ],
+  "regions": [
+    {
+      "name": "DACH",
+      "lead": "Lukas Brandt",
+      "revenue": 512400,
+      "prior": 441800,
+      "units": 14120,
+      "team_size": 26,
+      "accounts": 148,
+      "growth": 0.159801,
+      "share": 0.316601,
+      "highlights": [
+        "Two multi-site framework agreements signed with utility groups in Bavaria and Lower Saxony.",
+        "MFS-220 logger backlog cleared: lead time down from 9 weeks to 4.",
+        "Telemetry renewals closed at 96 per cent of the eligible base."
+      ],
+      "risk": "Component allocation for the RH-9 probe is capped until October; Q3 upside above 5,000 units is not deliverable.",
+      "notes": "Strongest quarter on record. Push the room on whether the framework agreements are repeatable in Austria.",
+      "question": "Can we replicate the utility framework model outside Germany before year end?"
+    },
+    {
+      "name": "Benelux",
+      "lead": "Sanne de Vries",
+      "revenue": 268950,
+      "prior": 246300,
+      "units": 7320,
+      "team_size": 14,
+      "accounts": 96,
+      "growth": 0.091961,
+      "share": 0.166179,
+      "highlights": [
+        "Rotterdam distribution centre rollout completed two weeks early.",
+        "Partner channel now 38 per cent of regional revenue, up from 29 per cent.",
+        "First municipal water tender won in Flanders."
+      ],
+      "risk": "One partner accounts for 41 per cent of channel revenue; concentration risk is rising.",
+      "notes": "Solid, unspectacular. The story here is channel mix, not headline growth.",
+      "question": "Do we need a second partner in Flanders before the next tender round?"
+    },
+    {
+      "name": "Nordics",
+      "lead": "Elin Hagen",
+      "revenue": 241560,
+      "prior": 233900,
+      "units": 6640,
+      "team_size": 11,
+      "accounts": 71,
+      "growth": 0.032749,
+      "share": 0.149255,
+      "highlights": [
+        "Online self-serve orders passed 1,000 units in a quarter for the first time.",
+        "Two Norwegian aquaculture accounts renewed for three years.",
+        "Field service response time improved to 3.1 hours against a 4-hour target."
+      ],
+      "risk": "Swedish krona weakness took roughly EUR 9,000 off reported revenue at constant currency.",
+      "notes": "Flat in EUR, up 7 per cent in local currency. Make the FX point explicitly.",
+      "question": "Should we quote Nordic contracts in EUR from Q4?"
+    },
+    {
+      "name": "UK & Ireland",
+      "lead": "Owen Marsh",
+      "revenue": 233480,
+      "prior": 241900,
+      "units": 6310,
+      "team_size": 12,
+      "accounts": 84,
+      "growth": -0.034808,
+      "share": 0.144262,
+      "highlights": [
+        "Two of the three largest accounts renewed, both on longer terms.",
+        "Gold-tier support attach rate reached 44 per cent, the highest of any region.",
+        "Dublin service depot opened in June."
+      ],
+      "risk": "The single lost account was worth EUR 31,000 a quarter; the replacement pipeline covers about half of it.",
+      "notes": "The only region down year on year. Be straight about the lost account and the recovery plan.",
+      "question": "What is the realistic date for replacing the lost volume?"
+    },
+    {
+      "name": "France",
+      "lead": "Camille Roux",
+      "revenue": 189740,
+      "prior": 171200,
+      "units": 5180,
+      "team_size": 9,
+      "accounts": 63,
+      "growth": 0.108294,
+      "share": 0.117236,
+      "highlights": [
+        "Public-sector framework listing secured, opening 40 new buying entities.",
+        "Direct channel revenue up 11 per cent with no headcount added.",
+        "Average order value up from EUR 2,900 to EUR 3,350."
+      ],
+      "risk": "Framework listing requires French-language documentation for the full catalogue by 30 September.",
+      "notes": "Good operating leverage. The framework listing is the thing to celebrate.",
+      "question": "Who owns the French documentation deadline?"
+    },
+    {
+      "name": "Iberia",
+      "lead": "Paulo Ferreira",
+      "revenue": 172310,
+      "prior": 158400,
+      "units": 4890,
+      "team_size": 8,
+      "accounts": 52,
+      "growth": 0.087816,
+      "share": 0.106467,
+      "highlights": [
+        "Online channel doubled year on year off a small base.",
+        "First Portuguese distributor agreement signed in May.",
+        "Two agricultural pilots converted to production deployments."
+      ],
+      "risk": "Smallest region and the thinnest coverage: one departure would put 20 per cent of revenue at risk.",
+      "notes": "Momentum is real but the base is small. Do not over-read the percentages.",
+      "question": "Is it time to add a second field engineer in Iberia?"
+    }
+  ],
+  "logo": {
+    "data": "data:image/png;base64,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",
+    "width": 86,
+    "alt": "Meridian Field Systems",
+    "height": 86
+  }
+}

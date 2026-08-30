@@ -288,10 +288,11 @@ async function runJob(job, { loadTemplate }) {
   const files = batch.filesOf(run.records, spec.output);
   const stored = [];
   if (files.length === 1 && spec.response !== 'zip') {
-    stored.push(await storeFile(account.id, files[0].buffer, files[0].filename, files[0].content_type));
+    stored.push(described(await storeFile(account.id, files[0].buffer, files[0].filename, files[0].content_type)));
   } else if (files.length) {
     const { buffer, names } = batch.buildZip(files, { errors: batch.failedItems(run.records) });
-    stored.push({ ...await storeFile(account.id, buffer, zipName(job.id), 'application/zip'), entries: names.length });
+    const f = await storeFile(account.id, buffer, zipName(job.id), 'application/zip');
+    stored.push({ ...described(f), entries: names.length });
   }
   t.mark('store');
 
@@ -315,6 +316,14 @@ async function runJob(job, { loadTemplate }) {
     stats: { ms: t.total(), stages: { ...t.stages(), ...run.stages } },
   };
 }
+
+/**
+ * What a stored file looks like in a job result. The token is deliberately
+ * dropped: it is the download capability, and the URL built from it already
+ * carries it. Keeping it in the row as well would put it in the listing, in the
+ * webhook body and in anything that logs either of those.
+ */
+const described = ({ token, ...f }) => f;
 
 const zipName = (jobId) => `${jobId.replace(/[^A-Za-z0-9_-]/g, '')}.zip`;
 

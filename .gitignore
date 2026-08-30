@@ -4,3 +4,8 @@ node_modules/
 out/
 tmp/
 .DS_Store
+
+# Env-Sicherungen. .env war ignoriert, die Backups nicht - .env.bak-neon
+# enthaelt das echte Neon-Passwort und waere sonst mitcommittet worden.
+.env.bak*
+.env.*.bak

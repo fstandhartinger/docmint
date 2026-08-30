@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DocMint example template: a monthly sales workbook.
+
+  The point of this one is types. Every filled cell that holds a number is a real
+  number carrying a real Excel number format, which is what makes SUM(), the
+  growth column and INDEX/MATCH keep working after {#rows} has expanded one
+  template row into twelve.
+-->
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  xmlns:number="urn:oasis:names:tc:opendocument:xmlns:datastyle:1.0"
+  xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"
+  xmlns:calcext="urn:org:documentfoundation:names:experimental:calc:xmlns:calcext:1.0"
+  office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.spreadsheet">
+
+
+
+<office:settings>
+ <config:config-item-set config:name="ooo:view-settings">
+  <config:config-item-map-indexed config:name="Views">
+   <config:config-item-map-entry>
+    <config:config-item config:name="ViewId" config:type="string">view1</config:config-item>
+    <config:config-item-map-named config:name="Tables">
+     <config:config-item-map-entry config:name="Monthly sales">
+      <config:config-item config:name="CursorPositionX" config:type="int">0</config:config-item>
+      <config:config-item config:name="CursorPositionY" config:type="int">5</config:config-item>
+      <config:config-item config:name="HorizontalSplitMode" config:type="short">0</config:config-item>
+      <config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>
+      <config:config-item config:name="HorizontalSplitPosition" config:type="int">0</config:config-item>
+      <config:config-item config:name="VerticalSplitPosition" config:type="int">5</config:config-item>
+      <config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>
+      <config:config-item config:name="PositionLeft" config:type="int">0</config:config-item>
+      <config:config-item config:name="PositionRight" config:type="int">0</config:config-item>
+      <config:config-item config:name="PositionTop" config:type="int">0</config:config-item>
+      <config:config-item config:name="PositionBottom" config:type="int">5</config:config-item>
+     </config:config-item-map-entry>
+     <config:config-item-map-entry config:name="Summary">
+      <config:config-item config:name="CursorPositionX" config:type="int">0</config:config-item>
+      <config:config-item config:name="CursorPositionY" config:type="int">4</config:config-item>
+      <config:config-item config:name="HorizontalSplitMode" config:type="short">0</config:config-item>
+      <config:config-item config:name="VerticalSplitMode" config:type="short">2</config:config-item>
+      <config:config-item config:name="HorizontalSplitPosition" config:type="int">0</config:config-item>
+      <config:config-item config:name="VerticalSplitPosition" config:type="int">4</config:config-item>
+      <config:config-item config:name="ActiveSplitRange" config:type="short">2</config:config-item>
+      <config:config-item config:name="PositionLeft" config:type="int">0</config:config-item>
+      <config:config-item config:name="PositionRight" config:type="int">0</config:config-item>
+      <config:config-item config:name="PositionTop" config:type="int">0</config:config-item>
+      <config:config-item config:name="PositionBottom" config:type="int">4</config:config-item>
+     </config:config-item-map-entry>
+    </config:config-item-map-named>
+   </config:config-item-map-entry>
+  </config:config-item-map-indexed>
+ </config:config-item-set>
+</office:settings>
+
+<office:font-face-decls>
+  <style:font-face style:name="Carlito" svg:font-family="Carlito" style:font-family-generic="swiss" style:font-pitch="variable"/>
+  <style:font-face style:name="Caladea" svg:font-family="Caladea" style:font-family-generic="roman" style:font-pitch="variable"/>
+</office:font-face-decls>
+
+<office:styles>
+  <style:default-style style:family="table-cell">
+    <style:text-properties style:font-name="Carlito" fo:font-size="10pt" fo:color="#1b2a38"/>
+  </style:default-style>
+  <style:style style:name="Default" style:family="table-cell">
+    <style:text-properties style:font-name="Carlito" fo:font-size="10pt" fo:color="#1b2a38"/>
+  </style:style>
+  <style:style style:name="Zebra" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#e9eff5"/>
+  </style:style>
+  <style:style style:name="NegRed" style:family="table-cell">
+    <style:text-properties fo:color="#b23a2e"/>
+  </style:style>
+</office:styles>
+
+<office:automatic-styles>
+
+  <number:number-style style:name="NInt">
+    <number:number number:decimal-places="0" number:min-decimal-places="0" number:min-integer-digits="1" number:grouping="true"/>
+  </number:number-style>
+  <number:currency-style style:name="NEur">
+    <number:currency-symbol number:language="en" number:country="IE">&#8364;</number:currency-symbol>
+    <number:number number:decimal-places="2" number:min-decimal-places="2" number:min-integer-digits="1" number:grouping="true"/>
+  </number:currency-style>
+  <number:percentage-style style:name="NPct">
+    <number:number number:decimal-places="1" number:min-decimal-places="1" number:min-integer-digits="1"/>
+    <number:text>%</number:text>
+  </number:percentage-style>
+  <number:percentage-style style:name="NPct0">
+    <number:number number:decimal-places="0" number:min-decimal-places="0" number:min-integer-digits="1"/>
+    <number:text>%</number:text>
+  </number:percentage-style>
+
+  <style:style style:name="coA" style:family="table-column"><style:table-column-properties style:column-width="3.5cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coB" style:family="table-column"><style:table-column-properties style:column-width="4.0cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coC" style:family="table-column"><style:table-column-properties style:column-width="2.6cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coD" style:family="table-column"><style:table-column-properties style:column-width="2.3cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coE" style:family="table-column"><style:table-column-properties style:column-width="3.2cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coF" style:family="table-column"><style:table-column-properties style:column-width="3.2cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coG" style:family="table-column"><style:table-column-properties style:column-width="2.4cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coH" style:family="table-column"><style:table-column-properties style:column-width="2.7cm" fo:break-before="auto"/></style:style>
+  <style:style style:name="coReps" style:family="table-column"><style:table-column-properties style:column-width="5.4cm" fo:break-before="auto"/></style:style>
+
+  <style:style style:name="roTitle" style:family="table-row"><style:table-row-properties style:row-height="0.85cm" fo:break-before="auto" style:use-optimal-row-height="false"/></style:style>
+  <style:style style:name="roNorm" style:family="table-row"><style:table-row-properties style:row-height="0.48cm" fo:break-before="auto" style:use-optimal-row-height="false"/></style:style>
+  <style:style style:name="roHead" style:family="table-row"><style:table-row-properties style:row-height="0.62cm" fo:break-before="auto" style:use-optimal-row-height="false"/></style:style>
+  <style:style style:name="roGap" style:family="table-row"><style:table-row-properties style:row-height="0.3cm" fo:break-before="auto" style:use-optimal-row-height="false"/></style:style>
+
+  <!-- title block -->
+  <style:style style:name="ceTitle" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties style:vertical-align="bottom"/>
+    <style:text-properties style:font-name="Caladea" fo:font-size="17pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="ceSub" style:family="table-cell" style:parent-style-name="Default">
+    <style:text-properties fo:font-size="11pt" fo:color="#31424f"/>
+  </style:style>
+  <style:style style:name="ceMeta" style:family="table-cell" style:parent-style-name="Default">
+    <style:text-properties fo:font-size="9pt" fo:color="#7c8b99"/>
+  </style:style>
+
+  <!-- header row -->
+  <style:style style:name="ceHead" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties fo:background-color="#12395b" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm" fo:border="none"/>
+    <style:paragraph-properties fo:text-align="start" style:text-align-source="fix"/>
+    <style:text-properties fo:font-size="9pt" fo:font-weight="bold" fo:color="#ffffff"/>
+  </style:style>
+  <style:style style:name="ceHeadR" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties fo:background-color="#12395b" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm" fo:border="none"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-size="9pt" fo:font-weight="bold" fo:color="#ffffff"/>
+  </style:style>
+
+  <!-- body -->
+  <style:style style:name="ceText" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties fo:border-bottom="0.5pt solid #dce3ea" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="start" style:text-align-source="fix"/>
+  </style:style>
+  <style:style style:name="ceInt" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NInt">
+    <style:table-cell-properties fo:border-bottom="0.5pt solid #dce3ea" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+  </style:style>
+  <style:style style:name="ceEur" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NEur">
+    <style:table-cell-properties fo:border-bottom="0.5pt solid #dce3ea" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+  </style:style>
+  <style:style style:name="cePct" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NPct">
+    <style:table-cell-properties fo:border-bottom="0.5pt solid #dce3ea" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+  </style:style>
+
+  <!-- total row -->
+  <style:style style:name="ceTotT" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties fo:background-color="#eef3f8" fo:border-top="1pt solid #12395b" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="start" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="ceTotInt" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NInt">
+    <style:table-cell-properties fo:background-color="#eef3f8" fo:border-top="1pt solid #12395b" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="ceTotEur" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NEur">
+    <style:table-cell-properties fo:background-color="#eef3f8" fo:border-top="1pt solid #12395b" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="ceTotPct" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NPct">
+    <style:table-cell-properties fo:background-color="#eef3f8" fo:border-top="1pt solid #12395b" style:vertical-align="middle"
+      fo:padding-left="0.15cm" fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+
+  <!-- key figures block -->
+  <style:style style:name="ceKeyLbl" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties fo:padding-left="0.15cm"/>
+    <style:text-properties fo:font-size="10pt" fo:color="#546575"/>
+  </style:style>
+  <style:style style:name="ceKeyInt" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NInt">
+    <style:table-cell-properties fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold"/>
+  </style:style>
+  <style:style style:name="ceKeyEur" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="NEur">
+    <style:table-cell-properties fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold"/>
+  </style:style>
+  <style:style style:name="ceKeyTxt" style:family="table-cell" style:parent-style-name="Default">
+    <style:table-cell-properties fo:padding-right="0.15cm"/>
+    <style:paragraph-properties fo:text-align="end" style:text-align-source="fix"/>
+    <style:text-properties fo:font-weight="bold"/>
+  </style:style>
+
+  <style:page-layout style:name="pmReport">
+    <style:page-layout-properties fo:page-width="29.7cm" fo:page-height="21cm"
+      style:print-orientation="landscape"
+      fo:margin-top="1.2cm" fo:margin-bottom="1.2cm" fo:margin-left="1.2cm" fo:margin-right="1.2cm"
+      style:scale-to-X="1" style:table-centering="none" style:print="objects charts drawings"/>
+    <style:header-style><style:header-footer-properties fo:min-height="0.6cm" fo:margin-bottom="0.35cm"/></style:header-style>
+    <style:footer-style><style:header-footer-properties fo:min-height="0.6cm" fo:margin-top="0.35cm"/></style:footer-style>
+  </style:page-layout>
+  <style:style style:name="PHdr" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="9pt" fo:color="#6b7b8b"/>
+  </style:style>
+  <style:style style:name="ta1" style:family="table" style:master-page-name="Report"><style:table-properties table:display="true"/></style:style>
+</office:automatic-styles>
+
+<office:master-styles>
+  <style:master-page style:name="Report" style:page-layout-name="pmReport">
+    <style:header>
+      <style:region-left><text:p text:style-name="PHdr"><text:sheet-name>Sheet</text:sheet-name></text:p></style:region-left>
+      <style:region-right><text:p text:style-name="PHdr">Page <text:page-number>1</text:page-number> of <text:page-count>1</text:page-count></text:p></style:region-right>
+    </style:header>
+    <style:header-left style:display="false"/>
+    <style:footer style:display="false"/>
+    <style:footer-left style:display="false"/>
+  </style:master-page>
+</office:master-styles>
+
+<office:body><office:spreadsheet>
+
+<!-- =========================== sheet 1: detail ========================== -->
+<table:table table:name="Monthly sales" table:style-name="ta1">
+  <table:table-column table:style-name="coA"/>
+  <table:table-column table:style-name="coB"/>
+  <table:table-column table:style-name="coC"/>
+  <table:table-column table:style-name="coD"/>
+  <table:table-column table:style-name="coE"/>
+  <table:table-column table:style-name="coF"/>
+  <table:table-column table:style-name="coG"/>
+  <table:table-column table:style-name="coH"/>
+
+  <table:table-row table:style-name="roTitle">
+    <table:table-cell table:style-name="ceTitle" office:value-type="string"><text:p>{company}</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="7"/>
+  </table:table-row>
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceSub" office:value-type="string"><text:p>Sales by region and channel &#8212; {period|date:MMMM YYYY}</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="7"/>
+  </table:table-row>
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceMeta" office:value-type="string"><text:p>Prepared {generated|date:DD MMMM YYYY} &#183; source: {source} &#183; all amounts in {currency}</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="7"/>
+  </table:table-row>
+  <table:table-row table:style-name="roGap">
+    <table:table-cell table:number-columns-repeated="8"/>
+  </table:table-row>
+
+  <table:table-row table:style-name="roHead">
+    <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p>Region</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p>Sales rep</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p>Channel</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Units</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Revenue</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Prior year</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Growth</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Share</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceText" office:value-type="string"><text:p>{#rows}{region}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceText" office:value-type="string"><text:p>{rep}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceText" office:value-type="string"><text:p>{channel}{/rows}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceInt" office:value-type="string"><text:p>{units}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceEur" office:value-type="string"><text:p>{revenue}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceEur" office:value-type="string"><text:p>{prior_revenue}</text:p></table:table-cell>
+    <table:table-cell table:style-name="cePct" table:formula="of:=IF([.F6]=0;&quot;&quot;;[.E6]/[.F6]-1)" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="cePct" table:formula="of:=[.E6]/[.E7]" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceTotT" office:value-type="string"><text:p>Total &#8212; {rows|count} lines</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotT"/>
+    <table:table-cell table:style-name="ceTotT"/>
+    <table:table-cell table:style-name="ceTotInt" table:formula="of:=SUM([.D6:.D6])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotEur" table:formula="of:=SUM([.E6:.E6])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotEur" table:formula="of:=SUM([.F6:.F6])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotPct" table:formula="of:=IF([.F7]=0;&quot;&quot;;[.E7]/[.F7]-1)" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotPct" table:formula="of:=SUM([.H6:.H6])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="roGap">
+    <table:table-cell table:number-columns-repeated="8"/>
+  </table:table-row>
+
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceKeyLbl" office:value-type="string"><text:p>Lines in this report</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+    <table:table-cell table:style-name="ceKeyInt" office:value-type="string"><text:p>{rows|count}</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+  </table:table-row>
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceKeyLbl" office:value-type="string"><text:p>Average revenue per unit</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+    <table:table-cell table:style-name="ceKeyEur" table:formula="of:=[.E7]/[.D7]" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+  </table:table-row>
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceKeyLbl" office:value-type="string"><text:p>Best-performing rep by revenue</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+    <table:table-cell table:style-name="ceKeyTxt" table:formula="of:=INDEX([.B6:.B6];MATCH(MAX([.E6:.E6]);[.E6:.E6];0))" office:value-type="string" office:string-value=""><text:p/></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+  </table:table-row>
+
+  <calcext:conditional-formats>
+    <calcext:conditional-format calcext:target-range-address="'Monthly sales'.A6:.H6">
+      <calcext:condition calcext:apply-style-name="Zebra" calcext:value="formula-is(MOD(ROW();2)=0)" calcext:base-cell-address="'Monthly sales'.A6"/>
+    </calcext:conditional-format>
+    <calcext:conditional-format calcext:target-range-address="'Monthly sales'.G6:.G6">
+      <calcext:condition calcext:apply-style-name="NegRed" calcext:value="formula-is([.G6]&lt;0)" calcext:base-cell-address="'Monthly sales'.G6"/>
+    </calcext:conditional-format>
+  </calcext:conditional-formats>
+</table:table>
+
+<!-- ========================== sheet 2: summary ========================== -->
+<table:table table:name="Summary" table:style-name="ta1">
+  <table:table-column table:style-name="coA"/>
+  <table:table-column table:style-name="coReps"/>
+  <table:table-column table:style-name="coD"/>
+  <table:table-column table:style-name="coE"/>
+  <table:table-column table:style-name="coF"/>
+  <table:table-column table:style-name="coG"/>
+  <table:table-column table:style-name="coH"/>
+
+  <table:table-row table:style-name="roTitle">
+    <table:table-cell table:style-name="ceTitle" office:value-type="string"><text:p>Summary by region</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="6"/>
+  </table:table-row>
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceMeta" office:value-type="string"><text:p>{company} &#183; {period|date:MMMM YYYY} &#183; {regions|count} regions</text:p></table:table-cell>
+    <table:table-cell table:number-columns-repeated="6"/>
+  </table:table-row>
+  <table:table-row table:style-name="roGap">
+    <table:table-cell table:number-columns-repeated="7"/>
+  </table:table-row>
+
+  <table:table-row table:style-name="roHead">
+    <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p>Region</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p>Sales reps</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Units</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Revenue</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Prior year</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Growth</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceHeadR" office:value-type="string"><text:p>Share</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceText" office:value-type="string"><text:p>{#regions}{name}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceText" office:value-type="string"><text:p>{reps|join}{/regions}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceInt" office:value-type="string"><text:p>{units}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceEur" office:value-type="string"><text:p>{revenue}</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceEur" office:value-type="string"><text:p>{prior_revenue}</text:p></table:table-cell>
+    <table:table-cell table:style-name="cePct" table:formula="of:=IF([.E5]=0;&quot;&quot;;[.D5]/[.E5]-1)" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="cePct" table:formula="of:=[.D5]/[.D6]" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceTotT" office:value-type="string"><text:p>All regions</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotT"/>
+    <table:table-cell table:style-name="ceTotInt" table:formula="of:=SUM([.C5:.C5])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotEur" table:formula="of:=SUM([.D5:.D5])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotEur" table:formula="of:=SUM([.E5:.E5])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotPct" table:formula="of:=IF([.E6]=0;&quot;&quot;;[.D6]/[.E6]-1)" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+    <table:table-cell table:style-name="ceTotPct" table:formula="of:=SUM([.G5:.G5])" office:value-type="float" office:value="0"><text:p>0</text:p></table:table-cell>
+  </table:table-row>
+
+  <table:table-row table:style-name="roGap">
+    <table:table-cell table:number-columns-repeated="7"/>
+  </table:table-row>
+
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceKeyLbl" office:value-type="string"><text:p>Top region by revenue</text:p></table:table-cell>
+    <table:table-cell/>
+    <table:table-cell/>
+    <table:table-cell table:style-name="ceKeyTxt" table:formula="of:=INDEX([.A5:.A5];MATCH(MAX([.D5:.D5]);[.D5:.D5];0))" office:value-type="string" office:string-value=""><text:p/></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+  </table:table-row>
+  <table:table-row table:style-name="roNorm">
+    <table:table-cell table:style-name="ceKeyLbl" office:value-type="string"><text:p>Agrees with the detail sheet</text:p></table:table-cell>
+    <table:table-cell/>
+    <table:table-cell/>
+    <table:table-cell table:style-name="ceKeyTxt" table:formula="of:=IF([.D6]=['Monthly sales'.E7];&quot;Yes&quot;;&quot;No&quot;)" office:value-type="string" office:string-value=""><text:p/></table:table-cell>
+    <table:table-cell table:number-columns-repeated="3"/>
+  </table:table-row>
+
+  <calcext:conditional-formats>
+    <calcext:conditional-format calcext:target-range-address="Summary.A5:.G5">
+      <calcext:condition calcext:apply-style-name="Zebra" calcext:value="formula-is(MOD(ROW();2)=1)" calcext:base-cell-address="Summary.A5"/>
+    </calcext:conditional-format>
+    <calcext:conditional-format calcext:target-range-address="Summary.F5:.F5">
+      <calcext:condition calcext:apply-style-name="NegRed" calcext:value="formula-is([.F5]&lt;0)" calcext:base-cell-address="Summary.F5"/>
+    </calcext:conditional-format>
+  </calcext:conditional-formats>
+</table:table>
+
+</office:spreadsheet></office:body></office:document>

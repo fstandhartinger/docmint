@@ -1,0 +1,399 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  DocMint example template: a quarterly business review deck.
+
+  Three things worth looking at:
+    * the table on slide 2 repeats one <a:tr> per array element;
+    * slide 3 carries {#regions} and {/regions} in text boxes of their own, so
+      the whole slide is cloned once per region and the marker boxes disappear;
+    * every slide that repeats carries its own speaker notes, which are cloned
+      with it rather than shared.
+-->
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"
+  xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0"
+  office:version="1.2" office:mimetype="application/vnd.oasis.opendocument.presentation">
+
+<office:font-face-decls>
+  <style:font-face style:name="Carlito" svg:font-family="Carlito" style:font-family-generic="swiss" style:font-pitch="variable"/>
+  <style:font-face style:name="Caladea" svg:font-family="Caladea" style:font-family-generic="roman" style:font-pitch="variable"/>
+</office:font-face-decls>
+
+<office:automatic-styles>
+
+  <!-- LibreOffice Impress ignores fo:page-width/height when it reads flat ODF and
+       always imports its default 16:9 canvas, 28 x 15.75 cm. Verified with a
+       one-shape probe file. So the deck is laid out for 28 x 15.75 cm; the page
+       layout below only records the intent. -->
+  <style:page-layout style:name="PM1">
+    <style:page-layout-properties fo:page-width="28cm" fo:page-height="15.75cm"
+      style:print-orientation="landscape"
+      fo:margin-top="0cm" fo:margin-bottom="0cm" fo:margin-left="0cm" fo:margin-right="0cm"/>
+  </style:page-layout>
+
+  <style:style style:name="dpWhite" style:family="drawing-page">
+    <style:drawing-page-properties draw:fill="solid" draw:fill-color="#ffffff" draw:background-size="border"/>
+  </style:style>
+  <style:style style:name="dpNavy" style:family="drawing-page">
+    <style:drawing-page-properties draw:fill="solid" draw:fill-color="#12395b" draw:background-size="border"/>
+  </style:style>
+
+  <!-- graphic frames -->
+  <style:style style:name="grPlain" style:family="graphic">
+    <style:graphic-properties draw:fill="none" draw:stroke="none" draw:auto-grow-height="false" draw:auto-grow-width="false"
+      fo:padding-top="0cm" fo:padding-bottom="0cm" fo:padding-left="0cm" fo:padding-right="0cm"
+      draw:textarea-vertical-align="top"/>
+  </style:style>
+  <style:style style:name="grTile" style:family="graphic">
+    <style:graphic-properties draw:fill="solid" draw:fill-color="#f1f5f9" draw:stroke="none"
+      draw:auto-grow-height="false" draw:auto-grow-width="false"
+      fo:padding-top="0.5cm" fo:padding-bottom="0.4cm" fo:padding-left="0.6cm" fo:padding-right="0.6cm"
+      draw:textarea-vertical-align="top"/>
+  </style:style>
+  <style:style style:name="grWatch" style:family="graphic">
+    <style:graphic-properties draw:fill="solid" draw:fill-color="#fdf4ec" draw:stroke="none"
+      draw:auto-grow-height="false" draw:auto-grow-width="false"
+      fo:padding-top="0.42cm" fo:padding-bottom="0.42cm" fo:padding-left="0.6cm" fo:padding-right="0.6cm"
+      draw:textarea-vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="grLogoTile" style:family="graphic">
+    <style:graphic-properties draw:fill="solid" draw:fill-color="#ffffff" draw:stroke="none"/>
+  </style:style>
+  <style:style style:name="grRule" style:family="graphic">
+    <style:graphic-properties draw:fill="solid" draw:fill-color="#c89b3c" draw:stroke="none"/>
+  </style:style>
+  <style:style style:name="grRuleLight" style:family="graphic">
+    <style:graphic-properties draw:fill="solid" draw:fill-color="#dce3ea" draw:stroke="none"/>
+  </style:style>
+
+  <!-- paragraphs -->
+  <style:style style:name="PTitleBig" style:family="paragraph">
+    <style:text-properties style:font-name="Caladea" fo:font-size="32pt" fo:font-weight="bold" fo:color="#ffffff"/>
+  </style:style>
+  <style:style style:name="PSubBig" style:family="paragraph">
+    <style:paragraph-properties fo:line-height="128%"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="15pt" fo:color="#a9c1d6"/>
+  </style:style>
+  <style:style style:name="PMetaLight" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:color="#7e9cb8"/>
+  </style:style>
+  <style:style style:name="PMetaFaint" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="9.5pt" fo:color="#5f7f9c"/>
+  </style:style>
+  <style:style style:name="PEyebrow" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="9.5pt" fo:font-weight="bold"
+      fo:color="#7c93a8" fo:letter-spacing="0.09cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PH1" style:family="paragraph">
+    <style:text-properties style:font-name="Caladea" fo:font-size="23pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="PH1Light" style:family="paragraph">
+    <style:text-properties style:font-name="Caladea" fo:font-size="23pt" fo:font-weight="bold" fo:color="#ffffff"/>
+  </style:style>
+  <style:style style:name="PLead" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:color="#6b7b8b"/>
+  </style:style>
+  <style:style style:name="PTileLbl" style:family="paragraph">
+    <style:paragraph-properties fo:margin-bottom="0.22cm"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="8.5pt" fo:font-weight="bold"
+      fo:color="#7c93a8" fo:letter-spacing="0.07cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PTileVal" style:family="paragraph">
+    <style:text-properties style:font-name="Caladea" fo:font-size="21pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="PTileNote" style:family="paragraph">
+    <style:paragraph-properties fo:margin-top="0.18cm"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="8.5pt" fo:color="#7c8b99"/>
+  </style:style>
+  <style:style style:name="PSectionLbl" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="9.5pt" fo:font-weight="bold"
+      fo:color="#12395b" fo:letter-spacing="0.07cm" fo:text-transform="uppercase"/>
+  </style:style>
+  <style:style style:name="PBullet" style:family="paragraph">
+    <style:paragraph-properties fo:margin-bottom="0.32cm" fo:margin-left="0.7cm" fo:text-indent="-0.7cm" fo:line-height="126%">
+      <style:tab-stops><style:tab-stop style:position="0.7cm"/></style:tab-stops>
+    </style:paragraph-properties>
+    <style:text-properties style:font-name="Carlito" fo:font-size="11.5pt" fo:color="#31424f"/>
+  </style:style>
+  <style:style style:name="PBulletLight" style:family="paragraph">
+    <style:paragraph-properties fo:margin-bottom="0.4cm" fo:margin-left="0.8cm" fo:text-indent="-0.8cm" fo:line-height="126%">
+      <style:tab-stops><style:tab-stop style:position="0.8cm"/></style:tab-stops>
+    </style:paragraph-properties>
+    <style:text-properties style:font-name="Carlito" fo:font-size="13pt" fo:color="#dbe6ef"/>
+  </style:style>
+  <style:style style:name="PWatch" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="10.5pt" fo:color="#7a4a24"/>
+  </style:style>
+  <style:style style:name="PFootL" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="8.5pt" fo:color="#95a4b1"/>
+  </style:style>
+  <style:style style:name="PFootR" style:family="paragraph">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="8.5pt" fo:color="#95a4b1"/>
+  </style:style>
+  <style:style style:name="PNote" style:family="paragraph">
+    <style:paragraph-properties fo:margin-bottom="0.3cm"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="10.5pt" fo:color="#1b2a38"/>
+  </style:style>
+  <style:style style:name="PMarker" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="8pt" fo:color="#c9d4df"/>
+  </style:style>
+
+  <!-- table text -->
+  <style:style style:name="PTh" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="9pt" fo:font-weight="bold" fo:color="#ffffff"/>
+  </style:style>
+  <style:style style:name="PThR" style:family="paragraph">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="9pt" fo:font-weight="bold" fo:color="#ffffff"/>
+  </style:style>
+  <style:style style:name="PTd" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:color="#1b2a38"/>
+  </style:style>
+  <style:style style:name="PTdMute" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:color="#5b6b7a"/>
+  </style:style>
+  <style:style style:name="PTdR" style:family="paragraph">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:color="#1b2a38"/>
+  </style:style>
+  <style:style style:name="PTotL" style:family="paragraph">
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+  <style:style style:name="PTotR" style:family="paragraph">
+    <style:paragraph-properties fo:text-align="end"/>
+    <style:text-properties style:font-name="Carlito" fo:font-size="11pt" fo:font-weight="bold" fo:color="#12395b"/>
+  </style:style>
+
+  <!-- table geometry -->
+  <style:style style:name="tcA" style:family="table-column"><style:table-column-properties style:column-width="6.0cm"/></style:style>
+  <style:style style:name="tcB" style:family="table-column"><style:table-column-properties style:column-width="6.2cm"/></style:style>
+  <style:style style:name="tcC" style:family="table-column"><style:table-column-properties style:column-width="5.0cm"/></style:style>
+  <style:style style:name="tcD" style:family="table-column"><style:table-column-properties style:column-width="4.0cm"/></style:style>
+  <style:style style:name="tcE" style:family="table-column"><style:table-column-properties style:column-width="3.2cm"/></style:style>
+
+  <style:style style:name="trRow" style:family="table-row">
+    <style:table-row-properties style:row-height="0.95cm" style:use-optimal-row-height="false"/>
+  </style:style>
+  <style:style style:name="ceHead" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#12395b" fo:border="none"
+      fo:padding-top="0.22cm" fo:padding-bottom="0.22cm" fo:padding-left="0.3cm" fo:padding-right="0.3cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceBody" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#ffffff" fo:border="none" fo:border-bottom="0.5pt solid #dce3ea"
+      fo:padding-top="0.22cm" fo:padding-bottom="0.22cm" fo:padding-left="0.3cm" fo:padding-right="0.3cm"
+      style:vertical-align="middle"/>
+  </style:style>
+  <style:style style:name="ceTotal" style:family="table-cell">
+    <style:table-cell-properties fo:background-color="#eef3f8" fo:border="none" fo:border-top="1pt solid #12395b"
+      fo:padding-top="0.24cm" fo:padding-bottom="0.24cm" fo:padding-left="0.3cm" fo:padding-right="0.3cm"
+      style:vertical-align="middle"/>
+  </style:style>
+
+</office:automatic-styles>
+
+<office:master-styles>
+  <style:master-page style:name="Standard" style:page-layout-name="PM1" draw:style-name="dpWhite"/>
+</office:master-styles>
+
+<office:body><office:presentation>
+
+<!-- ============================ 1. title slide ========================== -->
+<draw:page draw:name="Title" draw:style-name="dpNavy" draw:master-page-name="Standard">
+  <draw:rect draw:name="Logo tile" draw:style-name="grLogoTile" draw:corner-radius="0.45cm"
+    svg:x="1.8cm" svg:y="1.35cm" svg:width="3.1cm" svg:height="3.1cm"/>
+  <draw:frame draw:name="Logo" draw:style-name="grPlain" svg:x="2.28cm" svg:y="1.8cm" svg:width="2.2cm" svg:height="2.2cm">
+    <draw:text-box><text:p>{%logo}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Title" draw:style-name="grPlain" svg:x="1.8cm" svg:y="5.7cm" svg:width="23.5cm" svg:height="2cm">
+    <draw:text-box><text:p text:style-name="PTitleBig">{title}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Subtitle" draw:style-name="grPlain" svg:x="1.8cm" svg:y="8.15cm" svg:width="21.5cm" svg:height="2cm">
+    <draw:text-box><text:p text:style-name="PSubBig">{subtitle}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:rect draw:name="Accent" draw:style-name="grRule" svg:x="1.8cm" svg:y="10.15cm" svg:width="2.6cm" svg:height="0.14cm"/>
+  <draw:frame draw:name="Meta" draw:style-name="grPlain" svg:x="1.8cm" svg:y="10.6cm" svg:width="23.5cm" svg:height="0.9cm">
+    <draw:text-box><text:p text:style-name="PMetaLight">{date|date:MMMM YYYY}<text:s/>&#183;<text:s/>{presenter}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Company" draw:style-name="grPlain" svg:x="1.8cm" svg:y="13.6cm" svg:width="23.5cm" svg:height="0.8cm">
+    <draw:text-box><text:p text:style-name="PMetaFaint">{company}<text:s/>&#183;<text:s/>{confidentiality}</text:p></draw:text-box>
+  </draw:frame>
+  <presentation:notes>
+    <draw:frame draw:name="TitleNotes" svg:x="2cm" svg:y="10cm" svg:width="16cm" svg:height="8cm">
+      <draw:text-box>
+        <text:p text:style-name="PNote">{title} &#8212; {presenter}</text:p>
+        <text:p text:style-name="PNote">{opening_note}</text:p>
+      </draw:text-box>
+    </draw:frame>
+  </presentation:notes>
+</draw:page>
+
+<!-- ========================= 2. group scorecard ========================= -->
+<draw:page draw:name="Scorecard" draw:style-name="dpWhite" draw:master-page-name="Standard">
+  <draw:frame draw:name="Eyebrow" draw:style-name="grPlain" svg:x="1.8cm" svg:y="1.1cm" svg:width="23.5cm" svg:height="0.65cm">
+    <draw:text-box><text:p text:style-name="PEyebrow">{deck_kicker}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Heading" draw:style-name="grPlain" svg:x="1.8cm" svg:y="1.65cm" svg:width="23.5cm" svg:height="1.3cm">
+    <draw:text-box><text:p text:style-name="PH1">{table_title}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Scorecard table" svg:x="1.8cm" svg:y="3.15cm" svg:width="24.4cm" svg:height="7.6cm">
+    <table:table>
+      <table:table-column table:style-name="tcA"/>
+      <table:table-column table:style-name="tcB"/>
+      <table:table-column table:style-name="tcC"/>
+      <table:table-column table:style-name="tcD"/>
+      <table:table-column table:style-name="tcE"/>
+      <table:table-row table:style-name="trRow">
+        <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PTh">Region</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PTh">Regional lead</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PThR">Revenue</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PThR">vs {prior_period}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceHead" office:value-type="string"><text:p text:style-name="PThR">Units</text:p></table:table-cell>
+      </table:table-row>
+      <table:table-row table:style-name="trRow">
+        <table:table-cell table:style-name="ceBody" office:value-type="string"><text:p text:style-name="PTd">{#regions}{name}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceBody" office:value-type="string"><text:p text:style-name="PTdMute">{lead}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceBody" office:value-type="string"><text:p text:style-name="PTdR">{revenue|currency:EUR}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceBody" office:value-type="string"><text:p text:style-name="PTdR">{growth|percent:1}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceBody" office:value-type="string"><text:p text:style-name="PTdR">{units|number}{/regions}</text:p></table:table-cell>
+      </table:table-row>
+      <table:table-row table:style-name="trRow">
+        <table:table-cell table:style-name="ceTotal" office:value-type="string"><text:p text:style-name="PTotL">All regions</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceTotal" office:value-type="string"><text:p text:style-name="PTotL">{regions|count} regions</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceTotal" office:value-type="string"><text:p text:style-name="PTotR">{regions|sum:revenue|currency:EUR}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceTotal" office:value-type="string"><text:p text:style-name="PTotR">{group_growth|percent:1}</text:p></table:table-cell>
+        <table:table-cell table:style-name="ceTotal" office:value-type="string"><text:p text:style-name="PTotR">{regions|sum:units|number}</text:p></table:table-cell>
+      </table:table-row>
+    </table:table>
+  </draw:frame>
+  <draw:frame draw:name="Tablenote" draw:style-name="grPlain" svg:x="1.8cm" svg:y="11.1cm" svg:width="23.5cm" svg:height="1cm">
+    <draw:text-box><text:p text:style-name="PFootL">{table_note}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Footer left" draw:style-name="grPlain" svg:x="1.8cm" svg:y="14.05cm" svg:width="13cm" svg:height="0.7cm">
+    <draw:text-box><text:p text:style-name="PFootL">{company}<text:s/>&#183;<text:s/>{deck_period}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Footer right" draw:style-name="grPlain" svg:x="13.2cm" svg:y="14.05cm" svg:width="13cm" svg:height="0.7cm">
+    <draw:text-box><text:p text:style-name="PFootR">{regions|count} regions<text:s/>&#183;<text:s/>{prior_period} comparatives</text:p></draw:text-box>
+  </draw:frame>
+  <presentation:notes>
+    <draw:frame draw:name="ScorecardNotes" svg:x="2cm" svg:y="10cm" svg:width="16cm" svg:height="8cm">
+      <draw:text-box>
+        <text:p text:style-name="PNote">{table_title}</text:p>
+        <text:p text:style-name="PNote">{scorecard_note}</text:p>
+      </draw:text-box>
+    </draw:frame>
+  </presentation:notes>
+</draw:page>
+
+<!-- ================== 3. one slide per region (slide loop) ============== -->
+<draw:page draw:name="Region" draw:style-name="dpWhite" draw:master-page-name="Standard">
+  <draw:frame draw:name="Loop open" draw:style-name="grPlain" svg:x="0.3cm" svg:y="0.15cm" svg:width="4cm" svg:height="0.6cm">
+    <draw:text-box><text:p text:style-name="PMarker">{#regions}</text:p></draw:text-box>
+  </draw:frame>
+
+  <draw:frame draw:name="Eyebrow" draw:style-name="grPlain" svg:x="1.8cm" svg:y="1.1cm" svg:width="23.5cm" svg:height="0.65cm">
+    <draw:text-box><text:p text:style-name="PEyebrow">Regional review<text:s/>&#183;<text:s/>{../deck_period}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Heading" draw:style-name="grPlain" svg:x="1.8cm" svg:y="1.65cm" svg:width="23.5cm" svg:height="1.3cm">
+    <draw:text-box><text:p text:style-name="PH1">{name}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Lead" draw:style-name="grPlain" svg:x="1.8cm" svg:y="3.0cm" svg:width="23.5cm" svg:height="0.7cm">
+    <draw:text-box><text:p text:style-name="PLead">Regional lead {lead}<text:s/>&#183;<text:s/>{team_size} people<text:s/>&#183;<text:s/>{accounts} active accounts</text:p></draw:text-box>
+  </draw:frame>
+
+  <draw:frame draw:name="Tile revenue" draw:style-name="grTile" svg:x="1.8cm" svg:y="4.0cm" svg:width="7.8cm" svg:height="2.8cm">
+    <draw:text-box>
+      <text:p text:style-name="PTileLbl">Revenue</text:p>
+      <text:p text:style-name="PTileVal">{revenue|currency:EUR}</text:p>
+      <text:p text:style-name="PTileNote">{../prior_period}: {prior|currency:EUR}</text:p>
+    </draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Tile growth" draw:style-name="grTile" svg:x="10.1cm" svg:y="4.0cm" svg:width="7.8cm" svg:height="2.8cm">
+    <draw:text-box>
+      <text:p text:style-name="PTileLbl">Growth year on year</text:p>
+      <text:p text:style-name="PTileVal">{growth|percent:1}</text:p>
+      <text:p text:style-name="PTileNote">Group average {../group_growth|percent:1}</text:p>
+    </draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Tile units" draw:style-name="grTile" svg:x="18.4cm" svg:y="4.0cm" svg:width="7.8cm" svg:height="2.8cm">
+    <draw:text-box>
+      <text:p text:style-name="PTileLbl">Units shipped</text:p>
+      <text:p text:style-name="PTileVal">{units|number}</text:p>
+      <text:p text:style-name="PTileNote">{share|percent:1} of group revenue</text:p>
+    </draw:text-box>
+  </draw:frame>
+
+  <draw:frame draw:name="Highlights label" draw:style-name="grPlain" svg:x="1.8cm" svg:y="7.3cm" svg:width="23.5cm" svg:height="0.6cm">
+    <draw:text-box><text:p text:style-name="PSectionLbl">What moved the quarter</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Highlights" draw:style-name="grPlain" svg:x="1.8cm" svg:y="7.9cm" svg:width="24.4cm" svg:height="3.8cm">
+    <draw:text-box>
+      <text:p>{#highlights}</text:p>
+      <text:p text:style-name="PBullet">&#8226;<text:tab/>{.}</text:p>
+      <text:p>{/highlights}</text:p>
+    </draw:text-box>
+  </draw:frame>
+
+  <draw:frame draw:name="Watch" draw:style-name="grWatch" svg:x="1.8cm" svg:y="11.85cm" svg:width="24.4cm" svg:height="1.5cm">
+    <draw:text-box><text:p text:style-name="PWatch">Watch item &#8212; {risk}</text:p></draw:text-box>
+  </draw:frame>
+
+  <draw:frame draw:name="Footer left" draw:style-name="grPlain" svg:x="1.8cm" svg:y="14.05cm" svg:width="13cm" svg:height="0.7cm">
+    <draw:text-box><text:p text:style-name="PFootL">{../company}<text:s/>&#183;<text:s/>{../deck_period}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Footer right" draw:style-name="grPlain" svg:x="13.2cm" svg:y="14.05cm" svg:width="13cm" svg:height="0.7cm">
+    <draw:text-box><text:p text:style-name="PFootR">Region {$index1} of {$length}</text:p></draw:text-box>
+  </draw:frame>
+
+  <draw:frame draw:name="Loop close" draw:style-name="grPlain" svg:x="0.3cm" svg:y="14.95cm" svg:width="4cm" svg:height="0.6cm">
+    <draw:text-box><text:p text:style-name="PMarker">{/regions}</text:p></draw:text-box>
+  </draw:frame>
+
+  <presentation:notes>
+    <draw:frame draw:name="RegionNotes" svg:x="2cm" svg:y="10cm" svg:width="16cm" svg:height="8cm">
+      <draw:text-box>
+        <text:p text:style-name="PNote">{name} &#8212; {lead}</text:p>
+        <text:p text:style-name="PNote">{notes}</text:p>
+        <text:p text:style-name="PNote">Ask the room: {question}</text:p>
+      </draw:text-box>
+    </draw:frame>
+  </presentation:notes>
+</draw:page>
+
+<!-- ============================ 4. priorities =========================== -->
+<draw:page draw:name="Priorities" draw:style-name="dpNavy" draw:master-page-name="Standard">
+  <draw:frame draw:name="Eyebrow" draw:style-name="grPlain" svg:x="1.8cm" svg:y="1.5cm" svg:width="23.5cm" svg:height="0.65cm">
+    <draw:text-box><text:p text:style-name="PEyebrow">{deck_kicker}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Heading" draw:style-name="grPlain" svg:x="1.8cm" svg:y="2.05cm" svg:width="23.5cm" svg:height="1.5cm">
+    <draw:text-box><text:p text:style-name="PH1Light">{closing_title}</text:p></draw:text-box>
+  </draw:frame>
+  <draw:rect draw:name="Accent" draw:style-name="grRule" svg:x="1.8cm" svg:y="3.95cm" svg:width="2.6cm" svg:height="0.14cm"/>
+  <draw:frame draw:name="Priorities" draw:style-name="grPlain" svg:x="1.8cm" svg:y="4.65cm" svg:width="24.4cm" svg:height="7.6cm">
+    <draw:text-box>
+      <text:p>{#priorities}</text:p>
+      <text:p text:style-name="PBulletLight">&#8226;<text:tab/>{.}</text:p>
+      <text:p>{/priorities}</text:p>
+    </draw:text-box>
+  </draw:frame>
+  <draw:frame draw:name="Footer" draw:style-name="grPlain" svg:x="1.8cm" svg:y="13.3cm" svg:width="23.5cm" svg:height="0.8cm">
+    <draw:text-box><text:p text:style-name="PMetaFaint">{company}<text:s/>&#183;<text:s/>{presenter}<text:s/>&#183;<text:s/>{date|date:DD MMMM YYYY}</text:p></draw:text-box>
+  </draw:frame>
+  <presentation:notes>
+    <draw:frame draw:name="ClosingNotes" svg:x="2cm" svg:y="10cm" svg:width="16cm" svg:height="8cm">
+      <draw:text-box>
+        <text:p text:style-name="PNote">{closing_title}</text:p>
+        <text:p text:style-name="PNote">{closing_note}</text:p>
+      </draw:text-box>
+    </draw:frame>
+  </presentation:notes>
+</draw:page>
+
+</office:presentation></office:body></office:document>

@@ -1,0 +1,174 @@
+{
+  "company": "Meridian Field Systems B.V.",
+  "period": "2026-07-01",
+  "generated": "2026-08-03",
+  "currency": "EUR",
+  "source": "CRM export MFS-CRM-07",
+  "rows": [
+    {
+      "region": "Benelux",
+      "rep": "Sanne de Vries",
+      "channel": "Direct",
+      "units": 1240,
+      "unit_price": 42.5,
+      "revenue": 52700,
+      "prior_revenue": 47250
+    },
+    {
+      "region": "Benelux",
+      "rep": "Sanne de Vries",
+      "channel": "Partner",
+      "units": 860,
+      "unit_price": 38.75,
+      "revenue": 33325,
+      "prior_revenue": 35100
+    },
+    {
+      "region": "DACH",
+      "rep": "Lukas Brandt",
+      "channel": "Direct",
+      "units": 1580,
+      "unit_price": 44.2,
+      "revenue": 69836,
+      "prior_revenue": 61400
+    },
+    {
+      "region": "DACH",
+      "rep": "Lukas Brandt",
+      "channel": "Partner",
+      "units": 1120,
+      "unit_price": 39.6,
+      "revenue": 44352,
+      "prior_revenue": 42980
+    },
+    {
+      "region": "DACH",
+      "rep": "Mira Kaufmann",
+      "channel": "Online",
+      "units": 2140,
+      "unit_price": 27.9,
+      "revenue": 59706,
+      "prior_revenue": 51230
+    },
+    {
+      "region": "Nordics",
+      "rep": "Elin Hagen",
+      "channel": "Direct",
+      "units": 940,
+      "unit_price": 46.8,
+      "revenue": 43992,
+      "prior_revenue": 45600
+    },
+    {
+      "region": "Nordics",
+      "rep": "Elin Hagen",
+      "channel": "Online",
+      "units": 1310,
+      "unit_price": 29.4,
+      "revenue": 38514,
+      "prior_revenue": 33150
+    },
+    {
+      "region": "Iberia",
+      "rep": "Paulo Ferreira",
+      "channel": "Partner",
+      "units": 760,
+      "unit_price": 36.25,
+      "revenue": 27550,
+      "prior_revenue": 29800
+    },
+    {
+      "region": "Iberia",
+      "rep": "Paulo Ferreira",
+      "channel": "Online",
+      "units": 1180,
+      "unit_price": 26.5,
+      "revenue": 31270,
+      "prior_revenue": 24900
+    },
+    {
+      "region": "France",
+      "rep": "Camille Roux",
+      "channel": "Direct",
+      "units": 1420,
+      "unit_price": 43.1,
+      "revenue": 61202,
+      "prior_revenue": 55700
+    },
+    {
+      "region": "UK & Ireland",
+      "rep": "Owen Marsh",
+      "channel": "Direct",
+      "units": 1060,
+      "unit_price": 48.9,
+      "revenue": 51834,
+      "prior_revenue": 53900
+    },
+    {
+      "region": "UK & Ireland",
+      "rep": "Owen Marsh",
+      "channel": "Partner",
+      "units": 690,
+      "unit_price": 41.3,
+      "revenue": 28497,
+      "prior_revenue": 26150
+    }
+  ],
+  "regions": [
+    {
+      "name": "Benelux",
+      "reps": [
+        "Sanne de Vries"
+      ],
+      "units": 2100,
+      "revenue": 86025,
+      "prior_revenue": 82350
+    },
+    {
+      "name": "DACH",
+      "reps": [
+        "Lukas Brandt",
+        "Mira Kaufmann"
+      ],
+      "units": 4840,
+      "revenue": 173894,
+      "prior_revenue": 155610
+    },
+    {
+      "name": "Nordics",
+      "reps": [
+        "Elin Hagen"
+      ],
+      "units": 2250,
+      "revenue": 82506,
+      "prior_revenue": 78750
+    },
+    {
+      "name": "Iberia",
+      "reps": [
+        "Paulo Ferreira"
+      ],
+      "units": 1940,
+      "revenue": 58820,
+      "prior_revenue": 54700
+    },
+    {
+      "name": "France",
+      "reps": [
+        "Camille Roux"
+      ],
+      "units": 1420,
+      "revenue": 61202,
+      "prior_revenue": 55700
+    },
+    {
+      "name": "UK & Ireland",
+      "reps": [
+        "Owen Marsh"
+      ],
+      "units": 1750,
+      "revenue": 80331,
+      "prior_revenue": 80050
+    }
+  ]
+}

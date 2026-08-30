@@ -654,6 +654,10 @@ router.get('/capabilities', asyncRoute(async (req, res) => {
       endpoint: '/v1/jobs',
       webhook_signature: 'HMAC-SHA256 over {timestamp}.{body}, in X-DocMint-Signature',
       webhook_attempts: config.jobWebhookAttempts,
+      // Published because a test, and a customer, both need to know it before
+      // pointing a webhook at a laptop: on a real deployment this is always true
+      // and a private address is refused.
+      webhook_requires_public_url: !config.allowPrivateNetwork,
       worker: config.jobsWorker,
     },
     credits: CREDITS,

@@ -29,8 +29,8 @@
     "iban": "NL91 INGB 0002 4455 88",
     "bic": "INGBNL2A"
   },
-  "terms_note": "Payment is due within 30 days of the invoice date, by bank transfer in EUR, quoting the invoice number as the payment reference. Late payment carries statutory interest. Goods remain our property until paid in full.",
-  "closing_note": "Questions about this invoice? Reply to billing@meridianfield.example quoting MFS-2026-0417 and we will come back to you within one business day.",
+  "terms_note": "Due within 30 days of the invoice date, by bank transfer in EUR, quoting the invoice number as the payment reference. Late payment carries statutory interest.",
+  "closing_note": "Questions? Reply to billing@meridianfield.example and we answer within one business day.",
   "items": [
     {
       "description": "MFS-220 multi-channel data logger",
@@ -95,7 +95,7 @@
   ],
   "logo": {
     "data": "data:image/png;base64,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",
-    "width": 58,
+    "width": 54,
     "alt": "Meridian Field Systems"
   }
 }
