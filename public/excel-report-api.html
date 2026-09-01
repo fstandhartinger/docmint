@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Excel report API — filling an .xlsx template from JSON so the formulas still add up</title>
-<meta name="description" content="Generating an Excel report from a template and JSON: why the shared string table, cell types and formula rewriting decide whether the file is usable — measured against the live API on 30 August 2026.">
+<meta name="description" content="Generating an Excel report from a template and JSON: why the shared string table, cell types and formula rewriting decide whether the file is usable — measured against the live API on 1 September 2026.">
 <link rel="canonical" href="https://docmint.app.mintapis.com/excel-report-api">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta property="og:url" content="https://docmint.app.mintapis.com/excel-report-api">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="DocMint">
 <meta property="og:title" content="Excel report API — filling an .xlsx template from JSON so the formulas still add up">
-<meta property="og:description" content="Generating an Excel report from a template and JSON: why the shared string table, cell types and formula rewriting decide whether the file is usable — measured against the live API on 30 August 2026.">
+<meta property="og:description" content="Generating an Excel report from a template and JSON: why the shared string table, cell types and formula rewriting decide whether the file is usable — measured against the live API on 1 September 2026.">
 <meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -65,7 +65,7 @@ header block, a table that grows, a total row with real formulas, and a second s
 numbers as JSON and you want that workbook back, filled, on a schedule. This page is about the
 three things that decide whether the file you get back is a <em>report</em> or just a spreadsheet
 with the right text in it. Every number below was measured against the live API from Germany on
-<b>30 August 2026</b>, with a free key, using the sales report in
+<b>1 September 2026</b>, with a free key, using the sales report in
 <a href="https://github.com/fstandhartinger/docmint/tree/master/examples" rel="noopener">examples/</a>.</p>
 
 <h2 id="job">The job, and the three ways it goes wrong</h2>
@@ -189,13 +189,13 @@ ranges they read; those are <b>not</b> rewritten.</p>
       }' -o report.xlsx</code></pre>
 
 <table>
-<thead><tr><th>What</th><th>Measured, 30 August 2026</th></tr></thead>
+<thead><tr><th>What</th><th>Measured, 1 September 2026</th></tr></thead>
 <tbody>
-<tr><td><code>output: "document"</code></td><td><b>61.8 ms</b> server-side, <b>78 ms</b> round trip
+<tr><td><code>output: "document"</code></td><td><b>61.3 ms</b> server-side, <b>130 ms</b> round trip
 from Germany. 25 tags, 112 substitutions, 2 sections, 4 parts rewritten. 8,109 B template &rarr;
 9,484 B workbook. <b>1 credit.</b></td></tr>
-<tr><td><code>output: "pdf"</code></td><td><b>1,575.8 ms</b> server-side — of which <b>1,556.4 ms
-is LibreOffice</b> and 9.6 ms is the fill. 2 pages, 36,037 B. <b>2 credits.</b></td></tr>
+<tr><td><code>output: "pdf"</code></td><td><b>1,648.9 ms</b> server-side — of which <b>1,621.3 ms
+is LibreOffice</b> and 17.2 ms is the fill. 2 pages, 36,037 B. <b>2 credits.</b></td></tr>
 </tbody>
 </table>
 

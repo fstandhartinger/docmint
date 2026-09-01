@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PowerPoint generation API — one slide per record, from a .pptx template and JSON</title>
-<meta name="description" content="Generating a PowerPoint deck from a template and JSON: repeating a slide means rewriting four parts of the package in step, and PowerPoint refuses the file if any one of them disagrees. Measured against the live API on 30 August 2026.">
+<meta name="description" content="Generating a PowerPoint deck from a template and JSON: repeating a slide means rewriting four parts of the package in step, and PowerPoint refuses the file if any one of them disagrees. Measured against the live API on 1 September 2026.">
 <link rel="canonical" href="https://docmint.app.mintapis.com/powerpoint-generation-api">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta property="og:url" content="https://docmint.app.mintapis.com/powerpoint-generation-api">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="DocMint">
 <meta property="og:title" content="PowerPoint generation API — one slide per record, from a .pptx template and JSON">
-<meta property="og:description" content="Generating a PowerPoint deck from a template and JSON: repeating a slide means rewriting four parts of the package in step, and PowerPoint refuses the file if any one of them disagrees. Measured against the live API on 30 August 2026.">
+<meta property="og:description" content="Generating a PowerPoint deck from a template and JSON: repeating a slide means rewriting four parts of the package in step, and PowerPoint refuses the file if any one of them disagrees. Measured against the live API on 1 September 2026.">
 <meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -64,7 +64,7 @@
 product</b>, and a closing slide. Somebody rebuilds it every quarter by duplicating a slide and
 retyping numbers. The template exists, the numbers are in a system, and the only missing piece is
 something that repeats a slide correctly. This page is about why "correctly" is the hard word.
-Every number below was measured against the live API from Germany on <b>30 August 2026</b> with a
+Every number below was measured against the live API from Germany on <b>1 September 2026</b> with a
 free key, using the quarterly deck in
 <a href="https://github.com/fstandhartinger/docmint/tree/master/examples" rel="noopener">examples/</a>.</p>
 
@@ -123,18 +123,18 @@ slide is still <code>rId7</code> — the id it had in the template — and it is
 after five slide parts that did not exist when the file was written were created and placed in front of it.</p>
 
 <table>
-<thead><tr><th>What</th><th>Measured, 30 August 2026</th></tr></thead>
+<thead><tr><th>What</th><th>Measured, 1 September 2026</th></tr></thead>
 <tbody>
-<tr><td><code>output: "document"</code></td><td><b>53.2 ms</b> server-side, <b>74 ms</b> round trip
+<tr><td><code>output: "document"</code></td><td><b>53.4 ms</b> server-side, <b>124 ms</b> round trip
 from Germany. 210 placeholders found, <b>210 resolved</b>, 9 sections, 1 image, 33 package parts
 rewritten. 37,275 B template &rarr; 58,030 B deck. <b>1 credit.</b></td></tr>
-<tr><td><code>output: "pdf"</code></td><td><b>1,415.1 ms</b> server-side, 1,434 ms round trip.
+<tr><td><code>output: "pdf"</code></td><td><b>1,394.3 ms</b> server-side, 1,473 ms round trip.
 <b>9 pages</b> — one per slide — 57,345 B. <b>2 credits.</b></td></tr>
 </tbody>
 </table>
 
 <p>Almost all of that second row is LibreOffice, not the fill; on the workbook measured on the
-<a href="/excel-report-api">Excel page</a> the split was 1,556 ms of conversion against 10 ms of
+<a href="/excel-report-api">Excel page</a> the split was 1,621 ms of conversion against 17 ms of
 fill. Conversion runs one at a time, so a burst queues rather than slows. Ask for the
 <code>.pptx</code> when you can — people usually want to edit the deck anyway.</p>
 
