@@ -118,9 +118,9 @@ different requirements:</p>
 <code>n8n-nodes-docmint</code>. Or set
 <code>N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true</code> and install from npm in the usual way.
 This works today.</p>
-<p><b>n8n Cloud: not yet.</b> Cloud installs only nodes that appear in n8n's verified community-node
-registry, and <code>n8n-nodes-docmint</code> is still in n8n's manual review — we checked all 1,498
-entries of <code>api.n8n.io/api/community-nodes</code> on 29 August 2026 and it is not among them.
+<p><b>n8n Cloud: not yet.</b> n8n approved version 0.2.0 on 3 September 2026 and scheduled its
+launch, but Cloud installs only nodes that have appeared in n8n's public verified community-node
+registry. <code>n8n-nodes-docmint</code> is not in that registry yet, so the rollout is not complete.
 Until it is, use the HTTP Request route below on Cloud. You can check this yourself without an
 account: fetch that URL and search for the package name.</p>
 </div>
@@ -229,8 +229,8 @@ is a measurement, not a promise: eight failed renders while this page was writte
 <h2 id="pick">Which one to pick</h2>
 
 <ul>
-<li><b>On n8n Cloud today:</b> the HTTP Request node. The community node is not installable there
-until n8n's review finishes, and we will not pretend otherwise.</li>
+<li><b>On n8n Cloud today:</b> the HTTP Request node. The community node is approved and launch is
+scheduled, but it is not installable there until the public registry rollout finishes.</li>
 <li><b>On self-hosted n8n, if a person edits the templates:</b> the community node, for the field
 mapping.</li>
 <li><b>If the data must not leave your network:</b> the Code node with docxtemplater, and buy the
@@ -244,8 +244,8 @@ already have fields. When the source is a mailbox &mdash; an order confirmation,
 supplier invoice &mdash; the step in front of DocMint is a parser, not another template engine.
 <a href="https://mailmint.app.mintapis.com/n8n">MailMint</a> is ours and does that half: an inbound
 address or an IMAP mailbox in, structured JSON out, with the message&rsquo;s own SPF, DKIM and DMARC
-verdict attached. Same caveat as the community node above &mdash; n8n&rsquo;s review of it is still
-running, so it needs self-hosted n8n.</p>
+verdict attached. MailMint&rsquo;s node is verified and available on n8n Cloud and self-hosted n8n;
+DocMint&rsquo;s node is approved but still waiting for its public registry rollout.</p>
 
 <p>Some honest limits before you build on this: DocMint runs on one small instance in Frankfurt with
 no SLA and no SOC 2 report, PDF conversion runs one at a time (1,346 ms server-side, measured today,
