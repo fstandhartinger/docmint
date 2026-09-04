@@ -554,8 +554,8 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         <span>Everything is the API: keys are managed with <code>POST /v1/keys</code> and <code>DELETE /v1/keys/:prefix</code>, usage with <code>GET /v1/usage</code>, and a subscription is started with <code>POST /v1/billing/checkout</code>, which hands back a Stripe URL to open. There is also no self-service account deletion; that is a request by email today.</span>
       </div>
       <div class="gap">
-        <b>The n8n node is on npm, but not yet installable on n8n Cloud</b>
-        <span><a href="https://www.npmjs.com/package/n8n-nodes-docmint" rel="noopener"><code>n8n-nodes-docmint</code></a> is published &mdash; version 0.2.0, and it is the official node for this service: we build and run DocMint and we publish the package, so the node and the API it calls are maintained by the same people. <b>Self-hosted n8n can install it today</b> from Settings &rarr; Community nodes. <b>n8n approved version 0.2.0 on 3 September 2026 and scheduled its launch, but n8n Cloud cannot install it yet</b>: Cloud installs only from n8n’s public verified registry, and the package has not appeared there yet. You can check that yourself without an account by searching <code>api.n8n.io/api/community-nodes</code> for the package name. On Cloud, use a plain HTTP Request node until the registry rollout completes &mdash; <a href="/n8n-word-template">both routes are written out here</a>.</span>
+        <b>The verified n8n node works on Cloud and self-hosted n8n</b>
+        <span><a href="https://www.npmjs.com/package/n8n-nodes-docmint" rel="noopener"><code>n8n-nodes-docmint</code></a> is the official node for this service: we build and run DocMint and publish the package, so the node and the API it calls are maintained by the same people. <b>n8n Cloud serves version 0.2.0 from its verified community-node registry</b>; find DocMint in the Nodes panel under <i>More from the community</i> and install it as an owner or admin. Self-hosted n8n can install the current npm release, 0.2.1, from Settings &rarr; Community nodes. The plain HTTP Request route remains available when your organisation does not allow community nodes &mdash; <a href="/n8n-word-template">all three routes are written out here</a>.</span>
       </div>
       <div class="gap">
         <b>No SLA, one region, one instance</b>
@@ -646,7 +646,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </div>
       <div class="gap">
         <b><a href="/n8n-word-template">Filling Word templates in n8n &mdash; the three ways</a></b>
-        <span>n8n has no core node for this. The community node, a plain HTTP Request node, and a Code node with docxtemplater &mdash; including which of them works on n8n Cloud today, and which does not.</span>
+        <span>n8n has no core node for this. The verified community node, a plain HTTP Request node, and a Code node with docxtemplater &mdash; including which of them works on n8n Cloud and which keeps the data inside your own network.</span>
       </div>
       <div class="gap">
         <b><a href="/carbone-alternative">Carbone alternative</a></b>
