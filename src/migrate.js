@@ -149,6 +149,7 @@ const STATEMENTS = [
      sequential scan of every job ever run, every poll, on every instance. */
   `CREATE INDEX IF NOT EXISTS jobs_queue_idx ON jobs(status, created_at)`,
   `CREATE INDEX IF NOT EXISTS jobs_account_idx ON jobs(account_id, created_at DESC)`,
+  ...require('./recovery').migration,
 ];
 
 async function migrate() {

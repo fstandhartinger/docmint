@@ -59,16 +59,19 @@ function authForm(kind, error, values = {}) {
   <a class="logo" href="/">Doc<span>Mint</span></a>
   <h1>${signup ? 'Create your account' : 'Sign in'}</h1>
   <p class="sub">${signup ? '30 documents a month, free, no card.' : 'Welcome back.'}</p>
-  ${signup ? '<p class="warnbox">There is no password reset yet, and no confirmation email. Save this password in your password manager.</p>' : ''}
+  ${signup ? '<p class="muted">Use an email address you can access. You can reset your password by email.</p>' : ''}
   ${error ? `<div class="error">${escapeHtml(error)}</div>` : ''}
   <form method="post" action="/${kind}">
     <label>Email<input type="email" name="email" required autocomplete="email" value="${escapeHtml(values.email)}"></label>
     <label>Password<input type="password" name="password" required minlength="10" autocomplete="${signup ? 'new-password' : 'current-password'}"></label>
     <button type="submit">${signup ? 'Create account' : 'Sign in'}</button>
   </form>
+  <p class="alt"><a href="/forgot-password">Forgot password?</a></p>
   <p class="alt">${signup ? 'Already have an account? <a href="/login">Sign in</a>' : 'No account yet? <a href="/signup">Create one</a>'}</p>
 </main>`);
 }
+
+require('./recovery').install(router, { product: 'DocMint', shell, minLength: 10 });
 
 router.get('/signup', asyncRoute(async (req, res) => {
   if (await currentAccount(req)) return res.redirect('/dashboard');
