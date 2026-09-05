@@ -583,7 +583,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 }</code></pre></div>
 
 <h3>macros_not_preserved</h3>
-<p>A macro-enabled template (<code>.docm</code>, <code>.xlsm</code>, <code>.pptm</code>) is filled correctly, but the macros are not guaranteed to survive the rewrite and the file is returned with the plain, non-macro content type. The warning says so on every such render.</p>
+<p>A macro-enabled template (<code>.docm</code>, <code>.xlsm</code>, <code>.pptm</code>) is filled correctly and returned with its macro-enabled extension and content type, but the macros are not guaranteed to survive the rewrite. The warning says so on every such render.</p>
 </section>
 
 <!-- ================================================================ render -->
@@ -1101,7 +1101,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 </tbody></table></div>
 
 <div class="note warn">
-  <p><strong>Macro-enabled templates are filled, but their macros are not guaranteed to survive</strong> the rewrite, and the result comes back with the plain content type above. The render response carries a <code>macros_not_preserved</code> warning saying exactly that.</p>
+  <p><strong>Macro-enabled templates are filled, but their macros are not guaranteed to survive</strong> the rewrite. The result keeps its macro-enabled extension and content type, and the render response carries a <code>macros_not_preserved</code> warning saying exactly that.</p>
 </div>
 
 <h3>Word — what is not implemented</h3>

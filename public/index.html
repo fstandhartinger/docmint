@@ -543,7 +543,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </div>
       <div class="gap">
         <b>Macro-enabled templates lose their macros</b>
-        <span>A <code>.docm</code>, <code>.xlsm</code> or <code>.pptm</code> is filled correctly, but the macros are not guaranteed to survive the rewrite and the file comes back with the plain content type. The render response says so, as a warning.</span>
+        <span>A <code>.docm</code>, <code>.xlsm</code> or <code>.pptm</code> is filled correctly and keeps its macro-enabled extension and content type, but the macros are not guaranteed to survive the rewrite. The render response says so, as a warning.</span>
       </div>
       <div class="gap">
         <b>Formula rewriting in spreadsheets has known edges</b>

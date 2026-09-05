@@ -48,7 +48,7 @@ function rendererFor(format) {
  */
 async function fill(templateBuffer, data, opts = {}) {
   const l = opts.log || log;
-  const { format, macroEnabled } = detect(templateBuffer);
+  const { format, macroEnabled, macroExt, macroMime } = detect(templateBuffer);
   const renderer = rendererFor(format);
 
   if (data === null || data === undefined) data = {};
@@ -90,7 +90,7 @@ async function fill(templateBuffer, data, opts = {}) {
   if (macroEnabled) {
     warnings.push({
       code: 'macros_not_preserved',
-      message: 'This template is macro-enabled. The document is filled correctly, but macros are not guaranteed to survive and the file is returned with the plain (non-macro) content type.',
+      message: 'This template is macro-enabled. The document is filled correctly and returned with its macro-enabled extension and content type, but macros are not guaranteed to survive the rewrite.',
     });
   }
 
@@ -103,7 +103,14 @@ async function fill(templateBuffer, data, opts = {}) {
     warnings: warnings.length,
   });
 
-  return { buffer: out.buffer, format, stats: { ...out.stats, ms }, warnings };
+  return {
+    buffer: out.buffer,
+    format,
+    outputExt: macroEnabled ? macroExt : FORMATS[format].ext,
+    outputMime: macroEnabled ? macroMime : FORMATS[format].mime,
+    stats: { ...out.stats, ms },
+    warnings,
+  };
 }
 
 /**

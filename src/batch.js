@@ -218,8 +218,9 @@ async function runBatch({ account, spec, templateBuffer, log: l = log, deadlineA
     try {
       // eslint-disable-next-line no-await-in-loop
       const filled = await renderer.fill(templateBuffer, items[i].data, { ...opts, log: quiet(l) });
-      const ext = FORMATS[filled.format].ext;
+      const ext = filled.outputExt;
       rec.format = filled.format;
+      rec.outputMime = filled.outputMime;
       rec.docBuffer = filled.buffer;
       rec.docName = nameFor(items[i], ext, opts, i);
       rec.pdfName = nameFor(items[i], 'pdf', opts, i);
@@ -327,7 +328,7 @@ function filesOf(records, output) {
   for (const r of records) {
     if (!r.ok) continue;
     if (output !== 'pdf' && r.docBuffer) {
-      files.push({ index: r.index, filename: r.docName, content_type: FORMATS[r.format].mime, buffer: r.docBuffer });
+      files.push({ index: r.index, filename: r.docName, content_type: r.outputMime, buffer: r.docBuffer });
     }
     if (r.pdfBuffer) {
       files.push({ index: r.index, filename: r.pdfName, content_type: 'application/pdf', buffer: r.pdfBuffer });
@@ -389,7 +390,7 @@ function itemJson(r, output, { base64 = true } = {}) {
   const out = { index: r.index, ok: true, format: r.format, ms: r.ms };
   if (output !== 'pdf' && r.docBuffer) {
     out.document = {
-      filename: r.docName, content_type: FORMATS[r.format].mime, size: r.docBuffer.length,
+      filename: r.docName, content_type: r.outputMime, size: r.docBuffer.length,
       ...(base64 ? { base64: r.docBuffer.toString('base64') } : {}),
     };
   }

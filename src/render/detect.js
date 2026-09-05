@@ -26,9 +26,9 @@ const MAIN_TYPES = [
 
 /** Macro-enabled variants. We fill them, but the macros do not survive our rewrite intact. */
 const MACRO_TYPES = [
-  ['docx', 'wordprocessingml.document.macroEnabled', '.docm'],
-  ['xlsx', 'spreadsheetml.sheet.macroEnabled', '.xlsm'],
-  ['pptx', 'presentationml.presentation.macroEnabled', '.pptm'],
+  ['docx', 'ms-word.document.macroEnabled.main+xml', 'docm', 'application/vnd.ms-word.document.macroEnabled.12'],
+  ['xlsx', 'ms-excel.sheet.macroEnabled.main+xml', 'xlsm', 'application/vnd.ms-excel.sheet.macroEnabled.12'],
+  ['pptx', 'ms-powerpoint.presentation.macroEnabled.main+xml', 'pptm', 'application/vnd.ms-powerpoint.presentation.macroEnabled.12'],
 ];
 
 function detect(buffer) {
@@ -102,8 +102,8 @@ function detect(buffer) {
   for (const [format, needle] of MAIN_TYPES) {
     if (ct.includes(needle)) return { format, zip, macroEnabled: false };
   }
-  for (const [format, needle, ext] of MACRO_TYPES) {
-    if (ct.includes(needle)) return { format, zip, macroEnabled: true, macroExt: ext };
+  for (const [format, needle, ext, mime] of MACRO_TYPES) {
+    if (ct.includes(needle)) return { format, zip, macroEnabled: true, macroExt: ext, macroMime: mime };
   }
 
   throw new ApiError(415, 'template_unknown_office_part',

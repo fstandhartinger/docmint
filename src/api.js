@@ -108,7 +108,7 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
     throw e;
   }
 
-  const ext = FORMATS[filled.format].ext;
+  const ext = filled.outputExt;
   const docName = input.renderFilename(body.filename, data, ext, opts);
   const pdfName = input.renderFilename(body.filename, data, 'pdf', opts);
 
@@ -138,7 +138,7 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
       request_id: req.id,
       format: filled.format,
       document: output === 'pdf' ? undefined : {
-        filename: docName, content_type: FORMATS[filled.format].mime,
+        filename: docName, content_type: filled.outputMime,
         size: filled.buffer.length, base64: filled.buffer.toString('base64'),
       },
       pdf: pdfOut ? {
@@ -154,7 +154,7 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
 
   const send = output === 'pdf' ? pdfOut.buffer : filled.buffer;
   const name = output === 'pdf' ? pdfName : docName;
-  res.set('Content-Type', output === 'pdf' ? 'application/pdf' : FORMATS[filled.format].mime);
+  res.set('Content-Type', output === 'pdf' ? 'application/pdf' : filled.outputMime);
   res.set('Content-Disposition', `attachment; filename="${name.replace(/"/g, '')}"`);
   res.set('Content-Length', String(send.length));
   res.send(send);
