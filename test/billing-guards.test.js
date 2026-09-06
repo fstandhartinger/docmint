@@ -38,7 +38,7 @@ function load(opts = {}) {
   }]));
   const priceOf = (id) => (id === 'free' ? null : `price_test_${id}`);
 
-  const calls = { checkoutCreate: [], subUpdate: [], portal: [], expire: [], sessionRetrieve: null, subCancel: [], selects: [] };
+  const calls = { checkoutCreate: [], subUpdate: [], portal: [], expire: [], sessionRetrieve: null, subCancel: [], selects: [], subRetrieve: [], trace: [] };
   const dbUpdates = [];
   const seenEvents = new Set();
   let failDb = false;
@@ -63,9 +63,17 @@ function load(opts = {}) {
         if (opts.failAfterCustomer) throw new Error('injected Stripe outage after customer creation');
         return { data: subscriptions, has_more: false };
       },
-      retrieve: async (id) => subscriptions.find((s) => s.id === id) || {
-        id, customer: account.stripe_customer_id || 'cus_guards', status: 'active',
-        metadata: {}, items: { data: [{ id: 'si_x', price: { id: priceOf('pro') } }] },
+      retrieve: async (id) => {
+        calls.subRetrieve.push(id);
+        calls.trace.push(`retrieve:${id}`);
+        if (opts.retrieveFails) throw new Error('injected Stripe outage on subscriptions.retrieve');
+        const found = subscriptions.find((s) => s.id === id);
+        if (found) return found;
+        // Answering "active Pro" for an unknown id - which this stub used to do -
+        // is the one answer that would hide an ordering bug behind a stub.
+        const e = new Error(`No such subscription: ${id}`);
+        e.code = 'resource_missing'; e.statusCode = 404;
+        throw e;
       },
       cancel: async (id) => {
         calls.subCancel.push(id);
@@ -137,6 +145,7 @@ function load(opts = {}) {
     }
     if (/^\s*SELECT/i.test(s)) {
       calls.selects.push(s.replace(/\s+/g, ' ').trim());
+      if (/FOR UPDATE/i.test(s)) calls.trace.push('lock');
       if (/WHERE\s+id\s*=/i.test(s)) return { rows: String(args[0]) === String(account.id) ? [{ ...account }] : [] };
       if (/stripe_customer_id\s*=\s*\$/i.test(s)) {
         return { rows: args[0] && args[0] === account.stripe_customer_id ? [{ ...account }] : [] };
@@ -604,6 +613,106 @@ describe('C2 — one Stripe account serves several products', () => {
       } },
     });
     assert.equal(h.account.plan, 'free', 'the guards must not have made cancellation impossible');
+  });
+});
+
+describe('C5 — which webhook lands last must not decide what the customer keeps', () => {
+  /**
+   * Stripe emits a purchase's four events at once and delivers them concurrently.
+   * Each body is a SNAPSHOT of the moment it was emitted, and
+   * `customer.subscription.created` is emitted the instant the subscription
+   * exists — which for a card payment is before the card is charged — so its body
+   * says `status: "incomplete"` every single time.
+   *
+   * MailMint measured this ending badly: one paid account in two was left on the
+   * free plan with its subscription id cleared while Stripe held an active, paid
+   * subscription. DocMint was then measured doing the same thing on the deployed
+   * image — `plan_applied account=1 plan=free credits=30 status=incomplete` — and
+   * survived only because the free apply happened to land first.
+   */
+  const paidSub = (h, status = 'active') => ({
+    id: 'sub_bought', customer: 'cus_guards', status,
+    metadata: { account_id: '71', plan: 'pro' },
+    items: { data: [{ id: 'si_b', price: { id: h.priceOf('pro') } }] },
+  });
+  const snapshot = (h, status) => ({
+    id: 'sub_bought', customer: 'cus_guards', status,
+    metadata: { account_id: '71', plan: 'pro' },
+    items: { data: [{ id: 'si_b', price: { id: h.priceOf('pro') } }] },
+  });
+
+  test('the "incomplete" created snapshot arriving LAST does not undo the purchase', async () => {
+    const h = load({ account: { stripe_customer_id: 'cus_guards' } });
+    h.addSubscription(paidSub(h));                       // what Stripe holds NOW
+    h.addSession({
+      id: 'cs_bought', object: 'checkout.session', status: 'complete', payment_status: 'paid',
+      client_reference_id: '71', customer: 'cus_guards', subscription: 'sub_bought',
+      line_items: { data: [{ price: { id: h.priceOf('pro') } }] },
+      metadata: { account_id: '71', plan: 'pro' },
+    });
+
+    await h.fireEvent({ id: 'evt_1', type: 'checkout.session.completed', data: { object: {
+      id: 'cs_bought', payment_status: 'paid', subscription: 'sub_bought',
+      client_reference_id: '71', customer: 'cus_guards', metadata: { account_id: '71', plan: 'pro' },
+    } } });
+    await h.fireEvent({ id: 'evt_2', type: 'customer.subscription.updated', data: { object: snapshot(h, 'active') } });
+    // ...and the one Stripe emitted FIRST arrives last, still saying incomplete.
+    await h.fireEvent({ id: 'evt_3', type: 'customer.subscription.created', data: { object: snapshot(h, 'incomplete') } });
+
+    assert.equal(h.account.plan, 'pro', 'the customer paid; the last delivery must not take it away');
+    assert.equal(h.account.stripe_subscription_id, 'sub_bought',
+      'and the id they would manage or cancel with must still be there');
+  });
+
+  test('the status is read from Stripe AFTER the account row is locked', async () => {
+    const h = load({ account: { stripe_customer_id: 'cus_guards' } });
+    h.addSubscription(paidSub(h));
+    await h.fireEvent({ id: 'evt_lock', type: 'customer.subscription.created', data: { object: snapshot(h, 'incomplete') } });
+    const lock = h.calls.trace.indexOf('lock');
+    const read = h.calls.trace.indexOf('retrieve:sub_bought');
+    assert.ok(read >= 0, 'the snapshot must not be believed on its own');
+    assert.ok(lock >= 0 && lock < read,
+      'reading Stripe outside the lock would race the very deliveries this fixes');
+  });
+
+  test('a Stripe outage falls back to the snapshot rather than dropping the event', async () => {
+    // The fallback is what the code did in every case before, so it is no worse —
+    // and a customer who has paid must not silently get nothing.
+    const h = load({ account: { stripe_customer_id: 'cus_guards' }, retrieveFails: true });
+    await h.fireEvent({ id: 'evt_out', type: 'customer.subscription.updated', data: { object: snapshot(h, 'active') } });
+    assert.equal(h.account.plan, 'pro');
+    assert.equal(h.account.stripe_subscription_id, 'sub_bought');
+  });
+
+  test('a real cancellation still downgrades, because Stripe says so too', async () => {
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_bought' }) });
+    h.addSubscription(paidSub(h, 'canceled'));
+    await h.fireEvent({ id: 'evt_cancel', type: 'customer.subscription.deleted', data: { object: snapshot(h, 'canceled') } });
+    assert.equal(h.account.plan, 'free');
+    assert.equal(h.account.stripe_subscription_id, null);
+  });
+
+  test("a sibling product's event costs neither a row lock nor a Stripe call", async () => {
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_bought' }) });
+    await h.fireEvent({ id: 'evt_foreign', type: 'customer.subscription.deleted', data: { object: {
+      id: 'sub_of_another_product', customer: 'cus_guards', status: 'canceled',
+      metadata: { account_id: '71' },
+      items: { data: [{ price: { id: 'price_of_a_sibling_product' } }] },
+    } } });
+    assert.equal(h.calls.subRetrieve.length, 0, 'a foreign price is rejected before we spend a call');
+    assert.ok(!h.calls.trace.includes('lock'), 'and before we lock one of our rows');
+    assert.equal(h.account.plan, 'pro');
+  });
+
+  test('the checkout path does not fetch the same subscription twice', async () => {
+    const h = load({ account: { stripe_customer_id: 'cus_guards' } });
+    h.addSubscription(paidSub(h));
+    await h.fireEvent({ id: 'evt_once', type: 'checkout.session.completed', data: { object: {
+      id: 'cs_once', payment_status: 'paid', subscription: 'sub_bought',
+      client_reference_id: '71', customer: 'cus_guards', metadata: { account_id: '71', plan: 'pro' },
+    } } });
+    assert.equal(h.calls.subRetrieve.length, 1, 'it already fetched it; once is enough');
+    assert.equal(h.account.plan, 'pro');
   });
 });
 

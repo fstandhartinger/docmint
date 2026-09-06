@@ -326,20 +326,20 @@ function planForPriceId(priceId) {
   return null;
 }
 
-async function applySubscription(subscription, run = query) {
+async function applySubscription(subscription, run = query, { refresh = true } = {}) {
   const accountId = subscription.metadata?.account_id;
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
-  const priceId = subscription.items?.data?.[0]?.price?.id;
-  const plan = planForPriceId(priceId);
-  const active = ['active', 'trialing', 'past_due'].includes(subscription.status);
 
   // One Stripe account serves more than one product, and every endpoint on it
   // receives every event. A subscription whose price is not one of ours belongs
   // to a sibling product; acting on it once downgraded a live, paying PDFMint
   // customer because another product's subscription carried the same account_id.
-  // Anything we cannot price is not ours to act on.
-  if (!plan) {
-    log.warn('stripe.foreign_price_ignored', { subscription: subscription.id, price: priceId });
+  // Checked on the event body first, so a foreign subscription costs us neither a
+  // row lock nor a Stripe call.
+  if (!planForPriceId(subscription.items?.data?.[0]?.price?.id)) {
+    log.warn('stripe.foreign_price_ignored', {
+      subscription: subscription.id, price: subscription.items?.data?.[0]?.price?.id,
+    });
     return { ignored: 'foreign_price' };
   }
 
@@ -366,12 +366,59 @@ async function applySubscription(subscription, run = query) {
     return { ignored: 'foreign_customer' };
   }
 
+  /**
+   * The event body is a SNAPSHOT of the moment Stripe emitted it, and Stripe
+   * delivers a purchase's four events concurrently, in no particular order.
+   * `customer.subscription.created` is emitted the instant the subscription
+   * exists — for a card payment, before the card is charged — so its body says
+   * `status: "incomplete"` every single time. Acted on as written and processed
+   * last, it puts a paying customer back on `free` and clears the subscription
+   * id they would cancel with.
+   *
+   * Measured on the deployed image on 2026-09-06:
+   *   plan_applied account=1 plan=free credits=30 status=incomplete
+   * on an account whose payment had already succeeded. It survived only because
+   * that apply happened to land first; MailMint measured the same race losing on
+   * one paid account in two.
+   *
+   * So the status and the price are read from Stripe as they are NOW, after the
+   * row is locked — every one of the four events then asks the same question of
+   * the same source and gets the same answer, and delivery order stops deciding
+   * anything. Identification stays with the body: those fields do not change.
+   *
+   * A failure here falls back to the snapshot. An outage must not mean a customer
+   * who paid silently gets nothing — the snapshot is what this used to do in every
+   * case, so the fallback is no worse than before, and it is loud in the log.
+   */
+  let current = subscription;
+  if (refresh && subscription.id && stripe) {
+    try {
+      const fresh = await stripe.subscriptions.retrieve(String(subscription.id));
+      if (fresh && fresh.id) {
+        // The checkout path stamps account_id onto the body from
+        // client_reference_id, and that only exists on what we were handed.
+        current = { ...fresh, metadata: { ...(subscription.metadata || {}), ...(fresh.metadata || {}) } };
+        if (fresh.status !== subscription.status) {
+          log.info('stripe.subscription_refreshed', {
+            subscription: subscription.id, snapshot: subscription.status, now: fresh.status,
+          });
+        }
+      }
+    } catch (e) {
+      log.warn('stripe.subscription_refresh_failed', { subscription: subscription.id, message: e.message });
+    }
+  }
+
+  const plan = planForPriceId(current.items?.data?.[0]?.price?.id)
+    || planForPriceId(subscription.items?.data?.[0]?.price?.id);
+  const active = ['active', 'trialing', 'past_due'].includes(current.status);
+
   // A cancellation only speaks for the subscription it names. When an account has
   // since moved to a different subscription, an older one ending must not revoke
   // the current one.
   if (!active && target.stripe_subscription_id && target.stripe_subscription_id !== subscription.id) {
     log.warn('stripe.stale_subscription_ignored', {
-      subscription: subscription.id, status: subscription.status,
+      subscription: subscription.id, status: current.status,
       account: target.id, current: target.stripe_subscription_id,
     });
     return { ignored: 'stale_subscription' };
@@ -385,7 +432,7 @@ async function applySubscription(subscription, run = query) {
   );
   log.info('stripe.plan_applied', {
     account: target.id, plan: newPlan.id, credits: newPlan.credits,
-    subscription: subscription.id, status: subscription.status,
+    subscription: subscription.id, status: current.status, event_status: subscription.status,
   });
 }
 
@@ -413,7 +460,7 @@ async function handleEvent(event) {
         if (!sub.metadata?.account_id && session.client_reference_id) {
           sub.metadata = { ...(sub.metadata || {}), account_id: session.client_reference_id };
         }
-        await applySubscription(sub, run);
+        await applySubscription(sub, run, { refresh: false });
       }
       break;
     }
