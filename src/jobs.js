@@ -460,7 +460,16 @@ function recoverStalled() {
       // A crash kills the process before the in-flight settlement can refund, so
       // the credits are given back here instead. Without this the caller is
       // billed for exactly the failure the docs promise is free.
-      for (const j of dead) await settleCredits(j.id, j.account_id, 0);
+      for (const j of dead) {
+        // eslint-disable-next-line no-await-in-loop
+        await settleCredits(j.id, j.account_id, 0);
+        // A job killed by a crash never reaches the worker's failure path, so
+        // this is the only chance to record that it happened. Without it the one
+        // failure mode that costs a customer a wait is the one missing from the
+        // usage record.
+        // eslint-disable-next-line no-await-in-loop
+        await recordUsage(j.account_id, j.id, { kind: 'job', credits: 0, ok: false, error_code: 'renderer_crashed' });
+      }
       log.info('jobs.recovered', { total: r.rowCount, requeued: r.rowCount - dead.length, failed: dead.length });
     })
     .catch((e) => log.warn('jobs.recover_failed', { err: e }));

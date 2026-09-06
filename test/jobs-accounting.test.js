@@ -75,7 +75,12 @@ const q = async (text, params = []) => {
     return { rows: [], rowCount: 1 };
   }
   if (/UPDATE jobs SET webhook_attempts/.test(t)) return { rows: [], rowCount: 1 };
-  if (/DELETE FROM jobs|DELETE FROM files|UPDATE jobs SET status = CASE WHEN attempts/.test(t)) {
+  if (/UPDATE jobs SET status = CASE WHEN attempts/.test(t)) {
+    const dead = state.stalled || [];
+    state.stalled = [];
+    return { rows: dead, rowCount: dead.length };
+  }
+  if (/DELETE FROM jobs|DELETE FROM files/.test(t)) {
     return { rows: [], rowCount: 0 };
   }
   return { rows: [], rowCount: 0 };
@@ -216,6 +221,31 @@ test('a database failure after settlement does not rewrite the charge or double-
   assert.equal(state.job.credits_charged, 2, 'and the job row still says so');
   assert.equal(state.usage.length, 1, 'one job, one usage row');
   assert.equal(state.usage[0].credits, 2);
+});
+
+test('a job the renderer crashed on twice is refunded and recorded', async () => {
+  // recoverStalled fails these rows in SQL, so they never pass through the
+  // worker's failure path: without an explicit record the one failure that costs
+  // a customer a wait is the one missing from the usage table.
+  claimed = true;                       // nothing to claim; only recovery runs
+  state.files = []; state.usage = []; state.sql = [];
+  state.account = { id: 42, plan: 'starter', credits_limit: 2000, credits_used: 16 };
+  state.job = { id: 'job_crashed', account_id: 42, credits_reserved: 16, credits_charged: 0, status: 'failed' };
+  state.stalled = [{ id: 'job_crashed', account_id: 42, status: 'failed' }];
+
+  const stop = jobs.startWorker(loadTemplate);
+  try {
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline && state.usage.length === 0) {
+      await new Promise((r) => { setTimeout(r, 100); });
+    }
+  } finally { stop(); }
+
+  assert.equal(state.account.credits_used, 0, 'every reserved credit is given back');
+  assert.equal(state.usage.length, 1);
+  assert.equal(state.usage[0].error_code, 'renderer_crashed');
+  assert.equal(state.usage[0].credits, 0);
+  assert.equal(state.usage[0].ok, false);
 });
 
 test('an "on_error":"continue" job charges only the items that produced a document', async () => {
