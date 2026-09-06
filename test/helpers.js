@@ -19,11 +19,21 @@ async function req(pathname, { method = 'GET', key, body, headers = {}, raw = fa
   const h = { ...headers };
   if (key) h.Authorization = `Bearer ${key}`;
   if (body !== undefined && !h['Content-Type']) h['Content-Type'] = 'application/json';
-  const res = await fetch(`${BASE}${pathname}`, {
+  const send = () => fetch(`${BASE}${pathname}`, {
     method,
     headers: h,
     body: body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body)),
   });
+
+  // The account bucket is 30 requests of burst, and a suite that polls a job
+  // spends it faster than a caller ever would. One patient retry keeps the
+  // failures in this file about the endpoints rather than about the limiter.
+  let res = await send();
+  if (res.status === 429) {
+    const wait = Math.min(5, Number(res.headers.get('retry-after') || 1)) * 1000;
+    await new Promise((r) => { setTimeout(r, wait + 250); });
+    res = await send();
+  }
   if (raw) return { res, buffer: Buffer.from(await res.arrayBuffer()) };
   const text = await res.text();
   let json = null;
@@ -41,10 +51,19 @@ let shared = null;
 async function account() {
   if (shared) return shared;
   const email = `test-${crypto.randomBytes(6).toString('hex')}@docmint.test`;
-  const { res, json } = await req('/v1/signup', {
-    method: 'POST',
-    body: { email, password: 'testpassword-long-enough' },
-  });
+
+  // Signup is one per minute per address. Running the suite twice in a row, or
+  // next to anything else that signs up, otherwise fails every test in the file
+  // with an error about the rate limiter rather than about the code under test.
+  let res; let json;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    ({ res, json } = await req('/v1/signup', {
+      method: 'POST',
+      body: { email, password: 'testpassword-long-enough' },
+    }));
+    if (res.status === 201 || json?.error?.code !== 'signup_rate_limited') break;
+    await new Promise((r) => { setTimeout(r, 31000); });
+  }
   if (res.status !== 201 || !json?.api_key) {
     throw new Error(`signup failed: ${res.status} ${JSON.stringify(json)}`);
   }

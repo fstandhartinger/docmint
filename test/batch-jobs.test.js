@@ -234,7 +234,7 @@ async function settle(id, key, timeoutMs = 120000) {
     const { json } = await req(`/v1/jobs/${id}`, { key });
     last = json;
     if (['succeeded', 'failed', 'cancelled'].includes(json.status)) return json;
-    await new Promise((r) => { setTimeout(r, 750); });
+    await new Promise((r) => { setTimeout(r, 1500); });
   }
   return last;
 }
@@ -327,15 +327,22 @@ when('a job that fails is charged nothing and says why', async () => {
   assert.equal(await creditsUsed(key), before, 'a failed job gives every reserved credit back');
 });
 
-when('a queued job can be cancelled and its whole reservation released', async () => {
+when('a queued job can be cancelled and its whole reservation released', async (t) => {
   const { key } = await account();
+  const { json: usage } = await req('/v1/usage', { key });
+  // The blocking job has to fit in what is left of the quota, and still leave
+  // room for the two items of the job being cancelled.
+  const blockItems = Math.min(12, usage.credits.remaining - 2);
+  if (blockItems < 3) { t.skip('not enough quota left on this account to hold the worker'); return; }
+
   const before = await creditsUsed(key);
   // Two jobs: the first occupies the single worker, the second is still queued.
   const first = await req('/v1/jobs', {
     method: 'POST',
     key,
-    body: { template_base64: TEMPLATE(), output: 'document', items: Array.from({ length: 20 }, (_, i) => ({ data: invoiceData(`Q${i}`) })) },
+    body: { template_base64: TEMPLATE(), output: 'document', items: Array.from({ length: blockItems }, (_, i) => ({ data: invoiceData(`Q${i}`) })) },
   });
+  assert.equal(first.res.status, 202);
   const second = await req('/v1/jobs', {
     method: 'POST',
     key,
@@ -357,8 +364,8 @@ when('a queued job can be cancelled and its whole reservation released', async (
 
   const firstDone = await settle(first.json.id, key, 240000);
   assert.equal(firstDone.status, 'succeeded');
-  // The cancelled job's credits are back; only the first job's 20 are spent.
-  assert.equal(await creditsUsed(key) - before, 20);
+  // The cancelled job's credits are back; only the first job's items are spent.
+  assert.equal(await creditsUsed(key) - before, cancelRes.status === 409 ? blockItems + 2 : blockItems);
 
   const again = await req(`/v1/jobs/${first.json.id}/cancel`, { method: 'POST', key });
   assert.equal(again.res.status, 409, 'a finished job cannot be cancelled');
