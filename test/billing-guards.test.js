@@ -455,23 +455,47 @@ describe('D — a retry never hands back a dead checkout link', () => {
    * expired. Stripe's page then reads "You're all done here. You've either
    * completed your payment or this checkout session has timed out." The buyer
    * cannot pay, and nothing tells them why.
+   *
+   * The cause is a windowed idempotency key: Stripe replays the stored response,
+   * and the session in it is gone. Reading the session back and retrying under a
+   * second deterministic key does NOT fix it — measured, the second key replays a
+   * dead session of its own. So checkout creation carries no key of ours, and the
+   * duplicate protection is the row lock plus the open-session reuse below.
    */
-  test('a replayed session that is no longer open is replaced with a live one', async () => {
-    // The replayed body lies: it says "open". Only a fresh retrieve tells the
-    // truth, which is why the code reads the session back before handing it over.
-    const h = load({ account: { stripe_customer_id: 'cus_guards' }, createStatuses: ['expired', 'open'] });
-    const out = await h.api.createCheckoutSession(h.account, 'starter');
-    assert.equal(h.calls.checkoutCreate.length, 2, 'an expired session must be replaced');
-    const keys = h.calls.checkoutCreate.map((c) => c.options.idempotencyKey);
-    assert.notEqual(keys[0], keys[1], 'with a different key, or Stripe replays the dead one again');
-    assert.notEqual(out.id, h.calls.checkoutCreate[0].options.idempotencyKey);
-    assert.equal(out.id, 'cs_2', 'the buyer is handed the replacement, not the corpse');
-  });
-
-  test('an open session is returned as it is, so a double click still collapses', async () => {
+  test('creating a checkout carries no replayable key of ours', async () => {
     const h = load({ account: { stripe_customer_id: 'cus_guards' } });
     await h.api.createCheckoutSession(h.account, 'starter');
-    assert.equal(h.calls.checkoutCreate.length, 1, 'a healthy session must not be recreated');
+    assert.equal(h.calls.checkoutCreate.length, 1);
+    const options = h.calls.checkoutCreate[0].options || {};
+    assert.ok(!options.idempotencyKey,
+      'a windowed key replays whatever it stored, including a session that has since expired');
+  });
+
+  test('a second click on the same plan reuses the session that is still open', async () => {
+    // This is what actually collapses a double click, and it can only ever return
+    // an OPEN session, because that is what it filtered for.
+    const open = {
+      id: 'cs_open', mode: 'subscription', status: 'open',
+      url: 'https://checkout.invalid/cs_open',
+      metadata: { account_id: '71', plan: 'starter' },
+    };
+    const h = load({ account: { stripe_customer_id: 'cus_guards' }, openSessions: [open] });
+    const out = await h.api.createCheckoutSession(h.account, 'starter');
+    assert.equal(h.calls.checkoutCreate.length, 0, 'no second session is created');
+    assert.equal(out.id, 'cs_open');
+  });
+
+  test('a session left open for a DIFFERENT plan is expired, not handed over', async () => {
+    const open = {
+      id: 'cs_other', mode: 'subscription', status: 'open',
+      url: 'https://checkout.invalid/cs_other',
+      metadata: { account_id: '71', plan: 'pro' },
+    };
+    const h = load({ account: { stripe_customer_id: 'cus_guards' }, openSessions: [open] });
+    const out = await h.api.createCheckoutSession(h.account, 'starter');
+    assert.deepEqual(h.calls.expire, ['cs_other']);
+    assert.equal(h.calls.checkoutCreate.length, 1);
+    assert.notEqual(out.id, 'cs_other');
   });
 });
 

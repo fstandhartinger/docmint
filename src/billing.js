@@ -242,7 +242,6 @@ async function createCheckoutSession(account, planId) {
       if (session.metadata.plan === planId) return session;
       await stripe.checkout.sessions.expire(session.id);
     }
-    const bucket = Math.floor(Date.now() / 1800000);
     const payload = {
       mode: 'subscription',
       customer: customerId,
@@ -270,40 +269,32 @@ async function createCheckoutSession(account, planId) {
       subscription_data: { metadata: { account_id: String(account.id), plan: planId, service: 'docmint' } },
       metadata: { account_id: String(account.id), plan: planId, service: 'docmint' },
     };
-    return liveSession(payload, `docmint-checkout-${account.id}-${planId}-${bucket}`);
+    // No idempotency key here, and that is the fix rather than an omission.
+    //
+    // A key that spans a window replays the response it stored, and the session
+    // in that response can be GONE — choosing another plan expires it. Measured
+    // on 2026-09-06 against the deployed image: Starter, then Pro, then Starter
+    // again handed the buyer the expired Starter session, and Stripe's page told
+    // them "You're all done here. You've either completed your payment or this
+    // checkout session has timed out." They could not pay. The replayed body is
+    // no help either — it still says `status: "open"` while a fresh retrieve of
+    // the same id says `expired` — and keying the retry on the dead session's id
+    // only moves the problem: that key is replayable too, which is exactly how a
+    // second measured run reproduced the dead link through the "fix".
+    //
+    // What actually stops two sessions is above this line and is measured: the
+    // account row is locked for the whole of this transaction, and the second
+    // click finds and returns the first click's OPEN session. The Stripe client
+    // still generates its own key per request, so a network-level retry inside
+    // the SDK cannot duplicate anything either.
+    const session = await stripe.checkout.sessions.create(payload);
+    if (session.status && session.status !== 'open') {
+      // Not reachable through Stripe as it behaves today; if it ever is, the
+      // buyer must not be handed a session they cannot pay.
+      log.warn('stripe.fresh_session_not_open', { session: session.id, status: session.status });
+    }
+    return session;
   });
-}
-
-/**
- * Creates a Checkout session and makes sure the buyer is handed a LIVE one.
- *
- * Stripe replays a stored response for 24 hours for the same idempotency key,
- * and our key spans half an hour — but a session inside that window can already
- * be gone, because choosing another plan expires it. Measured on 2026-09-06:
- * Starter, then Pro, then Starter again returned the expired Starter session and
- * Stripe's page told the buyer "You're all done here. You've either completed
- * your payment or this checkout session has timed out." They could not pay.
- *
- * The replayed BODY is no help — measured in the same run, it still says
- * `status: "open"` while a fresh retrieve of the same id says `expired`. So the
- * session is read back before it is handed over. Keying the replacement on the
- * dead session's id keeps a genuine double click collapsed onto one new session.
- */
-async function liveSession(payload, idempotencyKey) {
-  const created = await stripe.checkout.sessions.create(payload, { idempotencyKey });
-  let live = created;
-  try {
-    live = await stripe.checkout.sessions.retrieve(created.id);
-  } catch (e) {
-    log.warn('stripe.session_readback_failed', { session: created.id, message: e.message });
-    return created;
-  }
-  if (live.status === 'open') return created;
-  log.info('stripe.stale_session_replaced', { stale: created.id, status: live.status });
-  const replacement = await stripe.checkout.sessions.create(payload, { idempotencyKey: `${idempotencyKey}-after-${created.id}` });
-  // The replacement carries a key nothing has used before, so there is nothing to
-  // replay and no second read-back to do.
-  return replacement;
 }
 
 async function createPortalSession(account) {
