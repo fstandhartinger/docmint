@@ -129,6 +129,13 @@ router.post('/logout', asyncRoute(async (req, res) => {
 router.get('/dashboard', asyncRoute(async (req, res) => {
   const account = await currentAccount(req);
   if (!account) return res.redirect('/login');
+  // C3: `?checkout=success` is a query parameter, not a receipt. Nothing about
+  // the banner is decided from the URL — billing.verifyCheckoutReturn asks Stripe
+  // whether THIS session, belonging to THIS account, was actually paid, and
+  // whether our own fulfilment has landed. Everything else gets neutral text.
+  const checkoutReturn = req.query.checkout === 'success'
+    ? await billing.verifyCheckoutReturn(account, typeof req.query.session_id === 'string' ? req.query.session_id : null)
+    : null;
   const fullKey = takeKeyForSession(sessionIdFrom(req));
   const plan = PLANS[account.plan] || PLANS.free;
   const remaining = Math.max(0, account.credits_limit - account.credits_used);
@@ -140,6 +147,10 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
   <nav><a href="/docs">Docs</a><form method="post" action="/logout"><button class="link">Sign out</button></form></nav></header>
 <main class="dash">
   ${req.query.welcome ? '<div class="notice"><strong>Your account is ready.</strong> Copy the API key below now. It is shown only once.</div>' : ''}
+  ${checkoutReturn ? `<div class="notice${checkoutReturn.ok ? ' ok' : ''}">${escapeHtml(checkoutReturn.message)}</div>` : ''}
+  ${req.query.checkout === 'updated' ? '<div class="notice">Your plan change has been sent to Stripe. The plan shown below is the one you are on right now; it updates as soon as Stripe confirms.</div>' : ''}
+  ${req.query.checkout === 'pending' ? '<div class="notice">Your upgrade is waiting on payment. Nothing has changed yet — your plan below is the one you are on.</div>' : ''}
+  ${req.query.checkout === 'cancelled' ? '<div class="notice">Checkout cancelled. Nothing was charged.</div>' : ''}
   <h1>Dashboard</h1>
   <section class="card">
     <h2>API key</h2>
