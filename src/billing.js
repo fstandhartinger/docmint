@@ -63,6 +63,51 @@ async function ensureCustomer(account, run = query) {
   return createCustomerFor(account, run);
 }
 
+/**
+ * The invoice behind an abandoned first attempt, and whether its payment is
+ * still settling.
+ *
+ * A settling payment must never be voided: the buyer may be on the 3-D Secure
+ * step in another tab, and voiding an invoice whose charge is completing is how
+ * money is taken for nothing.
+ *
+ * Where the intent lives depends on the API version, and this was measured
+ * rather than assumed on 2026-09-06. On the version this client pins
+ * (2025-01-27.acacia) `invoice.payment_intent` is there. On the account's newer
+ * default it is gone and the intent sits under
+ * `payments.data[].payment.payment_intent`. Both expansions are accepted by both
+ * versions, so both are asked for and whichever answers is used — otherwise a
+ * future default-version bump silently turns this guard off.
+ *
+ * `requires_action` and `requires_payment_method` are NOT settling: they are the
+ * abandoned 3-D Secure and the declined card, which is exactly what this clears.
+ */
+const SETTLING = ['processing', 'requires_capture', 'succeeded'];
+
+async function abandonedInvoice(sub) {
+  const id = typeof sub.latest_invoice === 'string' ? sub.latest_invoice : sub.latest_invoice?.id;
+  if (!id) return null;
+  try {
+    const invoice = await stripe.invoices.retrieve(id, {
+      expand: ['payment_intent', 'payments.data.payment.payment_intent'],
+    });
+    const intents = [
+      invoice.payment_intent,
+      ...(invoice.payments?.data || []).map((entry) => entry.payment?.payment_intent),
+    ].filter((intent) => intent && typeof intent === 'object');
+    return {
+      url: invoice.hosted_invoice_url || null,
+      status: invoice.status,
+      inFlight: intents.some((intent) => SETTLING.includes(intent.status)),
+    };
+  } catch (e) {
+    // Unreadable is treated as "do not touch": the caller then routes the buyer
+    // to the attempt they already have rather than opening a second one.
+    log.warn('stripe.abandoned_invoice_unreadable', { subscription: sub.id, message: e.message });
+    return null;
+  }
+}
+
 async function createCheckoutSession(account, planId) {
   if (!enabled()) throw new ApiError(503, 'billing_unavailable', 'Billing is not configured on this deployment.');
   const priceId = planPriceId(planId);
@@ -75,8 +120,15 @@ async function createCheckoutSession(account, planId) {
   // Inside the long one below, any later failure rolled the stored id back while
   // the Stripe object survived — so every failed checkout during a Stripe incident
   // minted another orphaned customer carrying the buyer's email address, and
-  // nothing ever reclaimed them. The row lock is held across it, so two
-  // simultaneous clicks still cannot produce two customers.
+  // nothing ever reclaimed them.
+  //
+  // These are two transactions, so the lock taken here is released before the
+  // one below starts — an earlier version of this comment claimed otherwise, and
+  // that claim was simply false. What keeps two simultaneous clicks to one
+  // customer is that BOTH transactions take the row lock and re-read the row
+  // under it: the second click blocks here, then reads the customer id the first
+  // one committed. Measured 2026-09-06: four simultaneous clicks produced one
+  // customer and one checkout session.
   const customerId = await tx(async (client) => {
     const run = client.query.bind(client);
     const { rows } = await run('SELECT * FROM accounts WHERE id = $1 FOR UPDATE', [account.id]);
@@ -105,6 +157,54 @@ async function createCheckoutSession(account, planId) {
     const current = listed.data.filter((sub) => !['canceled', 'incomplete', 'incomplete_expired'].includes(sub.status)
       && sub.items.data.some((item) => planForPriceId(item.price.id)));
     if (current.length > 1) throw new ApiError(409, 'multiple_subscriptions', 'Multiple subscriptions exist. Contact support before changing your plan.');
+
+    // An `incomplete` subscription grants nothing, but its first invoice stays
+    // PAYABLE for about a day — so simply ignoring it and opening a second
+    // checkout is how one buyer ends up paying for two. Measured on 2026-09-06
+    // in test mode against this code: an abandoned $9 attempt, a completed $29
+    // checkout, then the abandoned invoice paid afterwards = two active
+    // subscriptions, $38 a month, and the account left on the CHEAPER plan's
+    // quota because the later event won.
+    //
+    // The buyer must still be able to pay. What they must not be able to do is
+    // pay twice for one intention. So: finish the attempt they made, or make it
+    // unpayable — never leave it payable next to a new one.
+    const abandoned = listed.data.filter((sub) => sub.status === 'incomplete'
+      && sub.items.data.some((item) => planForPriceId(item.price.id)));
+    let finish = null;     // the attempt to hand the buyer back to
+    let blocked = false;   // ...or one we may not judge, which also forbids a second
+    for (const sub of abandoned) {
+      const item = sub.items.data.find((entry) => planForPriceId(entry.price.id));
+      // eslint-disable-next-line no-await-in-loop
+      const attempt = await abandonedInvoice(sub);
+      if (attempt && attempt.status !== 'open') continue;   // nothing payable is left
+      // Same plan and nothing live to upgrade: finishing the payment they started
+      // is the retry they actually want, and it cannot produce a second
+      // subscription. An unreadable or still-settling attempt goes the same way,
+      // because the one thing worse than a confusing page is a double charge.
+      const samePlan = Boolean(item && item.price.id === priceId && !current.length);
+      if (samePlan || !attempt || attempt.inFlight) {
+        // Remembered, not returned: every OTHER abandoned attempt still has to be
+        // made unpayable before this call ends, or it sits there for a day.
+        blocked = true;
+        if (!finish && attempt && attempt.url) finish = attempt;
+        continue;
+      }
+      // They changed their mind. Cancelling an incomplete subscription voids its
+      // open invoice, and Stripe then refuses a late payment outright — measured:
+      // "Voided invoices cannot be paid."
+      // eslint-disable-next-line no-await-in-loop
+      await stripe.subscriptions.cancel(sub.id);
+      log.info('stripe.abandoned_attempt_cancelled', {
+        account: account.id, subscription: sub.id, price: item && item.price.id,
+      });
+    }
+    if (blocked) {
+      return finish
+        ? { url: finish.url }
+        : stripe.billingPortal.sessions.create({ customer: customerId, return_url: `${config.publicUrl}/dashboard` });
+    }
+
     if (current.length) {
       const sub = current[0];
       const item = sub.items.data.find((entry) => planForPriceId(entry.price.id));
@@ -142,7 +242,8 @@ async function createCheckoutSession(account, planId) {
       if (session.metadata.plan === planId) return session;
       await stripe.checkout.sessions.expire(session.id);
     }
-    return stripe.checkout.sessions.create({
+    const bucket = Math.floor(Date.now() / 1800000);
+    const payload = {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
@@ -168,8 +269,41 @@ async function createCheckoutSession(account, planId) {
       client_reference_id: String(account.id),
       subscription_data: { metadata: { account_id: String(account.id), plan: planId, service: 'docmint' } },
       metadata: { account_id: String(account.id), plan: planId, service: 'docmint' },
-    }, { idempotencyKey: `docmint-checkout-${account.id}-${planId}-${Math.floor(Date.now() / 1800000)}` });
+    };
+    return liveSession(payload, `docmint-checkout-${account.id}-${planId}-${bucket}`);
   });
+}
+
+/**
+ * Creates a Checkout session and makes sure the buyer is handed a LIVE one.
+ *
+ * Stripe replays a stored response for 24 hours for the same idempotency key,
+ * and our key spans half an hour — but a session inside that window can already
+ * be gone, because choosing another plan expires it. Measured on 2026-09-06:
+ * Starter, then Pro, then Starter again returned the expired Starter session and
+ * Stripe's page told the buyer "You're all done here. You've either completed
+ * your payment or this checkout session has timed out." They could not pay.
+ *
+ * The replayed BODY is no help — measured in the same run, it still says
+ * `status: "open"` while a fresh retrieve of the same id says `expired`. So the
+ * session is read back before it is handed over. Keying the replacement on the
+ * dead session's id keeps a genuine double click collapsed onto one new session.
+ */
+async function liveSession(payload, idempotencyKey) {
+  const created = await stripe.checkout.sessions.create(payload, { idempotencyKey });
+  let live = created;
+  try {
+    live = await stripe.checkout.sessions.retrieve(created.id);
+  } catch (e) {
+    log.warn('stripe.session_readback_failed', { session: created.id, message: e.message });
+    return created;
+  }
+  if (live.status === 'open') return created;
+  log.info('stripe.stale_session_replaced', { stale: created.id, status: live.status });
+  const replacement = await stripe.checkout.sessions.create(payload, { idempotencyKey: `${idempotencyKey}-after-${created.id}` });
+  // The replacement carries a key nothing has used before, so there is nothing to
+  // replay and no second read-back to do.
+  return replacement;
 }
 
 async function createPortalSession(account) {
@@ -389,13 +523,21 @@ async function verifyCheckoutReturn(account, sessionId) {
   // someone who has paid US nothing that their payment is being activated. The
   // line item has to be a price we sell.
   const lineItems = session.line_items?.data || [];
-  if (!lineItems.length || !lineItems.some((item) => planForPriceId(item.price?.id))) {
-    return state('foreign', { reason: 'not_our_price' });
-  }
+  const ourPrice = lineItems.some((item) => planForPriceId(item.price?.id));
+  // A price we can read and do not sell is somebody else's session, whatever its
+  // state. An EMPTY list is a different thing: it means we could not read the
+  // price at all — Stripe returns line items for a limited window — and "we could
+  // not match that checkout to this account" would then be a guess dressed up as
+  // a fact. Expiry is knowable without the price, so it is answered first.
+  if (lineItems.length && !ourPrice) return state('foreign', { reason: 'not_our_price' });
   if (session.status === 'expired') return state('expired');
   if (!['paid', 'no_payment_required'].includes(session.payment_status)) {
     return state('pending', { reason: `payment_status=${session.payment_status}` });
   }
+  // Paid, but we cannot see what for. The one thing this must never do is claim
+  // a payment: all three products share a Stripe account and number their
+  // accounts from 1, so an unpriceable paid session may well be a sibling's.
+  if (!ourPrice) return state('unverified', { reason: 'line_items_unavailable' });
 
   // Stripe says paid. That still does not mean OUR side has applied it — the
   // webhook may not have landed. Claiming a live quota before the row moved is

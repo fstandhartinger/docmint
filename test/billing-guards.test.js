@@ -38,7 +38,7 @@ function load(opts = {}) {
   }]));
   const priceOf = (id) => (id === 'free' ? null : `price_test_${id}`);
 
-  const calls = { checkoutCreate: [], subUpdate: [], portal: [], expire: [], sessionRetrieve: null };
+  const calls = { checkoutCreate: [], subUpdate: [], portal: [], expire: [], sessionRetrieve: null, subCancel: [], selects: [] };
   const dbUpdates = [];
   const seenEvents = new Set();
   let failDb = false;
@@ -67,6 +67,13 @@ function load(opts = {}) {
         id, customer: account.stripe_customer_id || 'cus_guards', status: 'active',
         metadata: {}, items: { data: [{ id: 'si_x', price: { id: priceOf('pro') } }] },
       },
+      cancel: async (id) => {
+        calls.subCancel.push(id);
+        subscriptions = subscriptions.map((x) => (x.id === id
+          ? { ...x, status: 'incomplete_expired', latest_invoice: { ...(x.latest_invoice || {}), status: 'void' } }
+          : x));
+        return { id, status: 'incomplete_expired' };
+      },
       update: async (id, args, options) => {
         calls.subUpdate.push({ id, args, options });
         const before = subscriptions.find((x) => x.id === id);
@@ -84,7 +91,15 @@ function load(opts = {}) {
       sessions: {
         create: async (args, options) => {
           calls.checkoutCreate.push({ args, options });
-          return { id: `cs_${++seq}`, url: `https://checkout.invalid/cs_${seq}`, ...args };
+          // Stripe replays the STORED body for a repeated idempotency key, and
+          // that body still says `status: "open"` even when the session has since
+          // been expired — measured 2026-09-06. So `create` always answers "open"
+          // here, and `createStatuses` sets what a fresh RETRIEVE of that session
+          // says, which is the only place the truth shows up.
+          const created = { id: `cs_${++seq}`, url: `https://checkout.invalid/cs_${seq}`, status: 'open', ...args };
+          const truth = (opts.createStatuses || [])[calls.checkoutCreate.length - 1] || 'open';
+          sessions.push({ ...created, status: truth });
+          return created;
         },
         list: async () => ({ data: opts.openSessions || [], has_more: false }),
         expire: async (id) => { calls.expire.push(id); return { id, status: 'expired' }; },
@@ -100,6 +115,15 @@ function load(opts = {}) {
         },
       },
     },
+    invoices: {
+      retrieve: async (id) => {
+        const found = subscriptions
+          .map((sub) => sub.latest_invoice)
+          .find((inv) => inv && typeof inv === 'object' && inv.id === id);
+        if (found) return found;
+        const e = new Error('No such invoice'); e.code = 'resource_missing'; e.statusCode = 404; throw e;
+      },
+    },
     billingPortal: { sessions: { create: async (args) => { calls.portal.push(args); return { url: 'https://portal.invalid' }; } } },
     webhooks: { constructEvent: (body) => body },
   };
@@ -112,6 +136,7 @@ function load(opts = {}) {
       return { rowCount: 1, rows: [] };
     }
     if (/^\s*SELECT/i.test(s)) {
+      calls.selects.push(s.replace(/\s+/g, ' ').trim());
       if (/WHERE\s+id\s*=/i.test(s)) return { rows: String(args[0]) === String(account.id) ? [{ ...account }] : [] };
       if (/stripe_customer_id\s*=\s*\$/i.test(s)) {
         return { rows: args[0] && args[0] === account.stripe_customer_id ? [{ ...account }] : [] };
@@ -273,6 +298,12 @@ describe('C2 — a half-finished checkout leaves nothing broken behind', () => {
     const sub = existingSub(h);
     sub.id = 'sub_incomplete';
     sub.status = 'incomplete';
+    // An incomplete subscription always has its first invoice: the fixture used
+    // to leave it out, which is not a state Stripe produces.
+    sub.latest_invoice = {
+      id: 'in_first', status: 'open', hosted_invoice_url: 'https://invoice.invalid/first',
+      payments: { data: [{ payment: { payment_intent: { id: 'pi_first', status: 'requires_payment_method' } } }] },
+    };
     h.addSubscription(sub);
     await h.api.createCheckoutSession(h.account, 'pro');
     assert.equal(h.calls.checkoutCreate.length, 1, 'the buyer must get a payment page');
@@ -287,6 +318,212 @@ describe('C2 — a half-finished checkout leaves nothing broken behind', () => {
     await assert.rejects(() => h.api.createCheckoutSession(h.account, 'pro'));
     assert.match(String(h.account.stripe_customer_id), /^cus_/,
       'the id must be committed even though the checkout failed');
+  });
+});
+
+describe('B — an abandoned first attempt cannot become a second live subscription', () => {
+  /**
+   * Measured on 2026-09-06 against the deployed image, in Stripe test mode:
+   * an abandoned $9 attempt sat `incomplete` with a payable invoice, the buyer
+   * completed a $29 checkout next to it, and paying the abandoned invoice
+   * afterwards left TWO active subscriptions — $38.00 a month — with the account
+   * on the CHEAPER plan's quota, because the later event won.
+   *
+   * The buyer must still be able to pay. What they must not be able to do is pay
+   * twice for one intention.
+   */
+  const incompleteSub = (h, plan = 'starter', over = {}) => ({
+    id: 'sub_incomplete', customer: 'cus_guards', status: 'incomplete',
+    metadata: { account_id: '71', plan },
+    items: { data: [{ id: 'si_inc', price: { id: h.priceOf(plan) }, quantity: 1 }] },
+    latest_invoice: {
+      id: 'in_inc', status: 'open', hosted_invoice_url: 'https://invoice.invalid/pay-me',
+      // Both shapes are read by the code, because which one Stripe returns
+      // depends on the API version: `payment_intent` on the pinned 2025-01-27,
+      // `payments.data[].payment.payment_intent` on the newer default. The
+      // fixture carries the newer one, the one a version bump would leave behind.
+      payments: { data: [{ payment: { payment_intent: { id: 'pi_inc', status: 'requires_payment_method' } } }] },
+    },
+    ...over,
+  });
+
+  test('asking for the same plan again finishes the payment already started', async () => {
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    h.addSubscription(incompleteSub(h, 'pro'));
+    const out = await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.checkoutCreate.length, 0, 'a second subscription must not be started');
+    assert.match(out.url, /invoice\.invalid/, 'the buyer is sent to the invoice they already owe');
+    assert.equal(h.calls.subCancel.length, 0, 'and the attempt they are paying is left alone');
+  });
+
+  test('changing plan cancels the abandoned attempt before opening a new checkout', async () => {
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    h.addSubscription(incompleteSub(h, 'starter'));
+    await h.api.createCheckoutSession(h.account, 'pro');
+    assert.deepEqual(h.calls.subCancel, ['sub_incomplete'],
+      'the abandoned invoice must stop being payable, or it can be paid later');
+    assert.equal(h.calls.checkoutCreate.length, 1, 'the buyer still gets a payment page');
+  });
+
+  test('an abandoned attempt next to a live subscription is cancelled, not paid', async () => {
+    const h = load({ account: paying() });
+    h.addSubscription(existingSub(h));
+    h.addSubscription(incompleteSub(h, 'pro'));
+    await h.api.createCheckoutSession(h.account, 'pro');
+    assert.deepEqual(h.calls.subCancel, ['sub_incomplete'],
+      'paying it would put a second subscription next to the live one');
+    assert.equal(h.calls.checkoutCreate.length, 0, 'the live subscription is upgraded in place');
+  });
+
+  test('a payment that is still in flight is never cancelled', async () => {
+    // The buyer may be on the 3-D Secure step in another tab. Voiding that
+    // invoice while the charge is settling is how money is taken for nothing.
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    h.addSubscription(incompleteSub(h, 'starter', {
+      latest_invoice: {
+        id: 'in_inc', status: 'open', hosted_invoice_url: 'https://invoice.invalid/pay-me',
+        payments: { data: [{ payment: { payment_intent: { id: 'pi_inc', status: 'processing' } } }] },
+      },
+    }));
+    const out = await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subCancel.length, 0, 'a settling payment must not be voided');
+    assert.equal(h.calls.checkoutCreate.length, 0, 'nor may a second subscription be started next to it');
+    assert.match(out.url, /invoice\.invalid|portal\.invalid/);
+  });
+
+  test('an attempt whose invoice cannot be read is never replaced by a second one', async () => {
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    const sub = incompleteSub(h, 'starter');
+    sub.latest_invoice = 'in_gone';          // a bare id that resolves to nothing
+    h.addSubscription(sub);
+    const out = await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subCancel.length, 0, 'nothing is voided on a guess');
+    assert.equal(h.calls.checkoutCreate.length, 0, 'and no second payable thing is created');
+    assert.match(out.url, /portal\.invalid|invoice\.invalid/);
+  });
+
+  test('an attempt whose invoice is already void is simply ignored', async () => {
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    const sub = incompleteSub(h, 'starter');
+    sub.latest_invoice = { id: 'in_inc', status: 'void', payments: { data: [] } };
+    h.addSubscription(sub);
+    await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subCancel.length, 0, 'there is nothing left to make unpayable');
+    assert.equal(h.calls.checkoutCreate.length, 1, 'and the buyer gets on with their purchase');
+  });
+
+  test('a second abandoned attempt is cleared even when the buyer is sent to the first', async () => {
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    const settling = incompleteSub(h, 'pro');
+    settling.id = 'sub_settling';
+    settling.latest_invoice = {
+      id: 'in_settling', status: 'open', hosted_invoice_url: 'https://invoice.invalid/settling',
+      payments: { data: [{ payment: { payment_intent: { id: 'pi_s', status: 'processing' } } }] },
+    };
+    const stale = incompleteSub(h, 'starter');
+    stale.id = 'sub_stale';
+    stale.latest_invoice = {
+      id: 'in_stale', status: 'open', hosted_invoice_url: 'https://invoice.invalid/stale',
+      payments: { data: [{ payment: { payment_intent: { id: 'pi_t', status: 'requires_payment_method' } } }] },
+    };
+    h.addSubscription(settling);
+    h.addSubscription(stale);
+    const out = await h.api.createCheckoutSession(h.account, 'scale');
+    assert.deepEqual(h.calls.subCancel, ['sub_stale'], 'the abandoned one must stop being payable');
+    assert.match(out.url, /settling/, 'and the buyer is sent to the payment that is actually running');
+    assert.equal(h.calls.checkoutCreate.length, 0);
+  });
+
+  test("a sibling product's incomplete subscription is not ours to cancel", async () => {
+    const h = load({ account: paying({ plan: 'free', stripe_subscription_id: null }) });
+    h.addSubscription({
+      id: 'sub_sibling_incomplete', customer: 'cus_guards', status: 'incomplete',
+      metadata: { account_id: '71' },
+      items: { data: [{ id: 'si_s', price: { id: 'price_of_a_sibling_product' }, quantity: 1 }] },
+      latest_invoice: { id: 'in_s', status: 'open', hosted_invoice_url: 'https://invoice.invalid/sibling', payments: { data: [] } },
+    });
+    await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subCancel.length, 0, 'we only ever touch prices we sell');
+    assert.equal(h.calls.checkoutCreate.length, 1);
+  });
+});
+
+describe('D — a retry never hands back a dead checkout link', () => {
+  /**
+   * Measured on 2026-09-06 against the deployed image: Starter -> Pro -> Starter
+   * inside half an hour returned the FIRST session, which the plan switch had
+   * expired. Stripe's page then reads "You're all done here. You've either
+   * completed your payment or this checkout session has timed out." The buyer
+   * cannot pay, and nothing tells them why.
+   */
+  test('a replayed session that is no longer open is replaced with a live one', async () => {
+    // The replayed body lies: it says "open". Only a fresh retrieve tells the
+    // truth, which is why the code reads the session back before handing it over.
+    const h = load({ account: { stripe_customer_id: 'cus_guards' }, createStatuses: ['expired', 'open'] });
+    const out = await h.api.createCheckoutSession(h.account, 'starter');
+    assert.equal(h.calls.checkoutCreate.length, 2, 'an expired session must be replaced');
+    const keys = h.calls.checkoutCreate.map((c) => c.options.idempotencyKey);
+    assert.notEqual(keys[0], keys[1], 'with a different key, or Stripe replays the dead one again');
+    assert.notEqual(out.id, h.calls.checkoutCreate[0].options.idempotencyKey);
+    assert.equal(out.id, 'cs_2', 'the buyer is handed the replacement, not the corpse');
+  });
+
+  test('an open session is returned as it is, so a double click still collapses', async () => {
+    const h = load({ account: { stripe_customer_id: 'cus_guards' } });
+    await h.api.createCheckoutSession(h.account, 'starter');
+    assert.equal(h.calls.checkoutCreate.length, 1, 'a healthy session must not be recreated');
+  });
+});
+
+describe('A — a session that cannot be priced is judged on what we do know', () => {
+  const bare = (over = {}) => ({
+    id: 'cs_real', object: 'checkout.session', status: 'complete', payment_status: 'unpaid',
+    client_reference_id: '71', customer: 'cus_guards', metadata: { account_id: '71' }, ...over,
+  });
+
+  test('an expired session reads as expired even with no line items to read', async () => {
+    // Stripe keeps line_items on an expired session today - measured - but only
+    // for a documented window. "That checkout link has expired" is true whether
+    // or not we can still see what was on it; "we could not match that checkout
+    // to this account" is not.
+    const h = load({ account: { stripe_customer_id: 'cus_guards' } });
+    h.addSession(bare({ status: 'expired' }));
+    const out = await h.api.verifyCheckoutReturn(h.account, 'cs_real');
+    assert.equal(out.state, 'expired');
+  });
+
+  test('a PAID session we cannot price is never called paid', async () => {
+    // The C2 guard has to survive the reordering: a sibling product's paid
+    // session must not become "activating" just because its line items are gone.
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_paid' }) });
+    h.addSession(bare({ status: 'complete', payment_status: 'paid', subscription: 'sub_paid' }));
+    const out = await h.api.verifyCheckoutReturn(h.account, 'cs_real');
+    assert.equal(out.state, 'unverified');
+  });
+
+  test('a session with a price that is not ours is still foreign', async () => {
+    const h = load({ account: { stripe_customer_id: 'cus_guards' } });
+    h.addSession(bare({
+      status: 'complete', payment_status: 'paid',
+      line_items: { data: [{ price: { id: 'price_of_a_sibling_product' } }] },
+    }));
+    const out = await h.api.verifyCheckoutReturn(h.account, 'cs_real');
+    assert.equal(out.state, 'foreign');
+  });
+});
+
+describe('C — the customer is minted once, and the comment has to say why', () => {
+  test('each transaction re-reads the account row under its own lock', async () => {
+    // The split into two transactions is deliberate, but it means the first
+    // transaction's lock is GONE by the time the second starts. What makes two
+    // simultaneous clicks safe is that the second transaction re-reads the row
+    // under a fresh lock - not a lock spanning both, which is what the comment
+    // claimed.
+    const h = load({ account: { stripe_customer_id: null } });
+    await h.api.createCheckoutSession(h.account, 'starter');
+    const locked = h.calls.selects.filter((q) => /SELECT \* FROM accounts WHERE id = \$1 FOR UPDATE/i.test(q));
+    assert.ok(locked.length >= 2,
+      'both the customer transaction and the checkout transaction must lock the row themselves');
   });
 });
 
