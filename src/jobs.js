@@ -7,6 +7,7 @@ const { ApiError } = require('./errors');
 const { query, tx } = require('./db');
 const { assertPublicUrl, postJson } = require('./net');
 const batch = require('./batch');
+const { recordUsage } = require('./usage');
 const log = require('./log');
 
 /**
@@ -161,8 +162,14 @@ async function cancel(accountId, id) {
  */
 async function settleCredits(jobId, accountId, keep) {
   const { rows } = await query(
+    // `credits_charged` is only written when there was still a reservation to
+    // settle. Without the CASE, a second call - the worker's failure path running
+    // after a successful settlement, or a cancel arriving late - would rewrite a
+    // real charge to 0 while the account stays debited, which is precisely the
+    // row-versus-balance mismatch this module exists to avoid.
     `UPDATE jobs j
-        SET credits_reserved = 0, credits_charged = $2
+        SET credits_reserved = 0,
+            credits_charged  = CASE WHEN old.credits_reserved > 0 THEN $2 ELSE j.credits_charged END
        FROM (SELECT id, credits_reserved FROM jobs WHERE id = $1 FOR UPDATE) old
       WHERE j.id = old.id
       RETURNING old.credits_reserved AS was`,
@@ -282,9 +289,13 @@ async function runJob(job, { loadTemplate }) {
     throw new ApiError(409, 'job_cancelled', 'This job was cancelled while it was running.');
   }
 
-  const perItem = creditsPerItem(spec.output);
-  const settled = await settleCredits(job.id, account.id, perItem * run.ok);
-
+  // The files are stored BEFORE the credits are settled, and the order matters.
+  // Settling first meant that a result too big to store - `file_too_large` is
+  // raised inside storeFile - left the caller charged for a job that ended
+  // "failed" and handed them nothing, because the reservation the failure path
+  // refunds had already been zeroed by the settlement. Measured on 2026-09-06:
+  // an 11-item batch charged 11 credits with `jobs.credits_charged` recording 0.
+  // Storing first means a delivery failure still has a reservation to give back.
   const files = batch.filesOf(run.records, spec.output);
   const stored = [];
   if (files.length === 1 && spec.response !== 'zip') {
@@ -295,6 +306,25 @@ async function runJob(job, { loadTemplate }) {
     stored.push({ ...described(f), entries: names.length });
   }
   t.mark('store');
+
+  const perItem = creditsPerItem(spec.output);
+  const settled = await settleCredits(job.id, account.id, perItem * run.ok);
+
+  // Without this row the job is invisible to GET /v1/usage's breakdown and to
+  // every report built on usage_events - including the one that decides whether
+  // an account ever activated. Credits were always correct; the record of what
+  // they were spent on stopped at the synchronous endpoints.
+  await recordUsage(account.id, job.id, {
+    kind: 'job',
+    format: run.records.find((r) => r.format)?.format || null,
+    template_id: template ? template.id : null,
+    output: spec.output,
+    credits: settled.charged,
+    ok: run.failed === 0,
+    error_code: run.failed ? 'partial' : null,
+    ms: t.total(),
+    stages: { ...t.stages(), ...run.stages },
+  });
 
   l.info('job.ok', {
     kind: job.kind, output: spec.output, items: spec.items.length, ok: run.ok, failed: run.failed,
@@ -357,7 +387,18 @@ function startWorker(loadTemplate) {
         // Nothing was delivered, so nothing is charged. This is also the path a
         // crash inside a single item takes, which is why the release is here and
         // not only on the success side.
-        await settleCredits(job.id, job.account_id, 0);
+        const released = await settleCredits(job.id, job.account_id, 0);
+        // Only a job that still held a reservation is unrecorded: if it was
+        // already released, either the settlement succeeded and something after
+        // it threw - in which case that settlement wrote the usage row - or a
+        // cancel got there first, and a cancelled job charged nothing worth a
+        // second row.
+        if (released.refunded > 0) {
+          await recordUsage(job.account_id, job.id, {
+            kind: 'job', output: (job.request && job.request.output) || null,
+            credits: 0, ok: false, error_code: error.code,
+          });
+        }
         const { rowCount } = await query(
           `UPDATE jobs SET status = 'failed', error = $2, finished_at = now()
             WHERE id = $1 AND status = 'running'`,

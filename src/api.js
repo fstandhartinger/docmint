@@ -18,6 +18,7 @@ const billing = require('./billing');
 const batchLib = require('./batch');
 const jobs = require('./jobs');
 const { assertPublicUrl } = require('./net');
+const { recordUsage } = require('./usage');
 
 const router = express.Router();
 
@@ -775,21 +776,5 @@ router.delete('/keys/:prefix', withAuth, asyncRoute(async (req, res) => {
   req.log.info('key.revoked', { prefix: req.params.prefix });
   res.json({ revoked: n });
 }));
-
-/* ------------------------------------------------------------------ usage */
-
-async function recordUsage(accountId, requestId, e) {
-  try {
-    await query(
-      `INSERT INTO usage_events (account_id, kind, format, template_id, output, credits, duration_ms, stages, ok, error_code, origin, request_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      [accountId, e.kind, e.format || null, e.template_id || null, e.output || null, e.credits,
-        Math.round(e.ms || 0), JSON.stringify(e.stages || {}), e.ok, e.error_code || null, config.origin, requestId],
-    );
-  } catch (err) {
-    // Usage accounting must never take a successful render down with it.
-    log.error('usage.record_failed', { err });
-  }
-}
 
 module.exports = { router, CREDITS, loadTemplate, recordUsage, absoluteUrl };
