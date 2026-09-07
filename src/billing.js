@@ -344,6 +344,24 @@ function planForPriceId(priceId) {
   return null;
 }
 
+/** Asks Stripe what a subscription is now, classifying a failure the same way
+ * applySubscription does: transient means the delivery fails and Stripe
+ * redelivers; only "no such subscription" is answered instead. */
+async function confirmSubscription(id) {
+  try {
+    return await stripe.subscriptions.retrieve(String(id), { timeout: 5000, maxNetworkRetries: 0 });
+  } catch (e) {
+    const permanent = Boolean(e && (e.code === 'resource_missing' || e.statusCode === 404));
+    log[permanent ? 'error' : 'warn']('stripe.subscription_unverifiable', {
+      subscription: id, permanent, message: e.message,
+    });
+    const failure = new ApiError(503, 'subscription_unverifiable',
+      `Could not confirm subscription ${id} with Stripe; refusing to act on the event body.`);
+    failure.stripePermanent = permanent;
+    throw failure;
+  }
+}
+
 async function applySubscription(subscription, run = query, { refresh = true } = {}) {
   const accountId = subscription.metadata?.account_id;
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
@@ -416,8 +434,11 @@ async function applySubscription(subscription, run = query, { refresh = true } =
       // Bounded: this call happens with the account row locked, and a Stripe
       // incident must not hold that lock and a pool connection for the client's
       // full 10 s plus a retry.
+      // Bounded and deliberately WITHOUT an in-process retry: this runs while the
+      // account row is locked and the pool is small, and a 429 carrying Retry-After
+      // would hold both for up to a minute. Stripe's redelivery is the retry.
       const fresh = await stripe.subscriptions.retrieve(String(subscription.id), {
-        timeout: 5000, maxNetworkRetries: 1,
+        timeout: 5000, maxNetworkRetries: 0,
       });
       if (fresh && fresh.id) {
         // The checkout path stamps account_id onto the body from
@@ -459,9 +480,11 @@ async function applySubscription(subscription, run = query, { refresh = true } =
       // fails continuously eventually gets disabled — which would take the
       // deliveries that DO work down with it. That one is answered instead. Either
       // way nothing is written and the event id is not consumed.
-      const permanent = Boolean(e && (e.code === 'resource_missing' || e.statusCode === 404
-        || e.statusCode === 401 || e.statusCode === 403
-        || e.type === 'StripeAuthenticationError' || e.type === 'StripePermissionError'));
+      // Only "no such subscription" is permanent. A wrong or restricted key looks
+      // permanent but is fixed by somebody, and Stripe redelivers for three days —
+      // answering 200 would destroy those events silently AND hide them from
+      // Stripe's own failed-delivery list, which is where an operator would see it.
+      const permanent = Boolean(e && (e.code === 'resource_missing' || e.statusCode === 404));
       log[permanent ? 'error' : 'warn']('stripe.subscription_unverifiable', {
         subscription: subscription.id, event_status: subscription.status, permanent, message: e.message,
       });
@@ -535,11 +558,9 @@ async function handleEventInTransaction(event) {
         break;
       }
       if (session.subscription) {
-        // Bounded like the verification read above: this one also runs inside the
-        // event's transaction.
-        const sub = await stripe.subscriptions.retrieve(String(session.subscription), {
-          timeout: 5000, maxNetworkRetries: 1,
-        });
+        // Same read, same rules: bounded, no in-process retry, and a failure that
+        // Stripe will never resolve is answered rather than retried for three days.
+        const sub = await confirmSubscription(String(session.subscription));
         if (!sub.metadata?.account_id && session.client_reference_id) {
           sub.metadata = { ...(sub.metadata || {}), account_id: session.client_reference_id };
         }

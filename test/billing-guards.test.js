@@ -173,12 +173,18 @@ function load(opts = {}) {
   const tx = async (fn) => {
     const markers = new Set(seenEvents);
     const writes = dbUpdates.length;
+    // The account row is mutated in place by runQuery, so the rollback has to undo
+    // that too. Without it, "nothing was written" passes whenever the throw happens
+    // to precede the UPDATE — passing for the wrong reason.
+    const before = JSON.parse(JSON.stringify(account));
     try {
       return await fn({ query: runQuery });
     } catch (e) {
       seenEvents.clear();
       markers.forEach((m) => seenEvents.add(m));
       dbUpdates.length = writes;         // ROLLBACK
+      for (const k of Object.keys(account)) delete account[k];
+      Object.assign(account, before);
       throw e;
     }
   };
