@@ -417,7 +417,7 @@ async function applySubscription(subscription, run = query, { refresh = true } =
       // incident must not hold that lock and a pool connection for the client's
       // full 10 s plus a retry.
       const fresh = await stripe.subscriptions.retrieve(String(subscription.id), {
-        timeout: 5000, maxNetworkRetries: 0,
+        timeout: 5000, maxNetworkRetries: 1,
       });
       if (fresh && fresh.id) {
         // The checkout path stamps account_id onto the body from
@@ -452,11 +452,23 @@ async function applySubscription(subscription, run = query, { refresh = true } =
       // and swallowing it would commit the idempotency marker, so the redelivery
       // that would have healed it comes back as a duplicate and the customer stays
       // stranded with only a warning in a log nobody reads.
-      log.warn('stripe.subscription_unverifiable', {
-        subscription: subscription.id, event_status: subscription.status, message: e.message,
+      // Transient and permanent are not the same thing. A connection reset, a
+      // timeout, a rate limit or a Stripe 5xx will be resolved by redelivery, so the
+      // delivery fails and the event id rolls back with it. "No such subscription",
+      // a key in the wrong mode or a restricted key will not, and an endpoint that
+      // fails continuously eventually gets disabled — which would take the
+      // deliveries that DO work down with it. That one is answered instead. Either
+      // way nothing is written and the event id is not consumed.
+      const permanent = Boolean(e && (e.code === 'resource_missing' || e.statusCode === 404
+        || e.statusCode === 401 || e.statusCode === 403
+        || e.type === 'StripeAuthenticationError' || e.type === 'StripePermissionError'));
+      log[permanent ? 'error' : 'warn']('stripe.subscription_unverifiable', {
+        subscription: subscription.id, event_status: subscription.status, permanent, message: e.message,
       });
-      throw new ApiError(503, 'subscription_unverifiable',
+      const failure = new ApiError(503, 'subscription_unverifiable',
         `Could not confirm subscription ${subscription.id} with Stripe; refusing to act on the event body.`);
+      failure.stripePermanent = permanent;
+      throw failure;
     }
   }
 
@@ -488,6 +500,22 @@ async function applySubscription(subscription, run = query, { refresh = true } =
 }
 
 async function handleEvent(event) {
+  try {
+    return await handleEventInTransaction(event);
+  } catch (e) {
+    // A failure Stripe will never resolve by redelivering: answered, so a
+    // continuously-failing endpoint does not get disabled and take the deliveries
+    // that do work with it. Nothing was written and the event id was not consumed,
+    // because the transaction rolled back.
+    if (e && e.stripePermanent) {
+      log.error('stripe.event_unverifiable_permanent', { event: event.id, type: event.type });
+      return { ignored: 'subscription_unverifiable' };
+    }
+    throw e;
+  }
+}
+
+async function handleEventInTransaction(event) {
   // The idempotency marker and the fulfilment share one transaction. Written
   // separately, a marker that survived a failed fulfilment turned Stripe's retry
   // into `{duplicate:true}` — the customer had paid and nothing was ever applied.
@@ -507,7 +535,11 @@ async function handleEvent(event) {
         break;
       }
       if (session.subscription) {
-        const sub = await stripe.subscriptions.retrieve(String(session.subscription));
+        // Bounded like the verification read above: this one also runs inside the
+        // event's transaction.
+        const sub = await stripe.subscriptions.retrieve(String(session.subscription), {
+          timeout: 5000, maxNetworkRetries: 1,
+        });
         if (!sub.metadata?.account_id && session.client_reference_id) {
           sub.metadata = { ...(sub.metadata || {}), account_id: session.client_reference_id };
         }
