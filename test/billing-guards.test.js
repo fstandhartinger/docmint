@@ -241,6 +241,7 @@ function load(opts = {}) {
   return {
     api, account, calls, dbUpdates, priceOf, PLANS, fireEvent,
     setFailDb: (v) => { failDb = v; },
+    setRetrieveFails: (v) => { opts.retrieveFails = v; },
     quota: () => (account.quota_month !== undefined && api.BRAND_NAME === 'MailMint' ? account.quota_month : account.credits_limit),
     addSubscription: (s) => subscriptions.push(s),
     addSession: (s) => sessions.push(s),
@@ -265,14 +266,19 @@ describe('C2 — an existing subscription is changed, never duplicated', () => {
     assert.ok(h.calls.subUpdate.length >= 1, 'the existing subscription must be updated');
   });
 
-  test('duplicate clicks carry one idempotency key, so Stripe collapses them', async () => {
+  test('duplicate clicks change the subscription once, without a replayable key', async () => {
+    // This test used to require an idempotency key on the update and to assert that
+    // two clicks shared it. That key is gone: measured on 2026-09-07, a key that
+    // spans a window replays its stored response, so a third click in the same
+    // window reached nothing at Stripe at all. The property that mattered — one
+    // change, not two — is kept by the row lock and the re-read under it.
     const h = load({ account: paying() });
     h.addSubscription(existingSub(h));
     await h.api.createCheckoutSession(h.account, 'pro');
     await h.api.createCheckoutSession(h.account, 'pro');
-    const keys = h.calls.subUpdate.map((u) => u.options && u.options.idempotencyKey);
-    assert.ok(keys.every(Boolean), 'every update must carry an idempotency key');
-    assert.equal(new Set(keys).size, 1, 'the same click twice must reuse one key');
+    assert.equal(h.calls.subUpdate.length, 1,
+      'the second click sees the price the first one set and changes nothing');
+    assert.ok(!(h.calls.subUpdate[0].options || {}).idempotencyKey);
   });
 
   test('the upgrade is prorated, and a pending payment grants no quota yet', async () => {
@@ -590,6 +596,12 @@ describe('C2 — one Stripe account serves several products', () => {
 
   test('a stale subscription ending does not revoke the current one', async () => {
     const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_new' }) });
+    // Stripe still answers for a cancelled subscription, so the fixture holds one.
+    h.addSubscription({
+      id: 'sub_old', status: 'canceled', customer: 'cus_guards',
+      metadata: { account_id: '71', plan: 'starter' },
+      items: { data: [{ price: { id: h.priceOf('starter') } }] },
+    });
     await h.fireEvent({
       id: 'evt_stale', type: 'customer.subscription.deleted',
       data: { object: {
@@ -604,6 +616,11 @@ describe('C2 — one Stripe account serves several products', () => {
 
   test('cancelling the CURRENT subscription still downgrades, as it must', async () => {
     const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_mine' }) });
+    h.addSubscription({
+      id: 'sub_mine', status: 'canceled', customer: 'cus_guards',
+      metadata: { account_id: '71', plan: 'pro' },
+      items: { data: [{ price: { id: h.priceOf('pro') } }] },
+    });
     await h.fireEvent({
       id: 'evt_own_cancel', type: 'customer.subscription.deleted',
       data: { object: {
@@ -675,13 +692,32 @@ describe('C5 — which webhook lands last must not decide what the customer keep
       'reading Stripe outside the lock would race the very deliveries this fixes');
   });
 
-  test('a Stripe outage falls back to the snapshot rather than dropping the event', async () => {
-    // The fallback is what the code did in every case before, so it is no worse —
-    // and a customer who has paid must not silently get nothing.
+  test('a Stripe outage drops nothing: the delivery fails and Stripe retries it', async () => {
+    // This test used to require the opposite - fall back to the event body, on the
+    // reasoning that an outage must not leave a paying customer with nothing. It was
+    // written before the outage was actually simulated. When it was, on the deployed
+    // image with Stripe genuinely unreachable, that fallback took a paying account
+    // from starter/2000 to free/30 and answered HTTP 200 so nothing was ever retried.
+    // A snapshot we cannot confirm is not a fact; the delivery fails instead.
     const h = load({ account: { stripe_customer_id: 'cus_guards' }, retrieveFails: true });
-    await h.fireEvent({ id: 'evt_out', type: 'customer.subscription.updated', data: { object: snapshot(h, 'active') } });
-    assert.equal(h.account.plan, 'pro');
-    assert.equal(h.account.stripe_subscription_id, 'sub_bought');
+    await assert.rejects(() => h.fireEvent({
+      id: 'evt_out', type: 'customer.subscription.updated', data: { object: snapshot(h, 'active') },
+    }));
+    assert.equal(h.account.plan, 'free', 'nothing is written on an unverifiable snapshot');
+  });
+
+  test('"no such subscription" is treated as unverifiable too, not as permission', async () => {
+    // A 404 for a subscription Stripe just sent an event about is what a key in the
+    // wrong mode looks like, not a fact about the customer. Swallowing it would
+    // commit the idempotency marker and turn the redelivery that would have healed
+    // it into a duplicate.
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_bought' }) });
+    await assert.rejects(() => h.fireEvent({
+      id: 'evt_gone', type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_never_existed', status: 'canceled', customer: 'cus_guards',
+        metadata: { account_id: '71' }, items: { data: [{ price: { id: h.priceOf('pro') } }] } } },
+    }));
+    assert.equal(h.account.plan, 'pro', 'and nothing was decided from the body');
   });
 
   test('a real cancellation still downgrades, because Stripe says so too', async () => {
@@ -712,6 +748,153 @@ describe('C5 — which webhook lands last must not decide what the customer keep
       client_reference_id: '71', customer: 'cus_guards', metadata: { account_id: '71', plan: 'pro' },
     } } });
     assert.equal(h.calls.subRetrieve.length, 1, 'it already fetched it; once is enough');
+    assert.equal(h.account.plan, 'pro');
+  });
+});
+
+describe('E — the provider and the product must not disagree about the plan', () => {
+  /**
+   * PDFMint measured this on its own copy of this code: with a windowed
+   * idempotency key on `subscriptions.update`, Starter -> Pro -> Starter -> Pro
+   * inside half an hour left Stripe on Starter while the product granted Pro.
+   *
+   * Measured HERE on the deployed DocMint image (`197aca9`), the same three
+   * clicks in one window:
+   *
+   *   click pro     -> stripe=pro      db=pro|20000
+   *   click starter -> stripe=starter  db=starter|2000
+   *   click pro     -> stripe=starter  db=starter|2000     <- the click did nothing
+   *
+   * DocMint does not mis-grant, because the C5 refresh reads Stripe back — but the
+   * customer clicked Pro, was told the change was sent, and nothing happened, for
+   * up to thirty minutes. The cause is the same replayed key either way.
+   */
+  const active = (h, plan) => ({
+    id: 'sub_live', customer: 'cus_guards', status: 'active',
+    metadata: { account_id: '71', plan },
+    items: { data: [{ id: 'si_live', price: { id: h.priceOf(plan) }, quantity: 1 }] },
+  });
+
+  test('an upgrade carries no key that a later click could replay', async () => {
+    const h = load({ account: paying() });
+    h.addSubscription(active(h, 'starter'));
+    await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subUpdate.length, 1);
+    const options = h.calls.subUpdate[0].options || {};
+    assert.ok(!options.idempotencyKey,
+      'a windowed key replays the first response, so the second identical click never reaches Stripe');
+  });
+
+  test('clicking the plan the account is already on updates nothing at Stripe', async () => {
+    // This is what actually collapses a double click: the row is locked, Stripe is
+    // re-read under it, and the second click sees the price it just set.
+    const h = load({ account: paying({ plan: 'pro' }) });
+    h.addSubscription(active(h, 'pro'));
+    const out = await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subUpdate.length, 0, 'nothing to change');
+    assert.equal(h.calls.checkoutCreate.length, 0, 'and certainly no second subscription');
+    assert.match(out.url, /checkout=updated/);
+  });
+
+  test('a blip after Stripe has already changed the plan does not throw the change away', async () => {
+    // The upgrade path is handed the authoritative subscription by Stripe itself, so
+    // it must not verify it a second time: a failure on that redundant read would
+    // roll back a change Stripe has already made and prorated.
+    const h = load({ account: paying() });
+    h.addSubscription(active(h, 'starter'));
+    h.setRetrieveFails(true);
+    const out = await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.calls.subUpdate.length, 1, 'Stripe was asked to change the plan');
+    assert.equal(h.account.plan, 'pro', 'and the account holds what Stripe now charges for');
+    assert.match(out.url, /checkout=updated/);
+  });
+
+  test('re-clicking the plan you are already on cannot 503 on a redundant read', async () => {
+    const h = load({ account: paying({ plan: 'pro' }) });
+    h.addSubscription(active(h, 'pro'));
+    h.setRetrieveFails(true);
+    const out = await h.api.createCheckoutSession(h.account, 'pro');
+    assert.match(out.url, /checkout=updated/);
+    assert.equal(h.account.plan, 'pro');
+  });
+
+  test('after an upgrade the quota granted is the one Stripe now holds', async () => {
+    const h = load({ account: paying() });
+    h.addSubscription(active(h, 'starter'));
+    await h.api.createCheckoutSession(h.account, 'pro');
+    assert.equal(h.account.plan, 'pro');
+    assert.equal(h.account.credits_limit, h.PLANS.pro.credits);
+  });
+});
+
+describe('E — a read we could not make is not a fact we may act on', () => {
+  /**
+   * Measured on the deployed DocMint image with Stripe genuinely unreachable from
+   * the container (`--add-host api.stripe.com:127.0.0.1`, nothing about the code
+   * changed), delivering the genuine `customer.subscription.created` event whose
+   * body says `incomplete` — as every one of them does:
+   *
+   *   before  starter|2000|sub_1UCqZK…      after  free|30|(cleared)
+   *   HTTP 200, and the idempotency marker kept
+   *
+   * So the outage took a paying customer's plan away, told Stripe everything was
+   * fine, and made sure the retry would be swallowed as a duplicate. The fallback
+   * to the event body was there so that "an outage must not mean a paying customer
+   * silently gets nothing" — it did exactly that instead.
+   */
+  const paidBody = (h, status) => ({
+    id: 'sub_live', customer: 'cus_guards', status,
+    metadata: { account_id: '71', plan: 'pro' },
+    items: { data: [{ id: 'si_live', price: { id: h.priceOf('pro') }, quantity: 1 }] },
+  });
+
+  test('a stale "incomplete" body cannot downgrade a paid account when Stripe is down', async () => {
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_live' }), retrieveFails: true });
+    await assert.rejects(
+      () => h.fireEvent({ id: 'evt_out1', type: 'customer.subscription.created', data: { object: paidBody(h, 'incomplete') } }),
+      'the delivery must fail so Stripe retries it, rather than acting on a snapshot',
+    );
+    assert.equal(h.account.plan, 'pro', 'the paid plan stays');
+    assert.equal(h.account.stripe_subscription_id, 'sub_live', 'and so does the id they cancel with');
+  });
+
+  test('and the retry is not swallowed as a duplicate', async () => {
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_live' }), retrieveFails: true });
+    const event = { id: 'evt_out2', type: 'customer.subscription.updated', data: { object: paidBody(h, 'incomplete') } };
+    await assert.rejects(() => h.fireEvent(event));
+    h.setRetrieveFails(false);
+    h.addSubscription(paidBody(h, 'active'));
+    const retry = await h.fireEvent(event);
+    assert.ok(!retry.duplicate, 'the marker must have rolled back with the failed transaction');
+    assert.equal(h.account.plan, 'pro');
+  });
+
+  test('nor may an unverifiable body grant a plan', async () => {
+    // The same rule in the other direction: a body saying "active" is a snapshot
+    // too, and a plan we cannot confirm is not a plan we may hand out.
+    const h = load({ account: { stripe_customer_id: 'cus_guards' }, retrieveFails: true });
+    await assert.rejects(
+      () => h.fireEvent({ id: 'evt_out3', type: 'customer.subscription.updated', data: { object: paidBody(h, 'active') } }),
+    );
+    assert.equal(h.account.plan, 'free', 'nothing was granted on an unverifiable snapshot');
+  });
+
+  test('the checkout path still fails loudly when it cannot read the subscription', async () => {
+    const h = load({ account: { stripe_customer_id: 'cus_guards' }, retrieveFails: true });
+    await assert.rejects(() => h.fireEvent({
+      id: 'evt_out4', type: 'checkout.session.completed',
+      data: { object: { id: 'cs_x', payment_status: 'paid', subscription: 'sub_live', client_reference_id: '71', customer: 'cus_guards' } },
+    }));
+    assert.equal(h.account.plan, 'free');
+  });
+
+  test("a sibling product's event still costs nothing, outage or not", async () => {
+    const h = load({ account: paying({ plan: 'pro', stripe_subscription_id: 'sub_live' }), retrieveFails: true });
+    const out = await h.fireEvent({ id: 'evt_out5', type: 'customer.subscription.deleted', data: { object: {
+      id: 'sub_of_another_product', customer: 'cus_guards', status: 'canceled', metadata: { account_id: '71' },
+      items: { data: [{ price: { id: 'price_of_a_sibling_product' } }] },
+    } } });
+    assert.ok(out, 'a foreign event is answered, not retried forever');
     assert.equal(h.account.plan, 'pro');
   });
 });
