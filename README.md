@@ -16,15 +16,41 @@ template's placeholders into real n8n fields.
 
 This repository is the API behind both.
 
+## Make your first document
+
+[Create a free account](https://docmint.app.mintapis.com/signup), copy its API key,
+and run this from a clone of this repository (`git clone
+https://github.com/fstandhartinger/docmint.git && cd docmint`). You need Node.js
+20+ and curl, but **no npm install, Office installation or template upload**.
+The request uses the existing [sales-report example](examples/README.md#2-sales-reportxlsx)
+and its complete sample data, rather than a template name your new account does
+not have yet.
+
 ```bash
-curl -X POST https://docmint.app.mintapis.com/v1/render \
-  -H "Authorization: Bearer dm_live_xxx" \
+export DOCMINT_API_KEY='paste-your-api-key-here'
+node -e 'const fs=require("node:fs"); process.stdout.write(JSON.stringify({template_base64:fs.readFileSync("examples/sales-report.xlsx").toString("base64"),data:JSON.parse(fs.readFileSync("examples/sales-report.data.json","utf8")),output:"document"}))' > request.json
+curl --fail-with-body --max-time 120 \
+  https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer $DOCMINT_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"template":"quote",
-       "data":{"customer":"Acme GmbH","total":1240.5},
-       "output":"pdf"}' \
-  --output quote.pdf
+  --data-binary @request.json \
+  --output filled-sales-report.xlsx
 ```
+
+Open `filled-sales-report.xlsx`: it contains the filled sales workbook, including
+the regional summary. This costs **one of your 30 free credits**. For a PDF,
+change `output:"document"` to `output:"pdf"` and the output filename to
+`filled-sales-report.pdf`; that costs **two credits**. If curl reports an HTTP
+error, the output file contains the API's JSON explanation, not an Office file.
+Check your remaining credits with:
+
+```bash
+curl --fail-with-body https://docmint.app.mintapis.com/v1/usage \
+  -H "Authorization: Bearer $DOCMINT_API_KEY"
+```
+
+For n8n, use the [existing DocMint node setup guide](https://docmint.app.mintapis.com/n8n-word-template)
+instead; you do not need to write the HTTP request yourself.
 
 ![The DocMint landing page](docs/landing.png)
 
@@ -70,10 +96,11 @@ process. The docs say so on the pricing section rather than in a footnote.
 
 ## What it costs to run
 
-**$7.00/month**, on top of nothing: one Render Starter instance and a free-tier Neon
-database. `ops/INFRASTRUCTURE.md` lists every resource this project created, audited
-against the whole account rather than from memory, and `ops/reap.sh --destroy` removes
-them.
+The canonical hosted service runs on Sandy via Coolify; see [DEPLOY.md](DEPLOY.md)
+for its repository, branch and deployment process. A legacy Render endpoint is
+also retained for existing integrations. The old Render/Neon inventory in
+`ops/INFRASTRUCTURE.md` is historical, not a current total-cost estimate or a
+safe teardown checklist for the hosted service.
 
 LibreOffice peaks at **219 MB** per conversion, measured — which is why
 `MAX_CONCURRENT_PDF` defaults to 1 in a 512 MB container.
