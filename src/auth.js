@@ -148,7 +148,7 @@ async function consumeCredits(accountId, n = 1) {
         });
     }
     throw new ApiError(402, 'quota_exceeded',
-      `You have used all ${a.credits_limit} documents included in your ${a.plan} plan this month.`, {
+      `This request exceeds the remaining monthly quota for your ${a.plan} plan.`, {
         hint: 'The quota resets on the 1st of next month. To raise it now, upgrade at /dashboard.',
         docs: '/docs#quota',
         details: { plan: a.plan, credits_used: a.credits_used, credits_limit: a.credits_limit },

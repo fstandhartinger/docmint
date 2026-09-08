@@ -564,7 +564,10 @@ async function handleEventInTransaction(event) {
         if (!sub.metadata?.account_id && session.client_reference_id) {
           sub.metadata = { ...(sub.metadata || {}), account_id: session.client_reference_id };
         }
-        await applySubscription(sub, run, { refresh: false });
+        // The first lookup precedes the account lock. Re-confirm under that
+        // lock so a delayed completion cannot undo a concurrent paid upgrade.
+        // Failure rolls back both the entitlement and event marker.
+        await applySubscription(sub, run);
       }
       break;
     }
