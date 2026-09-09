@@ -1,6 +1,6 @@
 'use strict';
 
-const { query } = require('./db');
+const { tx } = require('./db');
 const log = require('./log');
 
 const STATEMENTS = [
@@ -150,10 +150,17 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS jobs_queue_idx ON jobs(status, created_at)`,
   `CREATE INDEX IF NOT EXISTS jobs_account_idx ON jobs(account_id, created_at DESC)`,
   ...require('./recovery').migration,
+  ...require('./job-webhook-migration'),
 ];
 
 async function migrate() {
-  for (const sql of STATEMENTS) await query(sql);
+  // A new instance must fail its own startup rather than queue unbounded DDL
+  // behind a live writer. The healthy old instance remains serving the rollout.
+  await tx(async (client) => {
+    await client.query("SET LOCAL lock_timeout = '1s'");
+    await client.query("SET LOCAL statement_timeout = '5s'");
+    for (const sql of STATEMENTS) await client.query(sql);
+  });
   log.info('migrate.done', { statements: STATEMENTS.length });
 }
 

@@ -82,13 +82,17 @@ const publicJob = (j) => ({
   finished_at: j.finished_at,
   ...(j.result ? { result: j.result } : {}),
   ...(j.error ? { error: j.error } : {}),
-  ...(j.webhook_url ? { webhook: { url: j.webhook_url, status: j.webhook_status, attempts: j.webhook_attempts || [] } } : {}),
+  ...(j.webhook_url ? { webhook: {
+    url: j.webhook_url, status: j.webhook_status, attempts: j.webhook_attempts || [],
+    delivery_id: j.webhook_delivery_id,
+    next_attempt_at: j.webhook_next_at || j.webhook_lease_until,
+  } } : {}),
 });
 
 async function get(accountId, id) {
   const { rows } = await query(
     `SELECT id, kind, status, result, error, created_at, started_at, finished_at,
-            webhook_url, webhook_status, webhook_attempts
+            webhook_url, webhook_status, webhook_attempts, webhook_delivery_id, webhook_next_at, webhook_lease_until
        FROM jobs WHERE id = $1 AND account_id = $2`,
     [id, accountId],
   );
@@ -100,7 +104,7 @@ async function list(accountId, limit = 25) {
   const n = Math.min(Math.max(Number(limit) || 25, 1), 100);
   const { rows } = await query(
     `SELECT id, kind, status, result, error, created_at, started_at, finished_at,
-            webhook_url, webhook_status, webhook_attempts
+            webhook_url, webhook_status, webhook_attempts, webhook_delivery_id, webhook_next_at, webhook_lease_until
        FROM jobs WHERE account_id = $1 ORDER BY created_at DESC LIMIT $2`,
     [accountId, n],
   );
@@ -161,27 +165,26 @@ async function cancel(accountId, id) {
  * worker finishing and a cancel arriving at the same moment cannot both refund.
  */
 async function settleCredits(jobId, accountId, keep) {
-  const { rows } = await query(
-    // `credits_charged` is only written when there was still a reservation to
-    // settle. Without the CASE, a second call - the worker's failure path running
-    // after a successful settlement, or a cancel arriving late - would rewrite a
-    // real charge to 0 while the account stays debited, which is precisely the
-    // row-versus-balance mismatch this module exists to avoid.
-    `UPDATE jobs j
-        SET credits_reserved = 0,
-            credits_charged  = CASE WHEN old.credits_reserved > 0 THEN $2 ELSE j.credits_charged END
-       FROM (SELECT id, credits_reserved FROM jobs WHERE id = $1 FOR UPDATE) old
-      WHERE j.id = old.id
-      RETURNING old.credits_reserved AS was`,
-    [jobId, keep],
-  ).catch((e) => { log.error('jobs.settle_failed', { job: jobId, err: e }); return { rows: [] }; });
-  const was = rows.length ? Number(rows[0].was) : 0;
-  const refund = was - keep;
-  if (refund > 0) {
-    await query(`UPDATE accounts SET credits_used = GREATEST(0, credits_used - $2) WHERE id = $1`, [accountId, refund])
-      .catch((e) => log.error('jobs.refund_failed', { job: jobId, err: e }));
-  }
-  return { charged: Math.min(keep, was), refunded: Math.max(0, refund) };
+  // Claim consumption and the account refund must commit together. Otherwise a
+  // failed account UPDATE erases the only durable evidence that a refund is owed.
+  return tx(async (client) => {
+    const { rows } = await client.query(
+      // An already settled job keeps its real charge, even if later work fails.
+      `UPDATE jobs j
+          SET credits_reserved = 0,
+              credits_charged = CASE WHEN old.credits_reserved > 0 THEN $2 ELSE j.credits_charged END
+         FROM (SELECT id, credits_reserved FROM jobs WHERE id = $1 FOR UPDATE) old
+        WHERE j.id = old.id
+        RETURNING old.credits_reserved AS was`,
+      [jobId, keep],
+    );
+    const was = rows.length ? Number(rows[0].was) : 0;
+    const refund = was - keep;
+    if (refund > 0) {
+      await client.query(`UPDATE accounts SET credits_used = GREATEST(0, credits_used - $2) WHERE id = $1`, [accountId, refund]);
+    }
+    return { charged: Math.min(keep, was), refunded: Math.max(0, refund) };
+  });
 }
 
 /** Claims one queued job, so two instances never take the same row. */
@@ -215,48 +218,86 @@ const isCancelledNow = async (id) => {
  * the job was created: a name that resolved to a public address at enqueue time
  * can resolve to 169.254.169.254 by the time we call it.
  */
-async function deliver(job, payload, l = log) {
-  if (!job.webhook_url) return;
-  const body = JSON.stringify(payload);
-  const { rows } = await query(`SELECT webhook_secret FROM accounts WHERE id = $1`, [job.account_id]).catch(() => ({ rows: [] }));
-  const secret = rows[0] && rows[0].webhook_secret;
-  const timestamp = Math.floor(Date.now() / 1000);
-  const headers = {
-    'Content-Type': 'application/json',
-    'User-Agent': 'DocMint-Webhook/1',
-    'X-DocMint-Timestamp': String(timestamp),
-    'X-DocMint-Job-Id': job.id,
-    'X-DocMint-Event': `job.${payload.status}`,
-  };
-  if (secret) {
-    headers['X-DocMint-Signature'] = `sha256=${crypto.createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
-  }
-
-  const attempts = [];
-  for (let attempt = 1; attempt <= config.jobWebhookAttempts; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const out = await postJson(job.webhook_url, { body, headers, timeoutMs: config.jobWebhookTimeoutMs });
-    attempts.push({ attempt, at: new Date().toISOString(), status: out.status, ok: out.ok, error: out.error });
-    // eslint-disable-next-line no-await-in-loop
-    await recordAttempts(job.id, attempts, out.ok ? 'delivered' : 'failed');
-    if (out.ok) {
-      l.info('job.webhook_delivered', { job: job.id, attempt, status: out.status });
-      return;
+/** Terminal jobs are their own durable outbox; delivery never renders or settles.
+ * Reserve attempts before HTTP and CAS receipts by lease token. Lost acknowledgements
+ * can repeat an ID/body: receivers must deduplicate. Crashes consume the budget. */
+async function claimDelivery() {
+  return tx(async (client) => {
+    const { rows } = await client.query(
+      `SELECT * FROM jobs WHERE status IN ('succeeded','failed','cancelled')
+         AND webhook_url IS NOT NULL
+         AND (webhook_status IS NULL OR webhook_status IN ('pending','delivering')
+           OR (webhook_status = 'failed' AND webhook_delivery_id IS NULL
+               AND jsonb_array_length(COALESCE(webhook_attempts, '[]'::jsonb)) < $1))
+         AND (webhook_next_at IS NULL OR webhook_next_at <= now())
+         AND (webhook_lease_until IS NULL OR webhook_lease_until <= now())
+       ORDER BY finished_at LIMIT 1 FOR UPDATE SKIP LOCKED`, [config.jobWebhookAttempts],
+    );
+    if (!rows.length) return null;
+    const job = rows[0];
+    const attempts = job.webhook_attempts || [];
+    if (attempts.length >= config.jobWebhookAttempts) {
+      await client.query(`UPDATE jobs SET webhook_status = 'failed', webhook_next_at = NULL,
+        webhook_lease_until = NULL, webhook_lease_token = NULL WHERE id = $1`, [job.id]);
+      return null;
     }
-    l.warn('job.webhook_failed', { job: job.id, attempt, status: out.status, error: out.error });
-    // 4 s then 8 s. Long enough for a receiver that is restarting, short enough
-    // that the worker is not held off other jobs for a minute per dead endpoint.
-    if (attempt < config.jobWebhookAttempts) {
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => { setTimeout(r, attempt * 4000).unref(); });
-    }
-  }
+    const token = crypto.randomBytes(18).toString('hex');
+    const id = job.webhook_delivery_id || `${job.id}:${job.status}`;
+    const body = job.webhook_body || JSON.stringify(webhookPayload(job, job.status,
+      job.result ? { result: absolutise(job.result) } : { error: job.error }));
+    attempts.push({ attempt: attempts.length + 1, at: new Date().toISOString(), ok: false, error: 'interrupted', status: null });
+    await client.query(`UPDATE jobs SET webhook_status = 'delivering', webhook_delivery_id = $2,
+      webhook_body = $3, webhook_attempts = $4::jsonb, webhook_lease_token = $5,
+      webhook_lease_until = now() + ($6 || ' milliseconds')::interval,
+      webhook_next_at = NULL WHERE id = $1`,
+    [job.id, id, body, JSON.stringify(attempts), token, String(config.jobWebhookTimeoutMs + 1000)]);
+    return { ...job, webhook_delivery_id: id, webhook_body: body, webhook_attempts: attempts, webhook_lease_token: token };
+  });
 }
 
-const recordAttempts = (id, attempts, status) => query(
-  `UPDATE jobs SET webhook_attempts = $2::jsonb, webhook_status = $3 WHERE id = $1`,
-  [id, JSON.stringify(attempts), status],
-).catch(() => {});
+async function deliverPending() {
+  const job = await claimDelivery();
+  if (!job) return;
+  const body = job.webhook_body;
+  const attempts = job.webhook_attempts;
+  const attempt = attempts.length;
+  let out;
+  try {
+    const { rows } = await query(`SELECT webhook_secret FROM accounts WHERE id = $1`, [job.account_id]);
+    const secret = rows[0] && rows[0].webhook_secret;
+    if (!secret) throw new Error('webhook signing secret unavailable');
+    // DB lookup/response delays are outside HTTP's deadline. Revalidate ownership
+    // before sending and budget even this UPDATE's round trip against the lease.
+    const refreshStarted = Date.now();
+    const refreshed = await query(`UPDATE jobs SET webhook_lease_until = now() + ($3 || ' milliseconds')::interval
+      WHERE id = $1 AND webhook_lease_token = $2 AND webhook_lease_until > now() RETURNING id`,
+    [job.id, job.webhook_lease_token, String(config.jobWebhookTimeoutMs + 1000)]);
+    if (!refreshed.rowCount) return;
+    const timeoutMs = config.jobWebhookTimeoutMs - (Date.now() - refreshStarted);
+    if (timeoutMs <= 0) throw new Error('webhook lease refresh deadline exceeded');
+    const timestamp = Math.floor(Date.now() / 1000);
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'DocMint-Webhook/1',
+      'X-DocMint-Timestamp': String(timestamp),
+      'X-DocMint-Job-Id': job.id,
+      'X-DocMint-Event': `job.${job.status}`,
+      'X-DocMint-Delivery-Id': job.webhook_delivery_id,
+      'X-DocMint-Signature': `sha256=${crypto.createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`,
+    };
+    out = await postJson(job.webhook_url, { body, headers, timeoutMs });
+  } catch (e) {
+    out = { ok: false, status: null, error: e.message };
+  }
+  attempts[attempt - 1] = { ...attempts[attempt - 1], status: out.status, ok: out.ok, error: out.error };
+  const status = out.ok ? 'delivered' : attempt >= config.jobWebhookAttempts ? 'failed' : 'pending';
+  await query(`UPDATE jobs SET webhook_attempts = $2::jsonb, webhook_status = $3,
+    webhook_next_at = CASE WHEN $3 = 'pending' THEN now() + ($4 || ' milliseconds')::interval ELSE NULL END,
+    webhook_lease_until = NULL, webhook_lease_token = NULL
+    WHERE id = $1 AND webhook_lease_token = $5`,
+  [job.id, JSON.stringify(attempts), status, String(attempt * 4000), job.webhook_lease_token]);
+  log.info('job.webhook_attempt', { job: job.id, attempt, status: out.status, ok: out.ok });
+}
 
 /* -------------------------------------------------------------- the runner */
 
@@ -374,12 +415,12 @@ function startWorker(loadTemplate) {
         const result = await runJob(job, { loadTemplate });
         // `AND status = 'running'` so a cancellation that landed mid-render is
         // not silently overwritten by the result the caller said they did not want.
-        const { rowCount } = await query(
+        await query(
           `UPDATE jobs SET status = 'succeeded', result = $2, finished_at = now()
             WHERE id = $1 AND status = 'running'`,
           [job.id, JSON.stringify(result)],
         );
-        if (rowCount) await deliver(job, webhookPayload(job, 'succeeded', { result: absolutise(result) }));
+
       }
     } catch (e) {
       if (job) {
@@ -387,7 +428,12 @@ function startWorker(loadTemplate) {
         // Nothing was delivered, so nothing is charged. This is also the path a
         // crash inside a single item takes, which is why the release is here and
         // not only on the success side.
-        const released = await settleCredits(job.id, job.account_id, 0);
+        const released = await settleCredits(job.id, job.account_id, 0).catch((err) => {
+          // The transaction retained the reservation. Periodic recovery retries
+          // it; a transient refund failure must not become an unhandled rejection.
+          log.error('jobs.settle_failed', { job: job.id, err });
+          return { refunded: 0, charged: 0 };
+        });
         // Only a job that still held a reservation is unrecorded: if it was
         // already released, either the settlement succeeded and something after
         // it threw - in which case that settlement wrote the usage row - or a
@@ -399,14 +445,13 @@ function startWorker(loadTemplate) {
             credits: 0, ok: false, error_code: error.code,
           });
         }
-        const { rowCount } = await query(
+        await query(
           `UPDATE jobs SET status = 'failed', error = $2, finished_at = now()
             WHERE id = $1 AND status = 'running'`,
           [job.id, JSON.stringify(error)],
         ).catch(() => ({ rowCount: 0 }));
         log.warn('job.failed', { job: job.id, code: error.code, message: error.message });
-        if (rowCount) await deliver(job, webhookPayload(job, 'failed', { error }));
-        else await deliver(job, webhookPayload(job, 'cancelled', { error }));
+
       } else {
         log.warn('job.tick_failed', { err: e });
       }
@@ -415,8 +460,18 @@ function startWorker(loadTemplate) {
     }
   };
   setTimeout(tick, 3000).unref();
+  const deliveryTick = async () => {
+    if (stopped) return;
+    try { if (config.jobWebhookDeliveryEnabled !== false) await deliverPending(); }
+    catch (e) { log.warn('job.delivery_tick_failed', { err: e }); }
+    finally { if (!stopped) setTimeout(deliveryTick, config.jobPollMs).unref(); }
+  };
+  setTimeout(deliveryTick, 3000).unref();
   recoverStalled();
-  return () => { stopped = true; };
+  recoverRefunds();
+  const recoveryTimer = setInterval(() => { recoverStalled(); recoverRefunds(); }, 60000);
+  recoveryTimer.unref();
+  return () => { stopped = true; clearInterval(recoveryTimer); };
 }
 
 const webhookPayload = (job, status, extra) => ({
@@ -475,10 +530,27 @@ function recoverStalled() {
     .catch((e) => log.warn('jobs.recover_failed', { err: e }));
 }
 
+/** Failed/cancelled terminal rows can still own a refund after a DB outage. */
+async function recoverRefunds() {
+  try {
+    const { rows } = await query(`SELECT id, account_id FROM jobs
+      WHERE status IN ('failed','cancelled') AND credits_reserved > 0
+      ORDER BY finished_at LIMIT 100`);
+    for (const job of rows) {
+      await settleCredits(job.id, job.account_id, 0);
+    }
+  } catch (err) { log.warn('jobs.refund_recovery_failed', { err }); }
+}
+
 /** Finished jobs and expired files are deleted in-process; neither needs a cron. */
 function startReapers() {
   const tick = () => {
-    query(`DELETE FROM jobs WHERE finished_at < now() - ($1 || ' days')::interval`, [String(config.jobRetentionDays)])
+    query(`DELETE FROM jobs WHERE finished_at < now() - ($1 || ' days')::interval
+      AND credits_reserved = 0
+      AND (webhook_url IS NULL OR webhook_status = 'delivered'
+        OR (webhook_status = 'failed' AND (webhook_delivery_id IS NOT NULL
+          OR jsonb_array_length(COALESCE(webhook_attempts, '[]'::jsonb)) >= $2)))`,
+    [String(config.jobRetentionDays), config.jobWebhookAttempts])
       .then((r) => { if (r.rowCount) log.info('jobs.reaped', { deleted: r.rowCount }); })
       .catch((e) => log.warn('jobs.reap_failed', { err: e }));
     query(`DELETE FROM files WHERE expires_at < now()`)

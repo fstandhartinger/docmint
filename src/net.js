@@ -133,10 +133,20 @@ async function assertPublicUrl(raw, field = 'webhook_url') {
  */
 async function postJson(rawUrl, { body, headers = {}, timeoutMs = 15000 } = {}) {
   let url = String(rawUrl);
+  // One deadline includes DNS validation and every redirect, not four separate
+  // HTTP timeouts. A delayed validation can finish later but cannot start HTTP.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('webhook deadline exceeded')), timeoutMs);
+  timer.unref();
+  const aborted = new Promise((resolve, reject) => {
+    controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true });
+  });
+  try {
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     try {
+      controller.signal.throwIfAborted();
       // eslint-disable-next-line no-await-in-loop
-      await assertPublicUrl(url, 'webhook_url');
+      await Promise.race([assertPublicUrl(url, 'webhook_url'), aborted]);
     } catch (e) {
       return { ok: false, status: null, url, error: e.code === 'private_address_blocked' || e.code === 'dns_failed' ? e.message : String(e.message) };
     }
@@ -144,11 +154,14 @@ async function postJson(rawUrl, { body, headers = {}, timeoutMs = 15000 } = {}) 
     try {
       // eslint-disable-next-line no-await-in-loop
       res = await fetch(url, {
-        method: 'POST', headers, body, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs),
+        method: 'POST', headers, body, redirect: 'manual', signal: controller.signal,
       });
     } catch (e) {
       return { ok: false, status: null, url, error: String(e.message || e).slice(0, 200) };
     }
+    // Response bodies are not part of the receipt protocol; do not retain an
+    // unread stream across redirects or permit an endless body to hold sockets.
+    if (res.body) res.body.cancel().catch(() => {});
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
       if (hop === MAX_REDIRECTS) {
         return { ok: false, status: res.status, url, error: `more than ${MAX_REDIRECTS} redirects` };
@@ -164,6 +177,7 @@ async function postJson(rawUrl, { body, headers = {}, timeoutMs = 15000 } = {}) 
     return { ok: res.ok, status: res.status, url, error: res.ok ? null : `HTTP ${res.status}` };
   }
   return { ok: false, status: null, url, error: 'redirect loop' };
+  } finally { clearTimeout(timer); }
 }
 
 module.exports = { assertPublicUrl, isPrivateAddress, postJson, MAX_REDIRECTS };

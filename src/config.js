@@ -72,6 +72,8 @@ const config = {
   // and one that is down for good must not be retried forever. Three attempts
   // with 4 s and 8 s between them covers a restart without becoming a stampede.
   jobWebhookAttempts: num(process.env.JOB_WEBHOOK_ATTEMPTS, 3),
+  // First rollout must set 0 on every host until all old direct senders exit.
+  jobWebhookDeliveryEnabled: process.env.JOB_WEBHOOK_DELIVERY_ENABLED !== '0',
   jobWebhookTimeoutMs: num(process.env.JOB_WEBHOOK_TIMEOUT_MS, 15000),
   jobRetentionDays: num(process.env.JOB_RETENTION_DAYS, 7),
   // A job's files are downloaded once, usually within seconds of the webhook.
