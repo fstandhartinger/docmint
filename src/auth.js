@@ -38,6 +38,20 @@ async function issueApiKey(accountId, label = 'default') {
   return key;
 }
 
+async function listApiKeys(accountId) {
+  const { rows } = await query(
+    `SELECT key_prefix, label, created_at, last_used_at
+     FROM api_keys WHERE account_id = $1 AND revoked_at IS NULL ORDER BY created_at DESC`,
+    [accountId],
+  );
+  return rows.map((row) => ({
+    prefix: row.key_prefix,
+    label: row.label,
+    created_at: row.created_at,
+    ...(row.last_used_at ? { last_used_at: row.last_used_at } : {}),
+  }));
+}
+
 /**
  * Revokes one key by its prefix. Returns the number of keys revoked.
  *
@@ -201,7 +215,7 @@ async function accountForSession(sessionId) {
 const destroySession = (id) => query(`DELETE FROM sessions WHERE id = $1`, [id]).catch(() => {});
 
 module.exports = {
-  createAccount, issueApiKey, revokeApiKey, verifyLogin, authenticate, consumeCredits, refundCredits,
-  createSession, accountForSession, destroySession, hashKey, newApiKey, KEY_PREFIX,
+  createAccount, issueApiKey, revokeApiKey, listApiKeys, verifyLogin, authenticate, consumeCredits, refundCredits,
+  createSession, accountForSession, destroySession, hashKey, newApiKey, KEY_PREFIX, rollPeriod,
   stashKeyForSession, takeKeyForSession,
 };

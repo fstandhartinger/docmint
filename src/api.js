@@ -6,7 +6,7 @@ const crypto = require('node:crypto');
 const { config, PLANS, FORMATS, planPriceId } = require('./config');
 const { ApiError, bad } = require('./errors');
 const { query } = require('./db');
-const { authenticate, consumeCredits, refundCredits, issueApiKey, revokeApiKey } = require('./auth');
+const { authenticate, consumeCredits, refundCredits, issueApiKey, revokeApiKey, listApiKeys } = require('./auth');
 const { rateLimit } = require('./ratelimit');
 const { formatterNames } = require('./capabilities');
 const templates = require('./templates');
@@ -25,7 +25,7 @@ const router = express.Router();
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 const authenticateOnly = asyncRoute(async (req, res, next) => {
-  req.account = await authenticate(req);
+  req.account = req.dashboardAccount || await authenticate(req);
   req.log = req.log.child({ account: req.account.id });
   next();
 });
@@ -761,6 +761,10 @@ router.get('/billing/plans', asyncRoute(async (req, res) => {
 }));
 
 /* ------------------------------------------------------------------- keys */
+
+router.get('/keys', withAuth, asyncRoute(async (req, res) => {
+  res.json({ keys: await listApiKeys(req.account.id) });
+}));
 
 router.post('/keys', withAuth, asyncRoute(async (req, res) => {
   const body = req.body || {};

@@ -1,12 +1,14 @@
 'use strict';
 
 const express = require('express');
+const crypto = require('node:crypto');
 const path = require('node:path');
 
 const { config } = require('./config');
 const { ApiError } = require('./errors');
 const { migrate } = require('./migrate');
 const { query, pool } = require('./db');
+const { accountForSession, rollPeriod } = require('./auth');
 const api = require('./api');
 const jobs = require('./jobs');
 const pdf = require('./pdf');
@@ -64,7 +66,7 @@ if (process.env.NOINDEX === '1') {
  * already had, and a redirect would break them.
  */
 const CANONICAL_HOST = config.publicUrl ? new URL(config.publicUrl).host : '';
-const NEVER_REDIRECT = ['/v1/', '/stripe/', '/f/', '/healthz'];
+const NEVER_REDIRECT = ['/v1/', '/dashboard/api/v1/', '/stripe/', '/f/', '/healthz'];
 
 app.use((req, res, next) => {
   if (!CANONICAL_HOST) return next();
@@ -82,6 +84,45 @@ app.use('/stripe', express.raw({ type: 'application/json' }), billing.router);
 
 app.use(express.json({ limit: config.maxRequestBytes }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+
+/**
+ * The dashboard bridge: the exact same /v1 router, a second time, behind a
+ * session cookie plus a per-session CSRF token. Nothing here re-implements the
+ * API — session and token are checked, then the request lands on the very same
+ * code the bearer key would have reached, so rate limits, credit accounting and
+ * usage recording cannot drift apart from the public API.
+ */
+const dashboardBridge = express.Router();
+dashboardBridge.use(async (req, res, next) => {
+  try {
+    const sessionId = web.sessionIdFrom(req);
+    const account = sessionId ? await accountForSession(sessionId) : null;
+    if (!account) {
+      return res.status(401).json({
+        error: { code: 'missing_session', message: 'Sign in to use the DocMint dashboard API.' },
+      });
+    }
+    const expected = Buffer.from(web.csrfToken(sessionId), 'utf8');
+    const supplied = Buffer.from(req.get('x-docmint-csrf') || '', 'utf8');
+    const validCsrf = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+    if (!validCsrf) {
+      return res.status(403).json({
+        error: { code: 'invalid_csrf', message: 'The dashboard request has an invalid or missing CSRF token.' },
+      });
+    }
+    req.dashboardAccount = await rollPeriod(account);
+    return next();
+  } catch (e) { return next(e); }
+});
+dashboardBridge.use((req, res, next) => {
+  if (req.path === '/signup' || req.path === '/billing' || req.path.startsWith('/billing/')) {
+    return res.status(404).json({
+      error: { code: 'unknown_endpoint', message: `There is no ${req.method} ${req.originalUrl} endpoint.` },
+    });
+  }
+  next();
+});
+dashboardBridge.use(api.router);
 
 /**
  * The health check reports whether LibreOffice is actually present, because an
@@ -156,6 +197,7 @@ app.get('/f/:token', async (req, res, next) => {
   } catch (e) { return next(e); }
 });
 
+app.use('/dashboard/api/v1', dashboardBridge);
 app.use('/v1', api.router);
 app.use(web.router);
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', extensions: ['html'] }));

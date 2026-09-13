@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('node:crypto');
 const express = require('express');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -23,14 +24,18 @@ function escapeHtml(value) {
   }[c]));
 }
 
-function shell(title, body) {
+function shell(title, body, extraHead = '', scripts = '') {
   const css = fs.readFileSync(path.join(PUBLIC_DIR, 'app.css'), 'utf8');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)}</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<style>${css}</style></head><body>${body}</body></html>`;
+${extraHead}<style>${css}</style></head><body>${body}${scripts}</body></html>`;
+}
+
+function csrfToken(sessionId) {
+  return crypto.createHmac('sha256', config.sessionSecret).update(String(sessionId || '')).digest('hex');
 }
 
 function setSessionCookie(res, id) {
@@ -45,7 +50,8 @@ function setSessionCookie(res, id) {
 
 function sessionIdFrom(req) {
   const match = new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`).exec(req.headers.cookie || '');
-  return match ? decodeURIComponent(match[1]) : null;
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch { return null; }
 }
 
 async function currentAccount(req) {
@@ -136,7 +142,9 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
   const checkoutReturn = req.query.checkout === 'success'
     ? await billing.verifyCheckoutReturn(account, typeof req.query.session_id === 'string' ? req.query.session_id : null)
     : null;
-  const fullKey = takeKeyForSession(sessionIdFrom(req));
+  const sessionId = sessionIdFrom(req);
+  const fullKey = takeKeyForSession(sessionId);
+  const csrf = csrfToken(sessionId);
   const plan = PLANS[account.plan] || PLANS.free;
   const remaining = Math.max(0, account.credits_limit - account.credits_used);
   const pct = Math.min(100, Math.round((account.credits_used / Math.max(1, account.credits_limit)) * 100));
@@ -162,7 +170,7 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
     <h2>Usage this month</h2>
     <p class="big">${account.credits_used.toLocaleString('en-US')} <span class="muted">of ${account.credits_limit.toLocaleString('en-US')} credits used</span></p>
     <div class="meter"><i style="width:${pct}%"></i></div>
-    <p class="muted">${remaining.toLocaleString('en-US')} credits remaining. Plan: <strong>${escapeHtml(plan.name)}</strong>${plan.priceUsd ? ` — $${plan.priceUsd}/month` : ' — free'}. Resets on the 1st.</p>
+    <p class="muted"><span id="credits-remaining">${remaining.toLocaleString('en-US')}</span> credits remaining. Plan: <strong>${escapeHtml(plan.name)}</strong>${plan.priceUsd ? ` — $${plan.priceUsd}/month` : ' — free'}. Resets on the 1st.</p>
   </section>
   <section class="card">
     <h2>Plan</h2>
@@ -173,14 +181,75 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
         ${account.plan === candidate.id ? '<p class="tag">Current plan</p>' : `<form method="post" action="/dashboard/checkout"><input type="hidden" name="plan" value="${candidate.id}"><button>Choose ${escapeHtml(candidate.name)}</button></form>`}
       </div>`).join('')}
     </div>
-    ${purchasable.length ? '' : '<p class="muted">Paid plans are not configured on this build.</p>'}
+    ${purchasable.length ? '' : `<p class="muted">Paid plans are not configured on this build.</p>`}
+  </section>
+  <section class="card">
+    <h2>Templates</h2>
+    <p class="error" id="templates-error" role="alert" hidden></p>
+    <p class="muted" id="templates-empty" hidden>No templates yet. Upload a .docx, .xlsx or .pptx below, or use POST /v1/templates.</p>
+    <div class="tablewrap">
+      <table class="rows" id="templates-table" hidden>
+        <thead><tr><th>Name</th><th>Format</th><th>Version</th><th>Updated</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="templates-body"></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="card">
+    <h2>Upload a template</h2>
+    <form id="upload-form" class="stack">
+      <label for="upload-name">Template name</label>
+      <input id="upload-name" name="name" type="text" required maxlength="64" autocomplete="off">
+      <label for="upload-file">Template file (.docx, .xlsx or .pptx)</label>
+      <input id="upload-file" name="file" type="file" required accept=".docx,.dotx,.docm,.xlsx,.xltx,.xlsm,.pptx,.potx,.ppsx,.pptm">
+      <div><button type="submit">Upload</button></div>
+    </form>
+    <p class="error" id="upload-error" role="alert" hidden></p>
+  </section>
+  <section class="card">
+    <h2>Test a render</h2>
+    <p class="muted" id="render-none">Choose a template from the list above to try it. A document costs 1 credit, a PDF 2.</p>
+    <div id="render-detail" hidden>
+      <p>Template: <strong id="render-name"></strong></p>
+      <p class="muted" id="render-fields"></p>
+      <div class="stack">
+        <label for="render-data">Data (JSON)</label>
+        <textarea id="render-data" rows="14" spellcheck="false"></textarea>
+        <div class="btnrow">
+          <button type="button" id="render-doc">Render document</button>
+          <button type="button" id="render-pdf">Render PDF</button>
+        </div>
+      </div>
+    </div>
+    <p class="error" id="render-error" role="alert" hidden></p>
+  </section>
+  <section class="card">
+    <h2>API keys</h2>
+    <p class="muted">Keys are shown only once, when they are created. This list shows prefixes, never the keys themselves.</p>
+    <p class="error" id="keys-error" role="alert" hidden></p>
+    <div class="tablewrap">
+      <table class="rows" id="keys-table">
+        <thead><tr><th>Prefix</th><th>Label</th><th>Created</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody id="keys-body"></tbody>
+      </table>
+    </div>
+    <form id="key-form" class="stack">
+      <label for="key-label">Label for a new key</label>
+      <input id="key-label" name="label" type="text" required maxlength="60" autocomplete="off">
+      <div><button type="submit">Create key</button></div>
+    </form>
+    <div class="notice" id="new-key-notice" hidden>
+      <p><strong>Your new key.</strong> It is shown only once, so copy it now.</p>
+      <p class="keybox"><code id="new-key"></code><button type="button" id="new-key-copy">Copy</button></p>
+    </div>
   </section>
 </main>
 <script>document.addEventListener('click', (event) => {
   const button = event.target.closest('.copy'); if (!button) return;
   navigator.clipboard.writeText(document.getElementById(button.dataset.target).textContent.trim());
   button.textContent = 'Copied'; setTimeout(() => { button.textContent = 'Copy'; }, 1500);
-});</script>`));
+});</script>`,
+  `<meta name="docmint-csrf" content="${csrf}">`,
+  '<script src="/dashboard.js" defer></script>'));
 }));
 
 router.post('/dashboard/checkout', asyncRoute(async (req, res) => {
@@ -190,4 +259,4 @@ router.post('/dashboard/checkout', asyncRoute(async (req, res) => {
   return res.redirect(303, session.url);
 }));
 
-module.exports = { router, currentAccount };
+module.exports = { router, currentAccount, sessionIdFrom, csrfToken, escapeHtml };
