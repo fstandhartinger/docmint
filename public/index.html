@@ -550,8 +550,8 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         <span>A range whose two ends are the same repeated row — <code>SUM(B3:B3)</code> over a per-group subtotal — widens to cover the rows in between. Chart series and pivot caches keep their own copies of ranges and are not rewritten. Column loops and sheet loops are not supported at all.</span>
       </div>
       <div class="gap">
-        <b>There is no web dashboard</b>
-        <span>Everything is the API: keys are managed with <code>POST /v1/keys</code> and <code>DELETE /v1/keys/:prefix</code>, usage with <code>GET /v1/usage</code>, and a subscription is started with <code>POST /v1/billing/checkout</code>, which hands back a Stripe URL to open. There is also no self-service account deletion; that is a request by email today.</span>
+        <b>The dashboard is small</b>
+        <span>Signed-in users can view usage and plan, manage templates, test a render and manage API keys in the browser. There are no team seats — every account is one login — and no self-service account deletion; both are a request by email today.</span>
       </div>
       <div class="gap">
         <b>The verified n8n node works on Cloud and self-hosted n8n</b>
