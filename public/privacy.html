@@ -99,8 +99,8 @@
   </tr>
   <tr>
     <td>Login sessions</td>
-    <td>A <code>sessions</code> table exists for a web dashboard that is <strong>not part of this deployment</strong>. No code path currently creates a session, so there are no session rows and no cookies are set by this service.</td>
-    <td>n/a today; 30 days when the dashboard ships.</td>
+    <td>When you sign up or sign in on the website, a session row (a random id, your account id and an expiry time) is stored and one cookie, <code>docmint_session</code>, is set so the dashboard knows who you are. It is HttpOnly, SameSite=Lax and carries no tracking data. API calls with a key never create a session.</td>
+    <td>30 days, or until you sign out.</td>
   </tr>
 </table>
 
@@ -145,7 +145,7 @@
   Datenschutzaufsicht (BayLDA), Ansbach.</p>
 <div class="box">
   <p><strong>Being straight about deletion:</strong> there is currently no self-service account
-  deletion, because there is no dashboard. A deletion request has to be handled by hand by the
+  deletion, neither in the API nor in the dashboard. A deletion request has to be handled by hand by the
   operator. That is a gap, and it is named here rather than implied away. You <em>can</em> delete any
   template and all its versions yourself at any time with
   <code>DELETE /v1/templates/:name</code>.</p>
