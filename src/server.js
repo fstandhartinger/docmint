@@ -115,7 +115,9 @@ dashboardBridge.use(async (req, res, next) => {
   } catch (e) { return next(e); }
 });
 dashboardBridge.use((req, res, next) => {
-  if (req.path === '/signup' || req.path === '/billing' || req.path.startsWith('/billing/')) {
+  // Match the router's case-insensitive, slash-tolerant route matching.
+  const p = req.path.toLowerCase().replace(/\/+$/, '') || '/';
+  if (p === '/signup' || p === '/billing' || p.startsWith('/billing/')) {
     return res.status(404).json({
       error: { code: 'unknown_endpoint', message: `There is no ${req.method} ${req.originalUrl} endpoint.` },
     });

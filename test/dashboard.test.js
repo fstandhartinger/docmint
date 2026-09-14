@@ -255,18 +255,41 @@ when('API keys can be listed, created and revoked over the bridge', async () => 
 
 when('signup and billing answer 404 under the bridge but stay live under /v1', async () => {
   const acc = await webAccount();
+  const assertBlocked = async (path, { method = 'GET', body } = {}) => {
+    const result = await bridgeJson(acc, path, { method, body });
+    assert.equal(result.res.status, 404);
+    assert.equal(result.json.error.code, 'unknown_endpoint');
+    assert.equal(
+      result.json.error.message,
+      `There is no ${method} /dashboard/api/v1${path} endpoint.`,
+    );
+  };
 
-  const signup = await bridgeJson(acc, '/signup', {
+  await assertBlocked('/signup', {
     method: 'POST', body: { email: 'bridge-blocked@docmint.test', password: 'password-long-enough' },
   });
-  assert.equal(signup.res.status, 404);
+  await assertBlocked('/Signup', {
+    method: 'POST', body: { email: 'bridge-blocked@docmint.test', password: 'password-long-enough' },
+  });
+  await assertBlocked('/signup/', {
+    method: 'POST', body: { email: 'bridge-blocked@docmint.test', password: 'password-long-enough' },
+  });
 
-  const plans = await bridgeJson(acc, '/billing/plans');
-  assert.equal(plans.res.status, 404);
-
-  const portal = await bridgeJson(acc, '/billing/portal', { method: 'POST', body: {} });
-  assert.equal(portal.res.status, 404);
+  await assertBlocked('/billing');
+  await assertBlocked('/Billing');
+  await assertBlocked('/billing/');
+  await assertBlocked('/billing/checkout', { method: 'POST', body: {} });
+  await assertBlocked('/Billing/checkout', { method: 'POST', body: {} });
+  await assertBlocked('/billing/checkout/', { method: 'POST', body: {} });
+  await assertBlocked('/billing/plans');
+  await assertBlocked('/BILLING/plans');
+  await assertBlocked('/billing/plans/');
+  await assertBlocked('/billing/portal', { method: 'POST', body: {} });
+  await assertBlocked('/Billing/portal', { method: 'POST', body: {} });
+  await assertBlocked('/billing/portal/', { method: 'POST', body: {} });
 
   // The bearer surface itself is untouched.
   assert.equal((await req('/v1/billing/plans')).res.status, 200);
+  assert.equal((await req('/v1/Billing/plans')).res.status, 200);
+  assert.equal((await req('/v1/billing/plans/')).res.status, 200);
 });
