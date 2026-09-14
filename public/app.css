@@ -56,7 +56,9 @@ h3{font-size:1.05rem;margin:1.4rem 0 .4rem}
 .stack input,.stack textarea{font:inherit;padding:.6rem .7rem;border:1px solid var(--rule);border-radius:8px;background:var(--bg);color:var(--ink);max-width:100%}
 .stack textarea{font-family:var(--mono);font-size:.85rem;line-height:1.5;resize:vertical}
 .btnrow{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.7rem}
-.tablewrap{overflow-x:auto}
+/* abspos .sr-only must be contained, else it widens the page */
+.tablewrap{overflow-x:auto;position:relative}
+.tablewrap .sr-only{left:0}
 .rows td button{padding:.35rem .7rem;font-size:.85rem}
 button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 @media (max-width:480px){
