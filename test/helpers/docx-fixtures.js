@@ -100,7 +100,8 @@ function libreOfficeAvailable() {
   if (loChecked !== null) return loChecked;
   if (process.env.DOCMINT_SKIP_LO === '1') { loChecked = false; return loChecked; }
   try {
-    execFileSync('sudo', ['-n', 'docker', 'image', 'inspect', 'docmint-lo-probe'], { stdio: 'ignore' });
+    // The host's cleanup jobs prune the image at any hour: --ensure rebuilds it on demand.
+    execFileSync(path.join(ROOT, 'scripts', 'lo.sh'), ['--ensure'], { stdio: 'ignore', timeout: 900000 });
     loChecked = true;
   } catch {
     loChecked = false;

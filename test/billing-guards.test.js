@@ -215,6 +215,9 @@ function load(opts = {}) {
     }
     if (name === './db') return { query: runQuery, tx, pool: {} };
     if (name === './log') return Object.assign({}, logStub, { log: logStub });
+    // AT9 adds a side counter to the billing path. The guard suite never lets
+    // counters reach a database; recording them keeps the wiring observable.
+    if (name === './analytics') return { increment: (kind) => { calls.trace.push(`analytics:${kind}`); } };
     if (name === './errors') {
       return {
         ApiError: class ApiError extends Error {

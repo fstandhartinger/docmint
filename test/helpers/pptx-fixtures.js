@@ -118,7 +118,8 @@ let loAvailable = null;
 function libreOfficeAvailable() {
   if (loAvailable !== null) return loAvailable;
   try {
-    execFileSync('sudo', ['-n', 'docker', 'image', 'inspect', 'docmint-lo-probe'], { stdio: 'ignore' });
+    // The host's cleanup jobs prune the image at any hour: --ensure rebuilds it on demand.
+    execFileSync(path.join(__dirname, '..', '..', 'scripts', 'lo.sh'), ['--ensure'], { stdio: 'ignore', timeout: 900000 });
     execFileSync('pdfinfo', ['-v'], { stdio: 'ignore' });
     loAvailable = true;
   } catch {
