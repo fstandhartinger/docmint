@@ -151,6 +151,18 @@ const STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS jobs_account_idx ON jobs(account_id, created_at DESC)`,
   ...require('./recovery').migration,
   ...require('./job-webhook-migration'),
+
+  /* --------------------------------------------------- site analytics (AT9) */
+
+  /* One row per UTC day per kind: the entire dataset is a date, a kind and a
+     number, so it cannot name anyone. src/analytics.js upserts through the
+     primary key. */
+  `CREATE TABLE IF NOT EXISTS site_analytics_daily (
+     day  DATE    NOT NULL,
+     kind TEXT    NOT NULL,
+     n    INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (day, kind)
+   )`,
 ];
 
 async function migrate() {

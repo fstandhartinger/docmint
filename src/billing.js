@@ -5,6 +5,7 @@ const Stripe = require('stripe');
 const { config, PLANS, planPriceId } = require('./config');
 const { query, tx } = require('./db');
 const { ApiError } = require('./errors');
+const analytics = require('./analytics');
 const log = require('./log');
 
 const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, {
@@ -306,6 +307,9 @@ async function createCheckoutSession(account, planId) {
     // still generates its own key per request, so a network-level retry inside
     // the SDK cannot duplicate anything either.
     const session = await stripe.checkout.sessions.create(payload);
+    // AT9: one counter per created checkout session. Fire-and-forget on purpose —
+    // increment() cannot throw, and paying must never wait on a counter.
+    analytics.increment('trial_start');
     if (session.status && session.status !== 'open') {
       // Not reachable through Stripe as it behaves today; if it ever is, the
       // buyer must not be handed a session they cannot pay.
@@ -583,6 +587,10 @@ async function handleEventInTransaction(event) {
       await applySubscription(event.data.object, run);
       break;
     case 'invoice.paid': {
+      // AT9: one counter per invoice.paid event, deduplicated by the
+      // stripe_events marker above. Fire-and-forget — increment() cannot throw,
+      // and billing must never wait on a counter.
+      analytics.increment('paid_conversion');
       // A renewal starts a new period — but only if the current one has actually
       // ended. rollPeriod() already resets the counter on the calendar 1st, so
       // resetting again on the billing anniversary handed a customer who

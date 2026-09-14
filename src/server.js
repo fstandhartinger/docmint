@@ -14,6 +14,7 @@ const jobs = require('./jobs');
 const pdf = require('./pdf');
 const billing = require('./billing');
 const web = require('./web');
+const analytics = require('./analytics');
 const log = require('./log');
 
 const app = express();
@@ -202,6 +203,17 @@ app.get('/f/:token', async (req, res, next) => {
 app.use('/dashboard/api/v1', dashboardBridge);
 app.use('/v1', api.router);
 app.use(web.router);
+
+/**
+ * AT9 — first-party site analytics. The middleware only observes browser
+ * views of whitelisted public pages and never touches the request; the owner
+ * readout sits deliberately outside the /v1 API-key surface, answered 404 to
+ * anyone without the owner key. Both live in src/analytics.js. Before the
+ * static mount, because that is where the counted pages are served from.
+ */
+app.use(analytics.countPageView);
+app.get('/internal/analytics', analytics.ownerReadout);
+
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', extensions: ['html'] }));
 
 app.use((req, res) => {

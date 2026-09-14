@@ -12,6 +12,7 @@ const {
   stashKeyForSession, takeKeyForSession,
 } = require('./auth');
 const billing = require('./billing');
+const analytics = require('./analytics');
 
 const router = express.Router();
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -110,6 +111,9 @@ router.post('/signup', asyncRoute(async (req, res) => {
   setSessionCookie(res, sessionId);
   stashKeyForSession(sessionId, created.apiKey);
   req.log.info('signup.web_ok', { account: created.account.id });
+  // AT9: one counter per created account, on success only. Fire-and-forget on
+  // purpose — increment() cannot throw, and a redirect must never wait on it.
+  analytics.increment('signup');
   return res.redirect('/dashboard?welcome=1');
 }));
 

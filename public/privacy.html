@@ -51,9 +51,16 @@
 <p>See also the <a href="/legal">imprint</a>.</p>
 
 <h2>2. What is stored, and for how long</h2>
-<p>Everything below is in one PostgreSQL database. There is <strong>no analytics product, no
-  advertising network, no tracking pixel, and no third-party script or font on this website at
-  all</strong> — these pages load nothing from any host other than this one.</p>
+<p>Everything below is in one PostgreSQL database. There is <strong>no third-party analytics
+  product, no advertising network, no tracking pixel, and no third-party script or font on this
+  website at all</strong> — these pages load nothing from any host other than this one.</p>
+<p>What DocMint does count is a handful of daily totals, in that same database in Frankfurt (see
+  processors below): for each UTC day, one number each for views of the public pages, new
+  accounts, started checkouts and completed payments. That is the entire dataset — a date, a
+  kind and a number. For this, DocMint stores <strong>no IP addresses, no user agents, no
+  referrers, no cookies and no fingerprints</strong>, builds no personal profiles, and sends
+  nothing to any third-party analytics product. Only the operator sees the totals, to know
+  whether the website works and whether the service is growing.</p>
 
 <table>
   <tr><th>Data</th><th>Why</th><th>Kept for</th></tr>
@@ -101,6 +108,11 @@
     <td>Login sessions</td>
     <td>When you sign up or sign in on the website, a session row (a random id, your account id and an expiry time) is stored and one cookie, <code>docmint_session</code>, is set so the dashboard knows who you are. It is HttpOnly, SameSite=Lax and carries no tracking data. API calls with a key never create a session.</td>
     <td>30 days, or until you sign out.</td>
+  </tr>
+  <tr>
+    <td>Daily site totals</td>
+    <td>For each UTC day, one number each for public page views, new accounts, started checkouts and completed payments — a date, a kind and a number. No IP addresses, user agents, referrers, cookies or fingerprints are stored for this, and no personal profiles are built, so nothing in these counters can be tied to you.</td>
+    <td>Kept as daily aggregates.</td>
   </tr>
 </table>
 
