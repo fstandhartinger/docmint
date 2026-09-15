@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { config, PLANS, planPriceId } = require('./config');
-const { query } = require('./db');
+const { query, tx } = require('./db');
 const {
   createAccount, verifyLogin, createSession, accountForSession, destroySession,
   stashKeyForSession, takeKeyForSession,
@@ -18,6 +18,22 @@ const router = express.Router();
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 const SESSION_COOKIE = 'docmint_session';
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const DELETE_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const DELETE_ATTEMPTS = new Map();
+
+function recordDeleteAttempt(accountId) {
+  const now = Date.now();
+  const cutoff = now - DELETE_ATTEMPT_WINDOW_MS;
+  const attempts = (DELETE_ATTEMPTS.get(accountId) || []).filter((at) => at > cutoff);
+  attempts.push(now);
+  DELETE_ATTEMPTS.set(accountId, attempts);
+  for (const [id, timestamps] of DELETE_ATTEMPTS) {
+    const live = timestamps.filter((at) => at > cutoff);
+    if (live.length) DELETE_ATTEMPTS.set(id, live);
+    else DELETE_ATTEMPTS.delete(id);
+  }
+  return attempts.length <= 5;
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({
@@ -37,6 +53,19 @@ ${extraHead}<style>${css}</style></head><body>${body}${scripts}</body></html>`;
 
 function csrfToken(sessionId) {
   return crypto.createHmac('sha256', config.sessionSecret).update(String(sessionId || '')).digest('hex');
+}
+
+const DELETE_NOTICES = {
+  rate_limited: 'Too many deletion attempts. Wait 15 minutes and try again.',
+  confirm: 'The email address did not match this account. Nothing was deleted.',
+  password: 'The current password was not accepted. Nothing was deleted.',
+  subscription: 'Cancel or resolve any active Stripe subscription or checkout first. Use Manage billing in the Plan card, then try again.',
+  billing_check_failed: 'We could not confirm your Stripe billing status, so the account was not deleted. Try again later or contact support.',
+  jobs: 'An async job is still queued or running. Wait for it to finish, then try again.',
+};
+
+function deleteNotice(value) {
+  return typeof value === 'string' && Object.hasOwn(DELETE_NOTICES, value) ? DELETE_NOTICES[value] : null;
 }
 
 function setSessionCookie(res, id) {
@@ -156,6 +185,85 @@ router.post('/dashboard/billing-portal', asyncRoute(async (req, res) => {
   }
 }));
 
+router.post('/dashboard/delete-account', asyncRoute(async (req, res) => {
+  const sessionId = sessionIdFrom(req);
+  if (!sessionId) return res.redirect('/login');
+  const expected = Buffer.from(csrfToken(sessionId), 'utf8');
+  const supplied = Buffer.from(typeof req.body?.csrf === 'string' ? req.body.csrf : '', 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    return res.status(403).type('text').send('Invalid CSRF token.');
+  }
+
+  const { rows } = await query(
+    `SELECT a.id, a.email, a.password_hash, a.plan, a.stripe_customer_id, a.stripe_subscription_id
+     FROM sessions s JOIN accounts a ON a.id = s.account_id
+     WHERE s.id = $1 AND s.expires_at > now()`,
+    [sessionId],
+  );
+  const account = rows[0] || null;
+  if (!account) return res.redirect('/login');
+  if (!recordDeleteAttempt(account.id)) return res.redirect(303, '/dashboard?delete=rate_limited');
+
+  const confirmation = String(req.body?.email || '').trim().toLowerCase();
+  if (confirmation !== String(account.email || '').trim().toLowerCase()) {
+    return res.redirect(303, '/dashboard?delete=confirm');
+  }
+  // Required lazily, only on the path that actually compares a password: the
+  // vm-loaded router double in test/dashboard-portal.test.js rejects any
+  // require it does not know, including bcryptjs.
+  if (!await require('bcryptjs').compare(String(req.body?.password || ''), account.password_hash)) {
+    return res.redirect(303, '/dashboard?delete=password');
+  }
+  if (account.plan !== 'free' || account.stripe_subscription_id != null) {
+    return res.redirect(303, '/dashboard?delete=subscription');
+  }
+  if (account.stripe_customer_id) {
+    if (!billing.enabled()) return res.redirect(303, '/dashboard?delete=billing_check_failed');
+    try {
+      if (await billing.hasOpenBilling(account.stripe_customer_id)) {
+        return res.redirect(303, '/dashboard?delete=subscription');
+      }
+    } catch {
+      req.log.warn('dashboard.delete_account_billing_check_failed', { account: account.id });
+      return res.redirect(303, '/dashboard?delete=billing_check_failed');
+    }
+  }
+
+  const result = await tx(async (client) => {
+    const run = client.query.bind(client);
+    const locked = await run(
+      `SELECT id, plan, stripe_subscription_id FROM accounts WHERE id = $1 FOR UPDATE`,
+      [account.id],
+    );
+    const current = locked.rows[0] || null;
+    if (!current) return { outcome: 'missing' };
+    if (current.plan !== 'free' || current.stripe_subscription_id != null) {
+      return { outcome: 'subscription' };
+    }
+    const active = await run(
+      `SELECT 1 FROM jobs WHERE account_id = $1 AND status IN ('queued','running') LIMIT 1`,
+      [account.id],
+    );
+    if (active.rows.length) return { outcome: 'jobs' };
+    await run(`DELETE FROM accounts WHERE id = $1`, [account.id]);
+    return { outcome: 'deleted' };
+  });
+  if (result.outcome === 'subscription') return res.redirect(303, '/dashboard?delete=subscription');
+  if (result.outcome === 'jobs') return res.redirect(303, '/dashboard?delete=jobs');
+  if (result.outcome === 'missing') return res.redirect('/login');
+
+  res.clearCookie(SESSION_COOKIE, { path: '/' });
+  req.log.info('account.deleted', { account: account.id });
+  return res.redirect(303, '/account-deleted');
+}));
+
+router.get('/account-deleted', (req, res) => res.type('html').send(shell('Account deleted', `
+<main class="auth"><a class="logo" href="/">Doc<span>Mint</span></a>
+  <h1>Account deleted</h1>
+  <p>Your DocMint account and its stored data have been deleted permanently.</p>
+  <p><a href="/">Back to DocMint</a> · <a href="/signup">Create a new account</a></p>
+</main>`)));
+
 router.get('/dashboard', asyncRoute(async (req, res) => {
   const account = await currentAccount(req);
   if (!account) return res.redirect('/login');
@@ -186,6 +294,7 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
   ${req.query.checkout === 'updated' ? '<div class="notice">Your plan change has been sent to Stripe. The plan shown below is the one you are on right now; it updates as soon as Stripe confirms.</div>' : ''}
   ${req.query.checkout === 'pending' ? '<div class="notice">Your upgrade is waiting on payment. Nothing has changed yet — your plan below is the one you are on.</div>' : ''}
   ${req.query.checkout === 'cancelled' ? '<div class="notice">Checkout cancelled. Nothing was charged.</div>' : ''}
+  ${deleteNotice(req.query.delete) ? `<div class="notice error">${deleteNotice(req.query.delete)}</div>` : ''}
   <h1>Dashboard</h1>
   <section class="card">
     <h2>API key</h2>
@@ -269,6 +378,19 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
       <p><strong>Your new key.</strong> It is shown only once, so copy it now.</p>
       <p class="keybox"><code id="new-key"></code><button type="button" id="new-key-copy">Copy</button></p>
     </div>
+  </section>
+  <section class="card delete-card">
+    <h2>Delete account</h2>
+    <p>This permanently removes your account, all API keys and sessions, every template and stored version, hosted files, async jobs with their stored requests and results, and usage records.</p>
+    <p class="muted">Stripe keeps its own customer and invoice records. Anonymous daily counters and hashed rate-limit keys that are not linked to an account remain.</p>
+    <form method="post" action="/dashboard/delete-account" class="stack">
+      <input type="hidden" name="csrf" value="${csrf}">
+      <label for="delete-email">Type your email address to confirm</label>
+      <input id="delete-email" name="email" type="email" required autocomplete="off">
+      <label for="delete-password">Current password</label>
+      <input id="delete-password" name="password" type="password" required autocomplete="current-password">
+      <div><button class="danger" type="submit">Delete my account permanently</button></div>
+    </form>
   </section>
 </main>
 <script>document.addEventListener('click', (event) => {

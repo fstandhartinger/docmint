@@ -67,7 +67,7 @@
   <tr>
     <td>Email address and a <strong>bcrypt password hash</strong></td>
     <td>To identify your account. The password itself is never written down — only the bcrypt hash of it.</td>
-    <td>Until you ask for the account to be deleted.</td>
+    <td>Until you delete the account in the dashboard or ask for it to be deleted.</td>
   </tr>
   <tr>
     <td>API keys</td>
@@ -170,11 +170,7 @@
   to a supervisory authority; for this controller that is the Bayerisches Landesamt für
   Datenschutzaufsicht (BayLDA), Ansbach.</p>
 <div class="box">
-  <p><strong>Being straight about deletion:</strong> there is currently no self-service account
-  deletion, neither in the API nor in the dashboard. A deletion request has to be handled by hand by the
-  operator. That is a gap, and it is named here rather than implied away. You <em>can</em> delete any
-  template and all its versions yourself at any time with
-  <code>DELETE /v1/templates/:name</code>.</p>
+  <p><strong>Being straight about deletion:</strong> signed-in users can delete their account permanently from the dashboard. Deletion removes the account and its linked API keys, sessions, templates and every stored version, hosted files, async jobs with their stored requests and results, and usage records. Stripe keeps its own customer and invoice records. Anonymous daily counters and hashed rate-limit keys that are not linked to an account remain. If you cannot use the dashboard, ask the operator to delete the account.</p>
 </div>
 
 <h2>8. Legal basis</h2>

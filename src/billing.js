@@ -53,6 +53,24 @@ async function isUsableCustomer(customerId) {
   }
 }
 
+async function hasOpenBilling(customerId) {
+  if (!customerId || !enabled()) return false;
+  try {
+    const subscriptions = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 100 });
+    if (subscriptions.has_more
+      || subscriptions.data?.some((subscription) => ['active', 'trialing', 'past_due', 'incomplete', 'unpaid', 'paused'].includes(subscription.status))) {
+      return true;
+    }
+    const checkouts = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 });
+    return Boolean(checkouts.has_more || checkouts.data?.length);
+  } catch (e) {
+    if (e && (e.code === 'resource_missing' || e.statusCode === 404 || /No such customer/i.test(e.message || ''))) {
+      return false;
+    }
+    throw e;
+  }
+}
+
 async function createCustomerFor(account, run = query) {
   const customer = await stripe.customers.create({
     email: account.email,
@@ -736,6 +754,6 @@ async function healStaleCustomers() {
 
 module.exports = {
   router, stripe, enabled, createCheckoutSession, createPortalSession, applySubscription,
-  handleEvent, ensureCustomer, isUsableCustomer, healStaleCustomers, verifyCheckoutReturn,
+  handleEvent, ensureCustomer, isUsableCustomer, hasOpenBilling, healStaleCustomers, verifyCheckoutReturn,
   BRAND_NAME, portalReturnUrl,
 };

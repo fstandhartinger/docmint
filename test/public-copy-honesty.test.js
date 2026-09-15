@@ -40,6 +40,9 @@ const STALE = [
   'the service sends no email at all',
   'you may choose up to 7 days',
   'signed HTTPS POST',
+  'there is currently no self-service account deletion',
+  'no self-service account deletion; both are a request by email today',
+  'account deletion is an email today',
 ];
 
 // The old copy exactly as it read before the AT12 rewrite, so the fixture below cannot
@@ -67,6 +70,13 @@ const OLD_COPY = `
 <p>No. Nothing is read, mined, sold or used to train anything, and the service sends no email at all.</p>
 <td>An async job's output is stored in the <code>files</code> table as a hosted download link; a link expires after 24 hours by default, and you may choose up to 7 days.</td>
 <p>when an async job finishes, DocMint sends a signed HTTPS POST with the job status to the <code>webhook_url</code> you supplied.</p>
+<p><strong>Being straight about deletion:</strong> there is currently no self-service account
+  deletion, neither in the API nor in the dashboard. A deletion request has to be handled by hand by the
+  operator.</p>
+<span>Signed-in users can view usage and plan, manage templates, test a render and manage API keys in the browser. There are no team seats — every account is one login — and no self-service account deletion; both are a request by email today.</span>
+<li><b>A small dashboard, no team seats.</b> Signed in, you can see usage and plan, upload templates,
+test a render and manage API keys; everything also works as an API call. There are no team seats, and account
+deletion is an email today.</li>
 `;
 
 test('OLD_COPY fixture really contains every stale fragment (no vacuous pass)', () => {
