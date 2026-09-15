@@ -136,6 +136,26 @@ router.post('/logout', asyncRoute(async (req, res) => {
   return res.redirect('/');
 }));
 
+router.post('/dashboard/billing-portal', asyncRoute(async (req, res) => {
+  const account = await currentAccount(req);
+  if (!account) return res.redirect('/login');
+  const sessionId = sessionIdFrom(req);
+  const expected = Buffer.from(csrfToken(sessionId), 'utf8');
+  const supplied = Buffer.from(typeof req.body?.csrf === 'string' ? req.body.csrf : '', 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    return res.status(403).type('text').send('Invalid CSRF token.');
+  }
+  try {
+    const session = await billing.createPortalSession(account, { returnPath: '/dashboard' });
+    return res.redirect(303, session.url);
+  } catch (error) {
+    if (error?.code === 'no_subscription') return res.redirect(303, '/dashboard?billing=none');
+    if (error?.code === 'billing_unavailable') return res.redirect(303, '/dashboard?billing=unavailable');
+    req.log.warn('dashboard.billing_portal_failed', { account: account.id, code: error?.code });
+    return res.redirect(303, '/dashboard?billing=error');
+  }
+}));
+
 router.get('/dashboard', asyncRoute(async (req, res) => {
   const account = await currentAccount(req);
   if (!account) return res.redirect('/login');
@@ -158,6 +178,9 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
 <header class="topbar"><a class="logo" href="/">Doc<span>Mint</span></a>
   <nav><a href="/docs">Docs</a><form method="post" action="/logout"><button class="link">Sign out</button></form></nav></header>
 <main class="dash">
+  ${req.query.billing === 'none' ? '<div class="notice">There is no billing record for this account yet. Choose a plan below to start one.</div>' : ''}
+  ${req.query.billing === 'unavailable' ? '<div class="notice">Billing is not available on this deployment right now.</div>' : ''}
+  ${req.query.billing === 'error' ? '<div class="notice">Stripe\'s billing page could not be opened just now. Nothing was changed. Please try again in a minute.</div>' : ''}
   ${req.query.welcome ? '<div class="notice"><strong>Your account is ready.</strong> Copy the API key below now. It is shown only once.</div>' : ''}
   ${checkoutReturn ? `<div class="notice${checkoutReturn.ok ? ' ok' : ''}">${escapeHtml(checkoutReturn.message)}</div>` : ''}
   ${req.query.checkout === 'updated' ? '<div class="notice">Your plan change has been sent to Stripe. The plan shown below is the one you are on right now; it updates as soon as Stripe confirms.</div>' : ''}
@@ -186,6 +209,7 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
       </div>`).join('')}
     </div>
     ${purchasable.length ? '' : `<p class="muted">Paid plans are not configured on this build.</p>`}
+    ${billing.enabled() && account.stripe_customer_id ? `<form method="post" action="/dashboard/billing-portal" class="portal"><input type="hidden" name="csrf" value="${csrf}"><button type="submit">Manage billing</button></form><p class="muted">Invoices, payment method and cancellation are handled on Stripe's secure billing page.</p>` : ''}
   </section>
   <section class="card">
     <h2>Templates</h2>

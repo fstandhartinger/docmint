@@ -20,6 +20,12 @@ const stripe = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, {
 }) : null;
 const enabled = () => Boolean(stripe);
 
+function portalReturnUrl(returnPath) {
+  const allowed = new Set(['/docs#quota', '/dashboard']);
+  const selected = allowed.has(returnPath) ? returnPath : '/docs#quota';
+  return `${config.publicUrl}${selected}`;
+}
+
 // The name a buyer sees at the top of the Stripe Checkout page.
 const BRAND_NAME = 'DocMint';
 
@@ -319,7 +325,7 @@ async function createCheckoutSession(account, planId) {
   });
 }
 
-async function createPortalSession(account) {
+async function createPortalSession(account, { returnPath } = {}) {
   if (!enabled()) throw new ApiError(503, 'billing_unavailable', 'Billing is not configured on this deployment.');
   // Resolve ownership under the same account lock as checkout/webhook writers;
   // the dashboard's account snapshot may predate a replacement customer.
@@ -337,7 +343,7 @@ async function createPortalSession(account) {
     }
     return stripe.billingPortal.sessions.create({
       customer: current.stripe_customer_id,
-      return_url: `${config.publicUrl}/docs#quota`,
+      return_url: portalReturnUrl(returnPath),
     });
   });
   if (!result) throw new ApiError(400, 'no_subscription', 'There is no billing record for this account.', {
@@ -731,5 +737,5 @@ async function healStaleCustomers() {
 module.exports = {
   router, stripe, enabled, createCheckoutSession, createPortalSession, applySubscription,
   handleEvent, ensureCustomer, isUsableCustomer, healStaleCustomers, verifyCheckoutReturn,
-  BRAND_NAME,
+  BRAND_NAME, portalReturnUrl,
 };

@@ -130,9 +130,14 @@ async function analyticsDays() {
   return json.days;
 }
 
-/** The newest day's count for a kind, or 0 when that kind has never happened. */
+/**
+ * Today's (UTC) count for a kind, or 0 when it has not happened today. Only
+ * today's row counts: falling back to an older day made the first run after
+ * UTC midnight compare yesterday's total with today's fresh row.
+ */
 function kindN(days, kind) {
-  const row = days.find((d) => d.kind === kind); // the readout is newest-day-first
+  const today = new Date().toISOString().slice(0, 10);
+  const row = days.find((d) => d.kind === kind && d.day === today);
   return row ? Number(row.n) : 0;
 }
 
