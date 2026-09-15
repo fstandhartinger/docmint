@@ -559,7 +559,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </div>
       <div class="gap">
         <b>No SLA, one region, one instance</b>
-        <span>The service runs in Frankfurt on a single small instance and restarts on every deploy. There is no third-party uptime monitor and no SOC 2 report. If an hour of downtime would damage your business, this is not yet the right dependency.</span>
+        <span>The service runs on a single small dedicated Hetzner server in the EU and restarts on every deploy. There is no third-party uptime monitor and no SOC 2 report. If an hour of downtime would damage your business, this is not yet the right dependency.</span>
       </div>
     </div>
   </div>
@@ -591,7 +591,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </details>
       <details>
         <summary>Are my documents stored?</summary>
-        <p>Rendered documents are never written to the database — they are produced in memory and returned in the response. Templates you upload <em>are</em> stored, because that is what uploading them means. The <a href="/privacy">privacy policy</a> lists every row of every table.</p>
+        <p>For a synchronous call, rendered documents are not stored — they are produced in memory and returned in the response. An async job's output is kept as a download link that expires 24 hours after the job finishes. Templates you upload <em>are</em> stored, because that is what uploading them means. The <a href="/privacy">privacy policy</a> lists every row of every table.</p>
       </details>
       <details>
         <summary>Why is the PDF so much slower than the Office file?</summary>
@@ -603,7 +603,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </details>
       <details>
         <summary>Is anything in my template or data used to train a model?</summary>
-        <p>No. Nothing is read, mined, sold or used to train anything, and the service sends no email at all.</p>
+        <p>No. Nothing is read, mined, sold or used to train anything, and the only email the service sends is a password-reset link, when you ask for one.</p>
       </details>
     </div>
   </div>

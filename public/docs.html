@@ -439,7 +439,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 <tbody>
 <tr><td class="wrap">A base64 string, or a <code>data:image/png;base64,…</code> URI</td><td class="wrap">The image bytes. Sized from the file's own dimensions.</td></tr>
 <tr><td class="wrap"><code>{"data": "&lt;base64&gt;", "width": 120, "height": 40, "alt": "Logo"}</code></td><td class="wrap">Bytes plus an explicit size in pixels at 96 DPI. Give one of width/height and the other is derived from the aspect ratio. <code>base64</code>, <code>bytes</code> and <code>content</code> are accepted as aliases for <code>data</code>.</td></tr>
-<tr><td class="wrap"><code>{"url": "https://…"}</code></td><td class="wrap"><strong>Not fetched.</strong> DocMint never makes an outbound HTTP request on your behalf. Supply the bytes for that URL through the request's <code>images</code> object, keyed by the URL or by the tag path, or the render fails with <code>image_url_unsupported</code>.</td></tr>
+<tr><td class="wrap"><code>{"url": "https://…"}</code></td><td class="wrap"><strong>Not fetched.</strong> DocMint never downloads URLs from your data. Supply the bytes for that URL through the request's <code>images</code> object, keyed by the URL or by the tag path, or the render fails with <code>image_url_unsupported</code>.</td></tr>
 </tbody></table></div>
 
 <p>Formats: PNG, JPEG, GIF and BMP in Word and Excel; PNG, JPEG and GIF in PowerPoint, which are the formats PowerPoint embeds without conversion. An image may be at most 24 MB.</p>
@@ -1363,7 +1363,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 <div class="code"><pre><code>{ "url": "https://checkout.stripe.com/c/pay/cs_live_…",
   "plan": "pro",
   "expires_at": 1787735655 }</code></pre></div>
-<p>The session collects a billing address and offers an optional VAT ID, which Stripe then puts on the invoice — an EU business needs it there or its accountant will not accept the receipt. Promotion codes are accepted. Because there is no dashboard yet, Stripe returns you to <code>/docs#quota</code> afterwards.</p>
+<p>The session collects a billing address and offers an optional VAT ID, which Stripe then puts on the invoice — an EU business needs it there or its accountant will not accept the receipt. Promotion codes are accepted. Afterwards, Stripe returns you to your dashboard at <code>/dashboard?checkout=success</code>.</p>
 
 <h3><span class="pill post">POST</span><span class="path">/v1/billing/portal</span></h3>
 <p>Returns a Stripe customer-portal URL for changing the plan, updating the card, downloading invoices, or cancelling. Takes no body.</p>

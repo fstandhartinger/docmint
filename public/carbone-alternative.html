@@ -220,7 +220,7 @@ all and none planned; you author in Word and upload the file.</li>
 Edition has all of them. DocMint writes plain text, numbers, images and raw OOXML. If you need
 formatted HTML flowed into a Word document, DocMint is the wrong tool today.</li>
 <li><b>You need on-premise or a private cloud.</b> Carbone sells both, with a lifetime licence
-option. DocMint is one hosted service in Frankfurt and nothing else.</li>
+option. DocMint is one hosted service on a single small Hetzner server in the EU and nothing else.</li>
 <li><b>You want a choice of PDF engine.</b> Carbone offers LibreOffice, OnlyOffice, Chromium and
 their own, plus PDF/A, watermarking and encryption. DocMint has one converter, one profile, no
 options.</li>
@@ -240,8 +240,8 @@ later, at a worse moment.</p>
 <li><b>No paying customer from outside our own circle yet.</b> DocMint is new. Carbone has years of
 production users behind it and we have none to point at.</li>
 <li><b>The smallest free tier here.</b> 30 documents a month against Carbone's 100.</li>
-<li><b>One region, one instance, no SLA.</b> Frankfurt, a single small instance that restarts on
-every deploy, no third-party uptime monitor, no SOC 2 report. If an hour of downtime would damage
+<li><b>One region, one instance, no SLA.</b> A single small dedicated Hetzner server in the EU; the service restarts
+on every deploy, no third-party uptime monitor, no SOC 2 report. If an hour of downtime would damage
 your business, this is not yet the right dependency.</li>
 <li><b>PDF conversion runs one at a time per instance.</b> Measured today: 1,346 ms server-side for
 a one-page PDF. A burst queues rather than slows. Carbone's Advanced plan does 10 renders in

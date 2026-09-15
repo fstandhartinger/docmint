@@ -54,7 +54,7 @@
 <p>Everything below is in one PostgreSQL database. There is <strong>no third-party analytics
   product, no advertising network, no tracking pixel, and no third-party script or font on this
   website at all</strong> — these pages load nothing from any host other than this one.</p>
-<p>What DocMint does count is a handful of daily totals, in that same database in Frankfurt (see
+<p>What DocMint does count is a handful of daily totals, in that same database (see
   processors below): for each UTC day, one number each for views of the public pages, new
   accounts, started checkouts and completed payments. That is the entire dataset — a date, a
   kind and a number. For this, DocMint stores <strong>no IP addresses, no user agents, no
@@ -81,18 +81,23 @@
   </tr>
   <tr>
     <td><strong>The data you send to be filled in</strong></td>
-    <td>It is held in memory for the length of the request and used to produce the document. <strong>It is never written to the database.</strong></td>
-    <td>Not stored.</td>
+    <td>On a synchronous call (<code>/v1/render</code>, <code>/v1/batch</code>, PDF conversion) it is held in memory for the length of the request and used to produce the document. <strong>It is never written to the database.</strong> On an async job (<code>POST /v1/jobs</code>) the whole job request — the data items, the template name or inline template, and the options — <strong>is stored in the <code>jobs</code> table</strong> so the job can run.</td>
+    <td>Not stored for synchronous calls. An async job's request is deleted 7 days after the job finishes, once its credits are settled and any webhook delivery has succeeded or given up.</td>
   </tr>
   <tr>
     <td><strong>The documents that are produced</strong></td>
-    <td>Produced in memory and returned in the response. <strong>Rendered documents and PDFs are never written to the database.</strong> The schema contains an unused <code>files</code> table left over from a hosted-link feature that is not implemented; no code path writes to it or reads from it.</td>
-    <td>Not stored.</td>
+    <td>On a synchronous call the document is produced in memory and returned in the response. <strong>It is not stored.</strong> An async job's output is stored in the <code>files</code> table as a hosted download link under <code>/f/&lt;token&gt;</code>; a link expires 24 hours after the job finishes. Expired files are deleted automatically; cleanup runs inside the service every 10 minutes.</td>
+    <td>Not stored for synchronous calls. Async job outputs: 24 hours.</td>
   </tr>
   <tr>
     <td>Templates sent inline as <code>template_base64</code></td>
-    <td>Treated exactly like the data above: used for the render and discarded.</td>
-    <td>Not stored.</td>
+    <td>On a synchronous call, treated exactly like the data above: used for the render and discarded. <strong>It is never written to the database.</strong> On an async job the inline template is stored with the job request in the <code>jobs</code> table, so the job can run.</td>
+    <td>Not stored for synchronous calls. An async job's request is deleted 7 days after the job finishes, once its credits are settled and any webhook delivery has succeeded or given up.</td>
+  </tr>
+  <tr>
+    <td>Async job webhooks</td>
+    <td>If you supply a <code>webhook_url</code> on <code>POST /v1/jobs</code>, it is stored with the job, together with the delivery attempts and the job result summary, so DocMint can send a signed POST with the job status and its result (download links) or error when the job finishes.</td>
+    <td>Kept with the job; deleted 7 days after the job finishes, once its credits are settled and any webhook delivery has succeeded or given up.</td>
   </tr>
   <tr>
     <td>Usage records</td>
@@ -116,10 +121,16 @@
   </tr>
 </table>
 
-<p>The application does not log your IP address or user agent. The hosting provider keeps its own
-  HTTP request logs, which do contain IP addresses; that is described under processors below. One
-  transient exception: the signup endpoint keeps the calling IP address in memory for 60 seconds to
-  enforce one signup per minute. It is never written to disk or to the database.</p>
+<p>The application does not log your IP address or user agent. The reverse proxy in front of the
+   application keeps no access logs, and the application itself writes no IP addresses to its logs
+   or to the database.
+   Two exceptions. One is transient: the signup endpoint keeps the calling IP address in memory for
+   60 seconds to enforce one signup per minute; it is never written to disk or to the database. The
+   other is stored: password-reset requests are rate limited in the
+   <code>password_reset_limits</code> table under a SHA-256 hash of the action and the IP address —
+   the hash, not the address itself. Rows older than 2 hours are deleted only when a later
+   password-reset request runs the cleanup; there is no scheduled deletion, so no fixed retention
+   period applies to these hashes.</p>
 
 <h2>3. Card details</h2>
 <p><strong>Card numbers never reach this service.</strong> Payment is handled entirely by Stripe on
@@ -129,21 +140,24 @@
   not stored here.</p>
 
 <h2>4. Email</h2>
-<p>DocMint does not send email at all. There is no newsletter, no marketing mail and no transactional
-  mail. One consequence is stated plainly in the <a href="/docs#signup">docs</a>: there is no password
-  reset and no confirmation email.</p>
+<p>DocMint sends exactly one kind of email: a transactional password-reset link, and only when you
+   ask for one. The mail is sent through a relay on the same server, which forwards it via Google's
+   SMTP service (Gmail, Google LLC). There is no newsletter, no marketing mail and no confirmation
+   email.</p>
 
 <h2>5. Outbound requests</h2>
-<p><strong>DocMint never fetches anything on your behalf.</strong> An image referenced by URL in your
-  data is not downloaded; you must supply its bytes. No template, no data and no document causes this
-  service to contact any other host.</p>
+<p><strong>DocMint never downloads content referenced by URL in your data.</strong> An image
+   referenced by URL is not fetched; you must supply its bytes. The one outbound request made on
+   your behalf is the job webhook: when an async job finishes, DocMint sends a signed POST
+   with the job status and its result (download links) or error to the <code>webhook_url</code> you supplied. The only other outbound
+   connections are the password-reset mail described above and Stripe API calls for billing.</p>
 
 <h2>6. Processors</h2>
 <p>Three companies process data on behalf of this service:</p>
 <table>
   <tr><th>Processor</th><th>What they do</th><th>Where</th></tr>
-  <tr><td>Render Services, Inc.</td><td>Runs the application and keeps HTTP request logs, which include IP addresses.</td><td>Frankfurt, Germany</td></tr>
-  <tr><td>Neon, Inc.</td><td>Hosts the PostgreSQL database in which everything in section 2 is stored.</td><td>Frankfurt, Germany (EU region)</td></tr>
+  <tr><td>Hetzner Online GmbH</td><td>Rents the dedicated server on which the application and the PostgreSQL database both run.</td><td>EU</td></tr>
+  <tr><td>Google LLC</td><td>Delivers the password-reset email through its Gmail SMTP service; the reset link is the only mail this service sends.</td><td>United States</td></tr>
   <tr><td>Stripe, Inc.</td><td>Takes payments, stores card details and hosts the checkout and customer-portal pages. Stripe is the controller for the card data itself.</td><td>Ireland / United States</td></tr>
 </table>
 <p>LibreOffice, used for the optional PDF conversion, runs as a local process on the same server. It
