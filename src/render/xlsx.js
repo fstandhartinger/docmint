@@ -11,6 +11,7 @@ const {
 } = require('../template/resolve');
 const { applyFormatters } = require('../template/formatters');
 const { TemplateError } = require('../template/errors');
+const codes = require('./codes');
 
 /**
  * XLSX renderer.
@@ -1213,6 +1214,17 @@ function imageSize(buf) {
 }
 
 function decodeImage(value, tag, ctx) {
+  // A code spec ({"qr": …}, {"barcode": …}, {"epc": …}) becomes a generated PNG
+  // and takes the same path as caller-supplied image bytes afterwards.
+  if (codes.isCodeSpec(value)) {
+    try {
+      const img = codes.codeImage(value, tag.path);
+      value = { data: img.png, width: img.width, height: img.height };
+    } catch (e) {
+      if (e instanceof TemplateError && !e.location) e.location = ctx.location;
+      throw e;
+    }
+  }
   let data = value;
   let width = null;
   let height = null;

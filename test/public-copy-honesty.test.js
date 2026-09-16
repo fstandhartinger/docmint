@@ -46,6 +46,12 @@ const STALE = [
   // AT13(d): the Google row named the wrong entity for an EEA operator and gave a
   // location neither fetched Google source establishes.
   "which forwards it via Google's SMTP service (Gmail, Google LLC)",
+  // AT14: DocMint now draws QR codes, EPC payment QR codes and Code 128 / EAN-13
+  // barcodes itself. These fragments said the opposite; their absence is guarded.
+  'No rich text, QR codes, maps or dynamic PDF passwords',
+  'You need charts, barcodes, HTML-into-Word, or PDF operations',
+  'a studio, charts, barcodes or an on-premise licence',
+  'You need rich text, QR codes, maps or dynamic PDF passwords',
 ];
 
 // The old copy exactly as it read before the AT12 rewrite, so the fixture below cannot
@@ -84,6 +90,13 @@ const OLD_COPY = `
 <li><b>A small dashboard, no team seats.</b> Signed in, you can see usage and plan, upload templates,
 test a render and manage API keys; everything also works as an API call. There are no team seats, and account
 deletion is an email today.</li>
+        <b>No rich text, QR codes, maps or dynamic PDF passwords</b>
+<li><b>You need rich text, QR codes, maps or dynamic PDF passwords.</b> Docupilot has all four,
+<tr><td>Charts, barcodes, HTML into Word</td><td>No</td><td>Yes (Enterprise Edition)</td>
+<li><b>What is in the documents?</b> Charts, barcodes, formatted HTML flowed into Word, QR codes,
+exactly that. If the thing you need is a studio, charts, barcodes or an on-premise licence, Carbone
+<li><b>You need rich text, QR codes, maps or dynamic PDF passwords.</b> Docupilot has all four,
+<li><b>You need charts, barcodes, HTML-into-Word, or PDF operations.</b> Carbone's Enterprise
 `;
 
 test('OLD_COPY fixture really contains every stale fragment (no vacuous pass)', () => {

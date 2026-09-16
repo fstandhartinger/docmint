@@ -621,3 +621,39 @@ test('a sheet this renderer cannot parse leaves the whole table alone', async ()
   assert.ok(!stats.parts.includes('xl/sharedStrings.xml'));
   assert.equal(ctx.warnings.list.filter((w) => w.code === 'template_text_in_shared_strings').length, 1);
 });
+
+// ---------------------------------------------------------------------------
+// QR codes and barcodes as template images (AT14)
+// ---------------------------------------------------------------------------
+
+const codes = require('../src/render/codes');
+
+test('a qr value renders to the generated PNG in the media part, at the given width', async () => {
+  const spec = { qr: 'https://docmint.app.mintapis.com', width: 120 };
+  const { buffer, stats } = await render(fixture('images.xlsx'), { logo: spec, company: 'Acme' }, {});
+  assert.equal(stats.images, 1);
+  const names = partNames(buffer);
+  assert.ok(names.includes('xl/media/image1.png'), `expected one QR media part, got ${names.join(', ')}`);
+  assert.equal(partNames(buffer).filter((n) => n.startsWith('xl/media/')).length, 1);
+  assert.equal(Buffer.compare(partBytes(buffer, 'xl/media/image1.png'), codes.codeImage(spec, 'logo').png), 0,
+    'media bytes differ from codes.js output');
+  const drawing = partText(buffer, 'xl/drawings/drawing1.xml');
+  assert.ok(drawing.includes('<xdr:ext cx="1143000" cy="1143000"/>'), 'extent not 120x120 px (1143000 EMU)');
+  assert.equal(cells(buffer).B1.text, '', 'the placeholder text is removed as for any image');
+});
+
+test('code128, ean13 and epc values each embed their generated PNG', async () => {
+  for (const [name, spec] of [
+    ['code128', { barcode: 'code128', value: 'INV-2026-0042' }],
+    ['ean13', { barcode: 'ean13', value: '400638133393' }],
+    ['epc', { epc: { name: 'Musterfirma GmbH', iban: 'DE02 1001 0010 9307 1186 03', bic: 'BFSWDE33XXX', amount: 12.34, text: 'Rechnung 2026-0042' } }],
+  ]) {
+    const { buffer, stats } = await render(fixture('images.xlsx'), { logo: spec, company: 'Acme' }, {});
+    assert.equal(stats.images, 1, name);
+    const media = partNames(buffer).filter((n) => n.startsWith('xl/media/'));
+    assert.equal(media.length, 1, `expected one media part for ${name}`);
+    assert.ok(media[0].endsWith('.png'));
+    assert.equal(Buffer.compare(partBytes(buffer, media[0]), codes.codeImage(spec, 'logo').png), 0,
+      `media bytes differ from codes.js output for ${name}`);
+  }
+});

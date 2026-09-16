@@ -12,6 +12,7 @@ const {
   makeContext, resolveValue, resolveSection, resolveInverted, lookup, visibleKeys, probeTag,
 } = require('../template/resolve');
 const { TemplateError, didYouMean } = require('../template/errors');
+const codes = require('./codes');
 
 /**
  * The WordprocessingML renderer.
@@ -831,6 +832,12 @@ function urlUnsupported(tag, url) {
 
 /** Turns whatever the caller put in the data into bytes plus a size in pixels. */
 function imagePayload(tag, value, job) {
+  // A code spec ({"qr": …}, {"barcode": …}, {"epc": …}) is generated into PNG
+  // bytes here and takes the same path as a caller-supplied PNG afterwards.
+  if (codes.isCodeSpec(value)) {
+    const img = codes.codeImage(value, tag.path);
+    value = { data: img.png, width: img.width, height: img.height, alt: img.alt };
+  }
   let spec = value;
   if (Buffer.isBuffer(value) || value instanceof Uint8Array || typeof value === 'string') spec = { data: value };
   if (!spec || typeof spec !== 'object') {

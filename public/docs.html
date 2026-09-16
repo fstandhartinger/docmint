@@ -447,7 +447,75 @@ x-ratelimit-remaining: 29</code></pre></div>
 <div class="code"><div class="cap">the images option, verified against the live API</div><pre><code>{
   "template": "deck",
   "data": { "title": "Q3 review", "logo": { "url": "https://example.com/logo.png" } },
-  "images": { "https://example.com/logo.png": { "data": "iVBORw0KGgo…" } }
+}</code></pre></div>
+
+<h3>QR codes and barcodes</h3>
+<p>The same <code>{%tag}</code> also draws QR codes and barcodes itself — nothing to supply:
+<code>{"qr": "…"}</code>, <code>{"barcode": "code128", "value": "…"}</code>,
+<code>{"barcode": "ean13", "value": "…"}</code> or an EPC SEPA payment QR
+<code>{"epc": {…}}</code>. DocMint encodes and rasterises them in the service.
+<strong>No network access happens</strong> — a URL inside <code>qr</code> is just text for
+whoever scans the document; it is never downloaded.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Value shape</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="wrap"><code>{"qr": "https://example.com/pay/123", "ecc": "M", "width": 120, "height": 120, "alt": "…"}</code></td>
+<td class="wrap">A QR code of the text (ISO/IEC 18004, Model 2, byte mode). <code>ecc</code> is <code>"L"</code>, <code>"M"</code> (default), <code>"Q"</code> or <code>"H"</code>. Default size 150&times;150 px at 96 DPI; give one of width/height and the other follows the square aspect ratio.</td></tr>
+<tr><td class="wrap"><code>{"barcode": "code128", "value": "INV-2026-0042", "width": 300}</code></td>
+<td class="wrap">Code 128, ASCII 32&ndash;126, up to 80 characters. Default size: 2&nbsp;px per module wide, 60&nbsp;px high.</td></tr>
+<tr><td class="wrap"><code>{"barcode": "ean13", "value": "400638133393"}</code></td>
+<td class="wrap">EAN-13 of 12 digits (the check digit is computed) or 13 digits (it is verified against the twelfth). Default size as for Code 128. DocMint draws the bars only — <strong>no human-readable digits are printed under an EAN-13</strong>, because there is no font rasteriser. Write <code>{value}</code> as text under the image if you want the digits shown.</td></tr>
+<tr><td class="wrap"><code>{"epc": {"name": "Musterfirma GmbH", "iban": "DE02 1001 0010 9307 1186 03", "bic": "BFSWDE33XXX", "amount": 12.34, "text": "Rechnung 2026-0042"}}</code></td>
+<td class="wrap">A SEPA Credit Transfer QR (EPC069-12, "Girocode"), always at error level M — banking apps read it into a transfer form. Default size 150&times;150 px.</td></tr>
+</tbody></table></div>
+
+<p>An EPC object takes <code>name</code> (required, &le;70 chars), <code>iban</code> (required;
+spaces allowed, validated including its mod-97 check digit, never echoed in an error),
+<code>bic</code> (optional, 8 or 11 characters), <code>amount</code> (optional, in euro with two
+decimals, 0.01&ndash;999999999.99), and either <code>reference</code> (structured, &le;35) or
+<code>text</code> (unstructured, &le;140) — never both. An <code>ecc</code> key on an
+<code>epc</code> object is an error: a Girocode is always ECC&nbsp;M. The payload is the
+EPC069-12 "SEPA Credit Transfer" string a banking app reads into a transfer form.</p>
+
+<h4>Sizes</h4>
+<p>Default display size at 96 DPI: QR and EPC 150&nbsp;&times;&nbsp;150&nbsp;px; Code 128 and
+EAN-13 are 2&nbsp;px per module wide and 60&nbsp;px high. Give <code>width</code> or
+<code>height</code> and the other follows the aspect ratio; give both and the code is drawn
+stretched. The PNG behind the scenes is greyscale, rasterised sharply at whole-module
+pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
+
+<h4>Error codes for codes</h4>
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>When</th></tr></thead>
+<tbody>
+<tr><td><code>qr_too_long</code></td><td class="wrap">The text does not fit a QR code at the chosen error level; the message states the byte length and the maximum for that error level.</td></tr>
+<tr><td><code>qr_invalid</code></td><td class="wrap"><code>qr</code> is not a non-empty string, or <code>ecc</code> is not one of <code>"L"</code>, <code>"M"</code>, <code>"Q"</code>, <code>"H"</code>.</td></tr>
+<tr><td><code>barcode_unsupported</code></td><td class="wrap">A <code>barcode</code> other than <code>code128</code> or <code>ean13</code>. The hint lists both.</td></tr>
+<tr><td><code>barcode_invalid</code></td><td class="wrap">A Code 128 value that is empty, over 80 characters, or has a character outside ASCII 32&ndash;126 (the first offending position is named); an EAN-13 that is not 12/13 digits or whose check digit is wrong (the expected digit is stated).</td></tr>
+<tr><td><code>epc_invalid</code></td><td class="wrap">An EPC field is wrong; the message names the field and the reason. The IBAN is never echoed, only its length and the failing check.</td></tr>
+<tr><td><code>image_invalid</code></td><td class="wrap">An object that mixes a code key with image bytes (<code>data</code>, <code>base64</code>, <code>url</code>, …), carries two of <code>qr</code>/<code>barcode</code>/<code>epc</code>, or carries an undocumented key (the key is named).</td></tr>
+</tbody></table></div>
+
+<p>An object that mixes a code key with image bytes (<code>data</code>, <code>base64</code>,
+<code>url</code>, …), carries two of <code>qr</code>/<code>barcode</code>/<code>epc</code>, or carries
+an undocumented key is neither an image nor a code and fails with <code>image_invalid</code>. An
+<code>ecc</code> key on an <code>epc</code> object is <code>epc_invalid</code> — a Girocode is
+always error level M.</p>
+
+<div class="code"><div class="cap">a QR code drawn by DocMint in a Word document</div><pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render -H "Authorization: ApiKey YOUR_KEY" \
+  -H "Content-Type: application/json" -d '{
+  "template": "https://example.com/qr-letter.docx",
+  "format": "pdf",
+  "data": {
+    "logo": { "qr": "https://docmint.app.mintapis.com", "width": 120 },
+    "pay": { "epc": { "name": "Musterfirma GmbH", "iban": "DE02 1001 0010 9307 1186 03",
+                      "bic": "BFSWDE33XXX", "amount": 12.34, "text": "Rechnung 2026-0042" } }
+  }
+}' -o letter.pdf</code></pre></div>
+
+<div class="tw"><table>
+<thead><tr><th>Code</th><th>When</th></tr></thead>  "images": { "https://example.com/logo.png": { "data": "iVBORw0KGgo…" } }
 }</code></pre></div>
 
 <div class="tw"><table>

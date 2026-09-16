@@ -745,3 +745,46 @@ test('the nested deck opens and every level of the loop is on the page', loSkip,
   }
   for (const line of data.address.split('\n')) assert.ok(pdf.text.includes(line), `address line "${line}" missing`);
 });
+
+// ---------------------------------------------------------------------------
+// QR codes and barcodes as template images (AT14)
+// ---------------------------------------------------------------------------
+
+const codes = require('../src/render/codes');
+const { readEntry } = require('../src/ooxml/zip');
+
+test('a qr value renders to the generated PNG in the media part', async () => {
+  const spec = { qr: 'https://docmint.app.mintapis.com', width: 120 };
+  const data = REPORT_DATA();
+  data.logo = spec;
+  const { buffer, stats } = await render(H.fixture('report'), data, {});
+  assert.equal(stats.images, 1);
+  const media = H.partNames(buffer).filter((n) => n.startsWith('ppt/media/'));
+  assert.equal(media.length, 1, `expected one media part, got ${media.join(', ')}`);
+  assert.ok(media[0].endsWith('.png'));
+
+  const entry = readZip(buffer).byName.get(media[0]);
+  assert.ok(readEntry(entry).equals(codes.codeImage(spec, 'logo').png),
+    'media bytes differ from codes.js output');
+  assert.ok(media[0].endsWith('.png'));
+  assert.match(H.part(buffer, '[Content_Types].xml'), /Extension="png"/);
+});
+
+test('code128, ean13 and epc each embed their generated PNG', async () => {
+  for (const [name, spec] of [
+    ['code128', { barcode: 'code128', value: 'INV-2026-0042' }],
+    ['ean13', { barcode: 'ean13', value: '400638133393' }],
+    ['epc', { epc: { name: 'Musterfirma GmbH', iban: 'DE02 1001 0010 9307 1186 03', bic: 'BFSWDE33XXX', amount: 12.34, text: 'Rechnung 2026-0042' } }],
+  ]) {
+    const data = REPORT_DATA();
+    data.logo = spec;
+    const { buffer, stats } = await render(H.fixture('report'), data, {});
+    assert.equal(stats.images, 1, name);
+    const media = H.partNames(buffer).filter((n) => n.startsWith('ppt/media/'));
+    assert.equal(media.length, 1, `expected one media part for ${name}`);
+    assert.ok(media[0].endsWith('.png'));
+    const entry = readZip(buffer).byName.get(media[0]);
+    assert.ok(readEntry(entry).equals(codes.codeImage(spec, 'logo').png),
+      `media bytes differ from codes.js output for ${name}`);
+  }
+});

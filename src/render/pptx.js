@@ -12,6 +12,7 @@ const {
   lookup, probeTag, resolveValue, resolveSection, resolveInverted, makeContext,
 } = require('../template/resolve');
 const { TemplateError } = require('../template/errors');
+const codes = require('./codes');
 
 /**
  * PPTX rendering.
@@ -212,6 +213,18 @@ function decodeBase64Image(str, tag, ctx) {
  */
 function decodeImageValue(value, tag, ctx) {
   if (value === null || value === undefined || value === '') return null;
+
+  // A code spec ({"qr": …}, {"barcode": …}, {"epc": …}) becomes a generated PNG
+  // and takes the same path as caller-supplied image bytes afterwards.
+  if (codes.isCodeSpec(value)) {
+    try {
+      const img = codes.codeImage(value, tag.path);
+      value = { data: img.png, width: img.width, height: img.height };
+    } catch (e) {
+      if (e instanceof TemplateError && !e.location) e.location = ctx.location;
+      throw e;
+    }
+  }
 
   let raw = value;
   let wantW = null;

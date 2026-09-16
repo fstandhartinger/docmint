@@ -674,3 +674,84 @@ function miscData(overrides = {}) {
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// QR codes and barcodes as template images (AT14)
+// ---------------------------------------------------------------------------
+
+const codes = require('../src/render/codes');
+const { readEntry } = require('../src/ooxml/zip');
+
+// Part bytes, decompressed — H.rawEntry returns the raw (compressed) zip data.
+const partBytes = (buffer, name) => readEntry(require('../src/ooxml/zip').readZip(buffer).byName.get(name));
+
+test('a qr value renders to the generated PNG, square at the given width', async () => {
+  const spec = { qr: 'https://docmint.app.mintapis.com', width: 120 };
+  const { buffer, stats } = await render(H.fixture('invoice'), H.invoiceData({ logo: spec }), { currency: 'EUR' });
+  assert.equal(stats.images, 1);
+  const media = H.partNames(buffer).filter((n) => n.startsWith('word/media/'));
+  assert.equal(media.length, 1, `expected exactly one media part, got ${media.join(', ')}`);
+  assert.ok(media[0].endsWith('.png'));
+
+  const expected = codes.codeImage(spec, 'logo').png;
+  assert.ok(partBytes(buffer, media[0]).equals(expected), 'media bytes differ from codes.js output');
+  const xml = H.partText(buffer, 'word/document.xml');
+  assert.ok(xml.includes(`<wp:extent cx="${120 * 9525}" cy="${120 * 9525}"/>`), 'extent not 120x120 px');
+  assert.ok(xml.includes('<w:drawing>'));
+});
+
+test('code128, ean13 and epc values each embed their generated PNG', async () => {
+  for (const spec of [
+    { barcode: 'code128', value: 'INV-2026-0042' },
+    { barcode: 'ean13', value: '400638133393' },
+    { epc: { name: 'Musterfirma GmbH', iban: 'DE02 1001 0010 9307 1186 03', bic: 'BFSWDE33XXX', amount: 12.34, text: 'Rechnung 2026-0042' } },
+  ]) {
+    const { buffer, stats } = await render(H.fixture('invoice'), H.invoiceData({ logo: spec }), { currency: 'EUR' });
+    assert.equal(stats.images, 1);
+    const media = H.partNames(buffer).filter((n) => n.startsWith('word/media/'));
+    assert.equal(media.length, 1, `expected one media part for ${JSON.stringify(spec).slice(0, 40)}`);
+    assert.ok(partBytes(buffer, media[0]).equals(codes.codeImage(spec, 'logo').png));
+  }
+});
+
+test('a qr_too_long value comes back as a TemplateError, never a 500', async () => {
+  await assert.rejects(
+    () => render(H.fixture('invoice'), H.invoiceData({ logo: { qr: 'x'.repeat(3000), ecc: 'H' } }), { currency: 'EUR' }),
+    (e) => {
+      assert.equal(e.name, 'TemplateError');
+      assert.equal(e.code, 'qr_too_long');
+      assert.equal(e.field, 'logo');
+      assert.ok(e.location, 'the usual location is present');
+      return true;
+    },
+  );
+});
+
+loTest('a DOCX with a QR code and a Code 128 converts to PDF', async () => {
+  const template = H.patchPart(H.fixture('invoice'), 'word/document.xml',
+    (xml) => xml.replace('{%logo}', '{%qr} {%bar}'));
+  const data = H.invoiceData();
+  data.qr = { qr: 'https://docmint.app.mintapis.com', width: 120 };
+  data.bar = { barcode: 'code128', value: 'INV-2026-0042', width: 300 };
+  data.logo = null;
+  const { buffer, stats } = await render(template, data, { currency: 'EUR' });
+  assert.equal(stats.images, 2);
+  const pdf = H.toPdf(buffer, 'codes');
+  assert.ok(pdf.length > 1000 && pdf.subarray(0, 5).equals(Buffer.from('%PDF-')), 'no PDF came back');
+});
+
+test('a render with 200 QR images in a loop stays inside the render deadline', async () => {
+  const template = H.patchPart(H.fixture('invoice'), 'word/document.xml',
+    (xml) => xml.replace('{#items}{description}', '{#items}{%logo}{description}'));
+  const items = Array.from({ length: 200 }, (_, i) => ({
+    description: `Line ${i + 1}`, qty: 1, unit_price: 1, line_total: 1,
+  }));
+  const data = H.invoiceData({ items, logo: { qr: 'https://docmint.app/invoice/42' } });
+  const started = performance.now();
+  const { buffer, stats } = await render(template, data, { currency: 'EUR' });
+  const ms = performance.now() - started;
+  assert.equal(stats.images, 201, '200 in the loop plus the top-level image tag of the invoice');
+  assert.ok(buffer.length > 0);
+  console.log(`    [info] 200 QR images in one DOCX render: ${ms.toFixed(0)} ms (measured, not asserted)`);
+  assert.ok(buffer.length > 0);
+});
