@@ -141,9 +141,9 @@
 
 <h2>4. Email</h2>
 <p>DocMint sends exactly one kind of email: a transactional password-reset link, and only when you
-   ask for one. The mail is sent through a relay on the same server, which forwards it via Google's
-   SMTP service (Gmail, Google LLC). There is no newsletter, no marketing mail and no confirmation
-   email.</p>
+   ask for one. The mail is handed to a Postfix relay running on the same server as the application,
+   which forwards it over authenticated TLS to Google's Gmail SMTP service. There is no newsletter,
+   no marketing mail and no confirmation email.</p>
 
 <h2>5. Outbound requests</h2>
 <p><strong>DocMint never downloads content referenced by URL in your data.</strong> An image
@@ -157,7 +157,7 @@
 <table>
   <tr><th>Processor</th><th>What they do</th><th>Where</th></tr>
   <tr><td>Hetzner Online GmbH</td><td>Rents the dedicated server on which the application and the PostgreSQL database both run.</td><td>EU</td></tr>
-  <tr><td>Google LLC</td><td>Delivers the password-reset email through its Gmail SMTP service; the reset link is the only mail this service sends.</td><td>United States</td></tr>
+  <tr><td>Google Ireland Limited</td><td>Delivers the password-reset email through its Gmail SMTP service; the reset link is the only mail this service sends. Google's own terms state that in the EEA and Switzerland its services are provided by Google Ireland Limited, Gordon House, Barrow Street, Dublin 4.</td><td>Ireland / worldwide (Google states it maintains servers around the world and that information may be processed outside the country where you live)</td></tr>
   <tr><td>Stripe, Inc.</td><td>Takes payments, stores card details and hosts the checkout and customer-portal pages. Stripe is the controller for the card data itself.</td><td>Ireland / United States</td></tr>
 </table>
 <p>LibreOffice, used for the optional PDF conversion, runs as a local process on the same server. It

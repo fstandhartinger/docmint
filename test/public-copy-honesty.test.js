@@ -43,12 +43,19 @@ const STALE = [
   'there is currently no self-service account deletion',
   'no self-service account deletion; both are a request by email today',
   'account deletion is an email today',
+  // AT13(d): the Google row named the wrong entity for an EEA operator and gave a
+  // location neither fetched Google source establishes.
+  "which forwards it via Google's SMTP service (Gmail, Google LLC)",
 ];
 
 // The old copy exactly as it read before the AT12 rewrite, so the fixture below cannot
 // pass vacuously. Copied verbatim from public/privacy.html, public/docs.html and
 // public/terms.html before they were edited.
 const OLD_COPY = `
+<p>DocMint sends exactly one kind of email: a transactional password-reset link, and only when you
+   ask for one. The mail is sent through a relay on the same server, which forwards it via Google's
+   SMTP service (Gmail, Google LLC). There is no newsletter, no marketing mail and no confirmation
+   email.</p>
 <h2>4. Email</h2>
 <p>DocMint does not send email at all. There is no newsletter, no marketing mail and no transactional
    mail. One consequence is stated plainly in the <a href="/docs#signup">docs</a>: there is no password

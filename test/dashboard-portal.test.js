@@ -172,6 +172,75 @@ function loadBilling() {
   return mod.exports;
 }
 
+// AT13(c2): drive billing.createPortalSession itself — not the route's stub — and
+// assert the return_url actually handed to Stripe. The AT10 acceptance only ever
+// checked this through the route, so portalReturnUrl's allowlist was untested.
+function loadBillingRecording() {
+  const calls = { portal: [] };
+  const stripe = {
+    customers: { retrieve: async () => ({ id: 'cus_at13', deleted: false }) },
+    billingPortal: { sessions: { create: async (args) => { calls.portal.push(args); return { url: PORTAL_URL }; } } },
+  };
+  const row = { id: 1, email: 'portal@example.test', plan: 'free', stripe_customer_id: 'cus_at13', stripe_subscription_id: null };
+  const db = { query: async () => ({ rows: [row] }), tx: async (fn) => fn({ query: async () => ({ rows: [row] }) }) };
+  const expressMock = { Router: () => ({ get() {}, post() {}, use() {} }) };
+  const requireMock = (name) => {
+    if (name === 'express') return expressMock;
+    if (name === 'stripe') return function Stripe() { return stripe; };
+    if (name === './config') return { config: { publicUrl: PUBLIC_URL, stripe: { secretKey: 'test' } }, PLANS, planPriceId: priceOf };
+    if (name === './db') return db;
+    if (name === './errors') return { ApiError };
+    if (name === './analytics') return { increment: () => {} };
+    if (name === './log') return { info() {}, warn() {}, error() {} };
+    throw new Error(`unexpected require: ${name}`);
+  };
+  const mod = { exports: {} };
+  vm.runInNewContext(BILLING_SOURCE, {
+    require: requireMock, module: mod, exports: mod.exports, __dirname: path.dirname(BILLING),
+    console: { log() {}, warn() {}, error() {}, info() {} }, process: { env: {} },
+    Date, Math, JSON, Object, Array, String, Number, Boolean, Set, Map, Promise, Error, RegExp,
+    setTimeout, clearTimeout, Buffer, URL, URLSearchParams,
+  }, { filename: BILLING });
+  return { billing: mod.exports, calls };
+}
+
+describe('AT13(c2) — createPortalSession return_url allowlist', () => {
+  const account = { id: 1, stripe_customer_id: 'cus_at13' };
+
+  test("'/dashboard' is passed through to Stripe", async () => {
+    const { billing, calls } = loadBillingRecording();
+    await billing.createPortalSession(account, { returnPath: '/dashboard' });
+    assert.equal(calls.portal.at(-1).return_url, `${PUBLIC_URL}/dashboard`);
+  });
+
+  test('the default is the docs quota anchor', async () => {
+    const { billing, calls } = loadBillingRecording();
+    await billing.createPortalSession(account, {});
+    assert.equal(calls.portal.at(-1).return_url, `${PUBLIC_URL}/docs#quota`);
+    await billing.createPortalSession(account);
+    assert.equal(calls.portal.at(-1).return_url, `${PUBLIC_URL}/docs#quota`);
+  });
+
+  for (const [label, value] of [
+    ['a protocol-relative url', '//evil.example'],
+    ['an absolute url', 'https://evil.example/x'],
+    ['a traversal attempt', '../../etc'],
+    ['an empty string', ''],
+    ['a number', 42],
+    ['an object', { toString: () => '/dashboard' }],
+    ['null', null],
+  ]) {
+    test(`${label} falls back to the default, never an open redirect`, async () => {
+      const { billing, calls } = loadBillingRecording();
+      await billing.createPortalSession(account, { returnPath: value });
+      const url = calls.portal.at(-1).return_url;
+      assert.equal(url, `${PUBLIC_URL}/docs#quota`);
+      assert.ok(url.startsWith(`${PUBLIC_URL}/`), 'the return url must stay on our own origin');
+      assert.ok(!url.includes('evil.example'));
+    });
+  }
+});
+
 describe('AT10 — billing portal link in the dashboard', () => {
   test('a) no session cookie redirects to login without opening Stripe', async () => {
     const h = await loadWeb();

@@ -218,6 +218,28 @@ describe('AT11 — self-service account deletion', () => {
     }
   });
 
+  // AT13(c1): the cookie is present but the session row is gone — expired, or
+  // destroyed by a logout or a password reset. The route must treat that exactly
+  // like no session at all: no bcrypt, no DELETE, back to /login. This branch
+  // (src/web.js, `if (!account) return res.redirect('/login')` after the session
+  // lookup) had no standalone test before.
+  test('a valid cookie whose session row is gone redirects to login and deletes nothing', async () => {
+    const h = await loadWeb({ account: null });
+    try {
+      const res = await postDelete(h, { body: { csrf: h.csrfToken(SESSION_ID), email: 'a@b.c', password: 'p' } });
+      assert.equal(res.status, 302);
+      assert.equal(res.headers.get('location'), '/login');
+      assert.equal(h.calls.bcrypt.length, 0, 'the password must never be checked');
+      assert.equal(h.calls.openBilling.length, 0, 'Stripe must never be asked');
+      const mutations = h.calls.queries.filter((q) => /DELETE|UPDATE|INSERT/i.test(q.sql));
+      assert.deepEqual(mutations, [], 'no statement may change anything');
+      // It did look the session up, so the test is not passing by short-circuiting earlier.
+      assert.ok(h.calls.queries.some((q) => /FROM sessions/i.test(q.sql)), 'the session lookup must still run');
+    } finally {
+      await closeWeb(h);
+    }
+  });
+
   test('missing and wrong CSRF tokens get 403 before any database query', async () => {
     const h = await loadWeb();
     try {

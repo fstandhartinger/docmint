@@ -68,6 +68,23 @@ function deleteNotice(value) {
   return typeof value === 'string' && Object.hasOwn(DELETE_NOTICES, value) ? DELETE_NOTICES[value] : null;
 }
 
+// Same shape as DELETE_NOTICES: the query parameter selects a fixed sentence and
+// can never become one. `success` is not here on purpose — it does not come from
+// the URL at all, it comes from billing.verifyCheckoutReturn asking Stripe.
+const CHECKOUT_NOTICES = {
+  updated: 'Your plan change has been sent to Stripe. The plan shown below is the one you are on right now; it updates as soon as Stripe confirms.',
+  pending: 'Your upgrade is waiting on payment. Nothing has changed yet — your plan below is the one you are on.',
+  cancelled: 'Checkout cancelled. Nothing was charged.',
+  unknown_plan: 'That plan cannot be bought on this deployment. Choose one of the plans below.',
+  unavailable: 'Billing is not available on this deployment right now. Nothing was charged.',
+  review: 'This account has more subscriptions than checkout can safely change. Use Manage billing to sort it out first.',
+  error: 'Stripe\'s checkout page could not be opened just now. Nothing was charged. Please try again in a minute.',
+};
+
+function checkoutNotice(value) {
+  return typeof value === 'string' && Object.hasOwn(CHECKOUT_NOTICES, value) ? CHECKOUT_NOTICES[value] : null;
+}
+
 function setSessionCookie(res, id) {
   res.cookie(SESSION_COOKIE, id, {
     httpOnly: true,
@@ -160,7 +177,16 @@ router.post('/login', asyncRoute(async (req, res) => {
 
 router.post('/logout', asyncRoute(async (req, res) => {
   const sessionId = sessionIdFrom(req);
-  if (sessionId) await destroySession(sessionId);
+  // No cookie: there is no session to destroy and nothing to protect. A 403 here
+  // would only strand someone holding a stale cookie, so the old behaviour stays.
+  if (sessionId) {
+    const expected = Buffer.from(csrfToken(sessionId), 'utf8');
+    const supplied = Buffer.from(typeof req.body?.csrf === 'string' ? req.body.csrf : '', 'utf8');
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+      return res.status(403).type('text').send('Invalid CSRF token.');
+    }
+    await destroySession(sessionId);
+  }
   res.clearCookie(SESSION_COOKIE, { path: '/' });
   return res.redirect('/');
 }));
@@ -284,16 +310,14 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
 
   return res.type('html').send(shell('DocMint dashboard', `
 <header class="topbar"><a class="logo" href="/">Doc<span>Mint</span></a>
-  <nav><a href="/docs">Docs</a><form method="post" action="/logout"><button class="link">Sign out</button></form></nav></header>
+  <nav><a href="/docs">Docs</a><form method="post" action="/logout"><input type="hidden" name="csrf" value="${csrf}"><button class="link">Sign out</button></form></nav></header>
 <main class="dash">
   ${req.query.billing === 'none' ? '<div class="notice">There is no billing record for this account yet. Choose a plan below to start one.</div>' : ''}
   ${req.query.billing === 'unavailable' ? '<div class="notice">Billing is not available on this deployment right now.</div>' : ''}
   ${req.query.billing === 'error' ? '<div class="notice">Stripe\'s billing page could not be opened just now. Nothing was changed. Please try again in a minute.</div>' : ''}
   ${req.query.welcome ? '<div class="notice"><strong>Your account is ready.</strong> Copy the API key below now. It is shown only once.</div>' : ''}
   ${checkoutReturn ? `<div class="notice${checkoutReturn.ok ? ' ok' : ''}">${escapeHtml(checkoutReturn.message)}</div>` : ''}
-  ${req.query.checkout === 'updated' ? '<div class="notice">Your plan change has been sent to Stripe. The plan shown below is the one you are on right now; it updates as soon as Stripe confirms.</div>' : ''}
-  ${req.query.checkout === 'pending' ? '<div class="notice">Your upgrade is waiting on payment. Nothing has changed yet — your plan below is the one you are on.</div>' : ''}
-  ${req.query.checkout === 'cancelled' ? '<div class="notice">Checkout cancelled. Nothing was charged.</div>' : ''}
+  ${checkoutNotice(req.query.checkout) ? `<div class="notice">${escapeHtml(checkoutNotice(req.query.checkout))}</div>` : ''}
   ${deleteNotice(req.query.delete) ? `<div class="notice error">${deleteNotice(req.query.delete)}</div>` : ''}
   <h1>Dashboard</h1>
   <section class="card">
@@ -314,7 +338,7 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
       ${purchasable.map((candidate) => `<div class="plan${account.plan === candidate.id ? ' current' : ''}">
         <h3>${escapeHtml(candidate.name)}</h3><p class="price">$${candidate.priceUsd}<span>/mo</span></p>
         <p class="muted">${candidate.credits.toLocaleString('en-US')} credits / month</p>
-        ${account.plan === candidate.id ? '<p class="tag">Current plan</p>' : `<form method="post" action="/dashboard/checkout"><input type="hidden" name="plan" value="${candidate.id}"><button>Choose ${escapeHtml(candidate.name)}</button></form>`}
+        ${account.plan === candidate.id ? '<p class="tag">Current plan</p>' : `<form method="post" action="/dashboard/checkout"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="plan" value="${candidate.id}"><button>Choose ${escapeHtml(candidate.name)}</button></form>`}
       </div>`).join('')}
     </div>
     ${purchasable.length ? '' : `<p class="muted">Paid plans are not configured on this build.</p>`}
@@ -405,8 +429,28 @@ router.get('/dashboard', asyncRoute(async (req, res) => {
 router.post('/dashboard/checkout', asyncRoute(async (req, res) => {
   const account = await currentAccount(req);
   if (!account) return res.redirect('/login');
-  const session = await billing.createCheckoutSession(account, String(req.body?.plan || ''));
-  return res.redirect(303, session.url);
+  const sessionId = sessionIdFrom(req);
+  const expected = Buffer.from(csrfToken(sessionId), 'utf8');
+  const supplied = Buffer.from(typeof req.body?.csrf === 'string' ? req.body.csrf : '', 'utf8');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+    return res.status(403).type('text').send('Invalid CSRF token.');
+  }
+  // Reject a plan we cannot sell before Stripe is involved at all: the same
+  // refusal createCheckoutSession would make, minus the round trip.
+  const planId = typeof req.body?.plan === 'string' ? req.body.plan : '';
+  if (!planPriceId(planId)) return res.redirect(303, '/dashboard?checkout=unknown_plan');
+  try {
+    const session = await billing.createCheckoutSession(account, planId);
+    return res.redirect(303, session.url);
+  } catch (error) {
+    // A browser form post reports every refusal as a dashboard notice; an
+    // unhandled throw here used to reach the 500 page with nothing to act on.
+    if (error?.code === 'billing_unavailable') return res.redirect(303, '/dashboard?checkout=unavailable');
+    if (error?.code === 'unknown_plan') return res.redirect(303, '/dashboard?checkout=unknown_plan');
+    if (error?.code === 'billing_review_required') return res.redirect(303, '/dashboard?checkout=review');
+    req.log.warn('dashboard.checkout_failed', { account: account.id, code: error?.code });
+    return res.redirect(303, '/dashboard?checkout=error');
+  }
 }));
 
 module.exports = { router, currentAccount, sessionIdFrom, csrfToken, escapeHtml };
