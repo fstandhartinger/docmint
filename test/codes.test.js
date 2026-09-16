@@ -42,9 +42,9 @@ test('(c1) every fixture case matches segno module-for-module at every forced ma
       assert.ok(same(got, c.by_mask[mask]),
         `case ${JSON.stringify(c.text.slice(0, 24))} v${c.version}/${c.ecc} differs at forced mask ${mask}`);
     }
-    assert.equal(checked += 8, checked); // keep the counter noise out of the assertion text
+    checked += 8;
   }
-  assert.equal(FIXTURE.cases.length * 8, 48, 'the fixture covers 6 cases x 8 masks');
+  assert.equal(checked, 48, 'the fixture covers 6 cases x 8 masks');
 });
 
 test('(c1) the automatically chosen mask matches the reference for every case', () => {
@@ -87,13 +87,6 @@ function parsePng(buf) {
   }
   return { chunks, end: off };
 }
-
-function crc32Bitwise(buf) {
-  let c = ~0;
-  for (const byte of buf) { c ^= byte; for (let k = 0; k < 8; k += 1) c = (c & 1) ? ((c >>> 1) ^ 0xedb88320) : (c >>> 1); }
-  return ~c >>> 0;
-}
-
 
 // The pixel scale a QR PNG is rasterised at: s per the PRD's size rule.
 function qrScale(displayWidth, modules) {
@@ -287,6 +280,16 @@ test('(c5) qr_invalid for non-string or empty qr text and unknown ecc', () => {
   assert.match(e.message, /"L", "M", "Q" or "H"/);
 });
 
+test('QR error correction accepts only supported own enum entries', () => {
+  for (const ecc of ['L', 'M', 'Q', 'H']) {
+    assert.ok(codes.codeImage({ qr: 'DocMint', ecc }, 'logo').png.length > 0);
+  }
+  for (const ecc of [...Object.getOwnPropertyNames(Object.prototype), 'low', 'm', '', 0, true, {}]) {
+    assert.throws(() => codes.codeImage({ qr: 'DocMint', ecc }, 'logo'),
+      (error) => error instanceof TemplateError && error.code === 'qr_invalid' && error.field === 'logo');
+  }
+});
+
 test('(c5) qr_too_long states the byte length and the maximum for that ECC', () => {
   const e = expectError(test, { qr: 'x'.repeat(3000), ecc: 'H' }, 'qr_too_long', 'pay');
   assert.match(e.message, /\b3000 bytes/);
@@ -415,8 +418,7 @@ test('(f) 200 QR images rasterise quickly, far inside any render deadline', (t) 
   const started = performance.now();
   let bytes = 0;
   for (let i = 0; i < 200; i += 1) bytes += codes.codeImage({ qr: `https://docmint.app/${i}` }, 'logo').png.length;
-  const ms = performance.now() - now();
+  const ms = performance.now() - started;
   t.diagnostic(`200 QR PNGs in ${ms.toFixed(1)} ms (${bytes} bytes total)`);
   assert.ok(bytes > 0);
-  function now() { return 0; }
 });

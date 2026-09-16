@@ -814,7 +814,7 @@ function qrSpec(spec, field) {
       { field, hint: 'Send {"qr": "https://example.com/pay/123"}.' });
   }
   const ecc = spec.ecc === undefined || spec.ecc === null ? 'M' : spec.ecc;
-  if (typeof ecc !== 'string' || !(ecc in ECC_INDEX)) {
+  if (typeof ecc !== 'string' || !Object.hasOwn(ECC_INDEX, ecc)) {
     throw new TemplateError('qr_invalid', `{%${field}} has an unknown "ecc" — use "L", "M", "Q" or "H".`,
       { field, hint: 'Error correction is "L", "M", "Q" or "H"; the default is "M".' });
   }

@@ -447,6 +447,7 @@ x-ratelimit-remaining: 29</code></pre></div>
 <div class="code"><div class="cap">the images option, verified against the live API</div><pre><code>{
   "template": "deck",
   "data": { "title": "Q3 review", "logo": { "url": "https://example.com/logo.png" } },
+  "images": { "https://example.com/logo.png": { "data": "iVBORw0KGgo…" } }
 }</code></pre></div>
 
 <h3>QR codes and barcodes</h3>
@@ -465,7 +466,7 @@ whoever scans the document; it is never downloaded.</p>
 <tr><td class="wrap"><code>{"barcode": "code128", "value": "INV-2026-0042", "width": 300}</code></td>
 <td class="wrap">Code 128, ASCII 32&ndash;126, up to 80 characters. Default size: 2&nbsp;px per module wide, 60&nbsp;px high.</td></tr>
 <tr><td class="wrap"><code>{"barcode": "ean13", "value": "400638133393"}</code></td>
-<td class="wrap">EAN-13 of 12 digits (the check digit is computed) or 13 digits (it is verified against the twelfth). Default size as for Code 128. DocMint draws the bars only — <strong>no human-readable digits are printed under an EAN-13</strong>, because there is no font rasteriser. Write <code>{value}</code> as text under the image if you want the digits shown.</td></tr>
+<td class="wrap">EAN-13 of 12 digits (the check digit is computed) or 13 digits (the thirteenth digit is checked against the check digit computed from the first twelve). Default size as for Code 128. DocMint draws the bars only — <strong>no human-readable digits are printed under an EAN-13</strong>, because there is no font rasteriser. Write <code>{value}</code> as text under the image if you want the digits shown.</td></tr>
 <tr><td class="wrap"><code>{"epc": {"name": "Musterfirma GmbH", "iban": "DE02 1001 0010 9307 1186 03", "bic": "BFSWDE33XXX", "amount": 12.34, "text": "Rechnung 2026-0042"}}</code></td>
 <td class="wrap">A SEPA Credit Transfer QR (EPC069-12, "Girocode"), always at error level M — banking apps read it into a transfer form. Default size 150&times;150 px.</td></tr>
 </tbody></table></div>
@@ -497,26 +498,19 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td><code>image_invalid</code></td><td class="wrap">An object that mixes a code key with image bytes (<code>data</code>, <code>base64</code>, <code>url</code>, …), carries two of <code>qr</code>/<code>barcode</code>/<code>epc</code>, or carries an undocumented key (the key is named).</td></tr>
 </tbody></table></div>
 
-<p>An object that mixes a code key with image bytes (<code>data</code>, <code>base64</code>,
-<code>url</code>, …), carries two of <code>qr</code>/<code>barcode</code>/<code>epc</code>, or carries
-an undocumented key is neither an image nor a code and fails with <code>image_invalid</code>. An
-<code>ecc</code> key on an <code>epc</code> object is <code>epc_invalid</code> — a Girocode is
-always error level M.</p>
-
-<div class="code"><div class="cap">a QR code drawn by DocMint in a Word document</div><pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render -H "Authorization: ApiKey YOUR_KEY" \
-  -H "Content-Type: application/json" -d '{
-  "template": "https://example.com/qr-letter.docx",
-  "format": "pdf",
+<div class="code"><div class="cap">a Word template with <code>{%qr}</code>, <code>{%bar}</code>, <code>{%ean}</code> and <code>{%pay}</code>, rendered to PDF</div><pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer dm_live_xxx" -H "Content-Type: application/json" \
+  -d '{
+  "template": "letter",
+  "output": "pdf",
   "data": {
-    "logo": { "qr": "https://docmint.app.mintapis.com", "width": 120 },
+    "qr": { "qr": "https://docmint.app.mintapis.com", "width": 150 },
+    "bar": { "barcode": "code128", "value": "DocMint-42", "width": 300 },
+    "ean": { "barcode": "ean13", "value": "400638133393", "width": 240 },
     "pay": { "epc": { "name": "Musterfirma GmbH", "iban": "DE02 1001 0010 9307 1186 03",
-                      "bic": "BFSWDE33XXX", "amount": 12.34, "text": "Rechnung 2026-0042" } }
+                      "bic": "BFSWDE33XXX", "amount": 12.34, "text": "Rechnung 2026-0042" }, "width": 170 }
   }
 }' -o letter.pdf</code></pre></div>
-
-<div class="tw"><table>
-<thead><tr><th>Code</th><th>When</th></tr></thead>  "images": { "https://example.com/logo.png": { "data": "iVBORw0KGgo…" } }
-}</code></pre></div>
 
 <div class="tw"><table>
 <thead><tr><th>Code</th><th>When</th></tr></thead>

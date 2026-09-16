@@ -123,6 +123,33 @@ test('no public page contains stale copy', () => {
   }
 });
 
+test('images documentation examples contain valid API request JSON', () => {
+  const html = fs.readFileSync(path.join(PUBLIC_DIR, 'docs.html'), 'utf8');
+  const section = html.match(/<section id="images">([\s\S]*?)<\/section>/)[1];
+  const examples = [...section.matchAll(/<pre><code>([\s\S]*?)<\/code><\/pre>/g)].map((m) => m[1]);
+  assert.equal(examples.length, 2);
+  const images = JSON.parse(examples[0]);
+  assert.equal(images.template, 'deck');
+  assert.ok(images.images[images.data.logo.url].data);
+  assert.match(examples[1], /Authorization: Bearer /);
+  const request = JSON.parse(examples[1].match(/-d\s+'([\s\S]*?)'/)[1]);
+  assert.equal(request.template, 'letter');
+  assert.equal(request.output, 'pdf');
+  assert.ok(!Object.hasOwn(request, 'format'));
+  assert.deepEqual(Object.keys(request.data).sort(), ['bar', 'ean', 'pay', 'qr']);
+});
+
+test('images documentation has balanced structural tags', () => {
+  const html = fs.readFileSync(path.join(PUBLIC_DIR, 'docs.html'), 'utf8');
+  const section = html.match(/<section id="images">([\s\S]*?)<\/section>/)[1];
+  const stack = [];
+  for (const tag of section.matchAll(/<(\/?)(div|table|thead|tbody|tr|th|td|pre|code)\b[^>]*>/g)) {
+    if (tag[1]) assert.equal(stack.pop(), tag[2], `unmatched closing ${tag[2]}`);
+    else stack.push(tag[2]);
+  }
+  assert.deepEqual(stack, []);
+});
+
 test('privacy policy names the running product', () => {
   const text = visibleText(fs.readFileSync(path.join(PUBLIC_DIR, 'privacy.html'), 'utf8'));
   for (const wanted of ['Hetzner Online GmbH', 'password', 'Google', '7 days', 'SHA-256']) {
