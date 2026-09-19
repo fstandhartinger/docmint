@@ -15,18 +15,23 @@ const log = require('./log');
  * product. The numbers exist so the operator can see whether the website works
  * and whether the service is growing; they are aggregates precisely so they
  * cannot name anyone.
+ *
+ * Visitor statistics — daily totals per page path and referring host — live
+ * beside this in src/visit-stats.js, on the same rules and the same retention.
  */
 
 const KINDS = Object.freeze(['page_view', 'signup', 'trial_start', 'paid_conversion']);
 
 /**
- * Agent and test traffic we never count. THE one list — the page-view filter
- * and the test suite both read it from this module, so they cannot drift.
- * Case-insensitive substring match against the User-Agent; a request with no
- * User-Agent header is treated as a browser, not an agent.
+ * Agent and test traffic we never count. THE one list — the page-view filter,
+ * the visit filter in src/visit-stats.js and the test suite all read it from
+ * this module, so they cannot drift. Case-insensitive substring match against
+ * the User-Agent; a request with no User-Agent header is treated as a browser,
+ * not an agent.
  */
 const AGENT_UA_TOKENS = Object.freeze([
   'curl', 'python', 'playwright', 'headless', 'bot', 'spider', 'docmint-qa', 'docmint.test',
+  'wget', 'httpx', 'undici', 'node-fetch', 'okhttp', 'monitor', 'preview', 'facebookexternalhit',
 ]);
 
 const AGENT_UA_PATTERN = new RegExp(
@@ -133,7 +138,14 @@ async function ownerReadout(req, res) {
     const { rows } = await query(
       `SELECT day::text AS day, kind, n FROM site_analytics_daily ORDER BY day DESC, kind ASC`,
     );
-    return res.json({ days: rows });
+    // The visitor report is required lazily: visit-stats reads the token list
+    // and the page set back from this module, so a top-level require would be
+    // a cycle. A report failure fails the whole readout — the 500
+    // analytics_unavailable below — because a legacy answer beside a missing
+    // aggregate would be a silently inconsistent one.
+    const { visitReport } = require('./visit-stats');
+    const stats = await visitReport((text, params) => query(text, params), req.query.days);
+    return res.json({ days: rows, stats });
   } catch (err) {
     log.warn('analytics.readout_failed', { err });
     return res.status(500).json({ error: { code: 'analytics_unavailable' } });

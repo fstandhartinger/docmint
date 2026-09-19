@@ -25,10 +25,13 @@ const {
 
 /* ------------------------------------------------------- no server needed */
 
-test('the user-agent token list is exactly the eight AT9 tokens', () => {
+test('the user-agent token list is exactly the sixteen AT9 tokens', () => {
   assert.deepEqual(
     [...AGENT_UA_TOKENS].sort(),
-    ['bot', 'curl', 'docmint-qa', 'docmint.test', 'headless', 'playwright', 'python', 'spider'],
+    [
+      'bot', 'curl', 'docmint-qa', 'docmint.test', 'facebookexternalhit', 'headless', 'httpx',
+      'monitor', 'node-fetch', 'okhttp', 'playwright', 'preview', 'python', 'spider', 'undici', 'wget',
+    ],
   );
 });
 

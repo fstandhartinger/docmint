@@ -163,6 +163,19 @@ const STATEMENTS = [
      n    INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (day, kind)
    )`,
+
+  /* Visitor statistics: one row per UTC day per public page path and referring
+     host — daily totals only. No IP, no user agent, no identifier, so it
+     cannot name anyone. src/visit-stats.js upserts through the primary key and
+     deletes rows older than 13 months. */
+  `CREATE TABLE IF NOT EXISTS site_visit_daily (
+     day           DATE    NOT NULL,
+     path          TEXT    NOT NULL,
+     referrer_host TEXT    NOT NULL DEFAULT '',
+     views         INTEGER NOT NULL DEFAULT 0,
+     visits        INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (day, path, referrer_host)
+   )`,
 ];
 
 async function migrate() {

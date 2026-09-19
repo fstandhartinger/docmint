@@ -15,6 +15,7 @@ const pdf = require('./pdf');
 const billing = require('./billing');
 const web = require('./web');
 const analytics = require('./analytics');
+const visitStats = require('./visit-stats');
 const log = require('./log');
 
 const app = express();
@@ -205,13 +206,15 @@ app.use('/v1', api.router);
 app.use(web.router);
 
 /**
- * AT9 — first-party site analytics. The middleware only observes browser
- * views of whitelisted public pages and never touches the request; the owner
- * readout sits deliberately outside the /v1 API-key surface, answered 404 to
- * anyone without the owner key. Both live in src/analytics.js. Before the
+ * AT9 — first-party site analytics, and beside it the per-page and
+ * per-referrer visitor statistics of src/visit-stats.js. Both middlewares only
+ * observe browser views of whitelisted public pages and never touch the
+ * request; the owner readout sits deliberately outside the /v1 API-key
+ * surface, answered 404 to anyone without the owner key. All before the
  * static mount, because that is where the counted pages are served from.
  */
 app.use(analytics.countPageView);
+app.use(visitStats.countVisit);
 app.get('/internal/analytics', analytics.ownerReadout);
 
 app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', extensions: ['html'] }));
@@ -291,6 +294,9 @@ async function start() {
   if (config.databaseUrl) {
     jobs.startReapers();
     if (config.jobsWorker) jobs.startWorker(api.loadTemplate);
+    // Retention for the two site-statistics tables, hourly, on an unref'd
+    // timer — see src/visit-stats.js. Idempotent, so any entry point may call it.
+    visitStats.startRetentionTimer();
   }
   log.info('start', {
     port: config.port,
