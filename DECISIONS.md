@@ -364,3 +364,16 @@ typed, scoped tree with renderable sample data.**
   `:imageFit(contain)` fits the placeholder by default.
 - **Emptied runs are left in place** after a split-run replacement. Harmless,
   untidy.
+
+## Full-suite isolation and scan-back proof (2026-09-19)
+The whole `npm test` runs against a throwaway Postgres (appqa/billingqa/jobqa/
+recoveryqa, 127.0.0.1-only, SSL off by the db.js loopback rule), a local server
+from the working tree, and LibreOffice via the `docmint-lo-probe` image through
+a soffice shim; the harness lives in the round's RUN_DIR evidence
+(`…/docmint-r0-56091093/evidence/full-suite/run.sh`), not in the repo.
+`test/codes-decode.test.js` renders QR + EPC-QR + Code 128 + EAN-13 to PDF,
+rasterises with pdftoppm and decodes with zxing-cpp (system Python, test-only);
+all four payloads are asserted byte exact, with skips carrying a reason.
+The final 431/431 run is a two-invocation union with a billingqa reset in
+between, because the two billing QA suites each declare a *fresh* isolated
+billingqa (see the round's `full-suite-rerun/FINDINGS.md`, F2).

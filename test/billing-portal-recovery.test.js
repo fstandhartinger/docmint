@@ -176,6 +176,7 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
           }
         },
       };
+    if (n === "./analytics") return { increment: () => {} };
     throw Error(n);
   });
   let server, baseUrl;
