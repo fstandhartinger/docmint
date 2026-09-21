@@ -588,9 +588,9 @@ function buildEpcPayload(epc, field) {
       field, 'Send {"epc": {"name": "Payee GmbH", "iban": "DE…", "amount": 12.34}}.');
   }
   for (const key of Object.keys(epc)) {
-    if (!['name', 'iban', 'bic', 'amount', 'reference', 'text'].includes(key)) {
+    if (!EPC_FIELDS.includes(key)) {
       throw epcInvalid(`{%${field}} "epc" has an unknown field "${key}".`,
-        field, 'Allowed "epc" fields: "name", "iban", "bic", "amount", "reference", "text".');
+        field, `Allowed "epc" fields: ${EPC_FIELDS.map((f) => `"${f}"`).join(', ')}.`);
     }
   }
   const missing = (name) => epc[name] === undefined || epc[name] === null || epc[name] === '';
@@ -675,6 +675,16 @@ function buildEpcPayload(epc, field) {
 // Value shapes, sizes and rasterisation.
 // ---------------------------------------------------------------------------
 
+// The spec shapes this module accepts, shared between the branch functions
+// below and the /v1/capabilities readback (codePlaceholders). The parity test
+// (test/capabilities-parity.test.js) fails if a key or barcode kind here is
+// missing from codePlaceholders(), or if a listed spec is not drawable.
+const CODE_KEYS = ['qr', 'barcode', 'epc'];
+const BARCODE_KINDS = ['code128', 'ean13'];
+const EPC_FIELDS = ['name', 'iban', 'bic', 'amount', 'reference', 'text'];
+// A plain QR defaults to error level M, and a SEPA payment code is always M.
+const QR_DEFAULT_ECC = 'M';
+
 // A barcode spec is validated before anything is rasterised.
 function barcodeSpec(spec, field) {
   for (const key of Object.keys(spec)) {
@@ -683,7 +693,7 @@ function barcodeSpec(spec, field) {
         field, 'A barcode takes "barcode", "value", "width", "height" and "alt", nothing else.');
     }
   }
-  if (spec.barcode !== 'code128' && spec.barcode !== 'ean13') {
+  if (!BARCODE_KINDS.includes(spec.barcode)) {
     throw new TemplateError('barcode_unsupported',
       `{%${field}} asks for barcode ${JSON.stringify(spec.barcode)}, which DocMint cannot draw.`,
       { field, hint: 'Use "code128" for ASCII text or "ean13" for a 12/13-digit article number.' });
@@ -731,7 +741,7 @@ function codeImage(spec, field) {
         field, 'Either send image bytes as {"data": "<base64>"} or a code as {"qr": "text"}, not both in one object.');
     }
   }
-  const codeKeys = Object.keys(spec).filter((k) => k === 'qr' || k === 'barcode' || k === 'epc');
+  const codeKeys = Object.keys(spec).filter((k) => CODE_KEYS.includes(k));
   if (codeKeys.length !== 1) {
     throw imageInvalid(`{%${field}} carries more than one of "qr", "barcode" and "epc" (${codeKeys.map((k) => `"${k}"`).join(', ')}).`,
       field, 'One image tag draws one code; split the spec into separate tags.');
@@ -752,7 +762,7 @@ function codeImage(spec, field) {
       }
     }
     const payload = buildEpcPayload(spec.epc, field);
-    const out = qrPng(Buffer.from(payload, 'utf8'), ECC_INDEX.M, px(spec.width), px(spec.height));
+    const out = qrPng(Buffer.from(payload, 'utf8'), ECC_INDEX[QR_DEFAULT_ECC], px(spec.width), px(spec.height));
     out.alt = typeof spec.alt === 'string' ? spec.alt : undefined;
     return out;
   }
@@ -783,7 +793,42 @@ const IMAGE_BYTES_KEYS = ['data', 'base64', 'bytes', 'content', 'buffer', 'src',
 /** True for a plain object carrying one of the code keys — never for bytes. */
 function isCodeSpec(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Buffer.isBuffer(value) || value instanceof Uint8Array) return false;
-  return Object.keys(value).some((k) => k === 'qr' || k === 'barcode' || k === 'epc');
+  return Object.keys(value).some((k) => CODE_KEYS.includes(k));
+}
+
+/**
+ * The code placeholders this module draws, read out of the same constants the
+ * branch functions above validate against. This one list serves both the
+ * render path and the published /v1/capabilities readback, so a placeholder
+ * cannot ship undocumented or be documented undrawn — the drift the
+ * honest-claims rule exists to prevent.
+ */
+function codePlaceholders() {
+  const eccLevels = Object.keys(ECC_INDEX).map((l) => `"${l}"`).join(', ');
+  return [
+    {
+      key: 'qr',
+      spec: { qr: 'text', ecc: QR_DEFAULT_ECC },
+      does: `a QR code of the text (ISO/IEC 18004, Model 2, byte mode); "ecc" is one of ${eccLevels}, default "${QR_DEFAULT_ECC}"`,
+    },
+    {
+      key: 'barcode',
+      barcode: 'code128',
+      spec: { barcode: 'code128', value: 'INV-2026-0042' },
+      does: 'a Code 128 barcode of the value: 1 to 80 characters of printable ASCII (32-126)',
+    },
+    {
+      key: 'barcode',
+      barcode: 'ean13',
+      spec: { barcode: 'ean13', value: '400638133393' },
+      does: 'an EAN-13 barcode of 12 digits (the check digit is computed) or 13 (the thirteenth is checked)',
+    },
+    {
+      key: 'epc',
+      spec: { epc: { name: 'Payee GmbH', iban: 'DE02 1001 0010 9307 1186 03', amount: 12.34 } },
+      does: `a SEPA Credit Transfer QR (EPC069-12 "Girocode"), always error level ${QR_DEFAULT_ECC}; the "epc" object takes ${EPC_FIELDS.map((f) => `"${f}"`).join(', ')}`,
+    },
+  ];
 }
 
 // Display sizes come from the caller in px at 96 DPI, strings like "120px" allowed.
@@ -813,7 +858,7 @@ function qrSpec(spec, field) {
     throw new TemplateError('qr_invalid', `{%${field}} needs a non-empty string in "qr" — that text goes into the code.`,
       { field, hint: 'Send {"qr": "https://example.com/pay/123"}.' });
   }
-  const ecc = spec.ecc === undefined || spec.ecc === null ? 'M' : spec.ecc;
+  const ecc = spec.ecc === undefined || spec.ecc === null ? QR_DEFAULT_ECC : spec.ecc;
   if (typeof ecc !== 'string' || !Object.hasOwn(ECC_INDEX, ecc)) {
     throw new TemplateError('qr_invalid', `{%${field}} has an unknown "ecc" — use "L", "M", "Q" or "H".`,
       { field, hint: 'Error correction is "L", "M", "Q" or "H"; the default is "M".' });
@@ -862,6 +907,10 @@ function barcodePng(row, displayW, displayH) {
 module.exports = {
   isCodeSpec, // (value) -> boolean; the renderers gate on this before image bytes
   codeImage, // (spec, tagPath) -> { png, width, height, alt } or a TemplateError
+  codePlaceholders, // () -> the published list of code placeholders, from the same constants the validators above use
+  IMAGE_BYTES_KEYS, // the keys that mark an object as image bytes (each renderer reads its own subset); shared with the readback
+  CODE_KEYS, // the code spec keys the validators accept; the parity test checks codePlaceholders() covers them
+  BARCODE_KINDS, // the barcode kinds barcodeSpec accepts; same check
   // Everything below exists for the test suite (test/codes.test.js).
   qrMatrix, // (bytes, ecc, version?, mask?) -> rows of '0'/'1', no quiet zone
   qrVersionFor,

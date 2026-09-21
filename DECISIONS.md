@@ -377,3 +377,27 @@ all four payloads are asserted byte exact, with skips carrying a reason.
 The final 431/431 run is a two-invocation union with a billingqa reset in
 between, because the two billing QA suites each declare a *fresh* isolated
 billingqa (see the round's `full-suite-rerun/FINDINGS.md`, F2).
+
+## Honest-claims readback parity: /v1/capabilities gains the image-code placeholders (2026-09-20)
+
+The AT14 image-code capability was shipped (`fd7be10`, HTTP proof `8456ac1`) and
+documented on `/docs`, but the public capability readback omitted it entirely: a
+shipped, publicly documented capability that the code-truth endpoint could not
+see. That is exactly the drift the honest-claims rule at the top of this file
+exists to prevent. This round closes the readback gap; the render path itself
+is untouched. Traceability for what the new parity harness
+(`test/capabilities-parity.test.js`) asserts, claim by claim:
+
+| Claim | Evidence: code ↔ endpoint readback ↔ public claim |
+|---|---|
+| An image placeholder takes image bytes from the data: base64 or a `data:` URI, or bytes supplied through the request's images option; URL keys are accepted only to be refused — DocMint never downloads | `src/render/codes.js` `IMAGE_BYTES_KEYS` (data, base64, bytes, content, buffer, src, url, href, uri) and `isCodeSpec`; the DOCX/XLSX/PPTX renderers gate on exactly that gate (`src/render/docx.js:837`, `src/render/xlsx.js:1219`, `src/render/pptx.js:219`). Endpoint: `GET /v1/capabilities` → `images.bytes` (built in `src/capabilities.js` `imageCapabilities`, served at `src/api.js:639`). Public claim: `/docs#images` |
+| Code placeholders `{"qr": …}`, `{"barcode": "code128", "value": …}`, `{"barcode": "ean13", "value": …}`, `{"epc": {…}}` | Canonical enumerator `codePlaceholders()` in `src/render/codes.js`, built from the same `CODE_KEYS` / `BARCODE_KINDS` / `EPC_FIELDS` / `QR_DEFAULT_ECC` constants the branch validators (`barcodeSpec`, `qrSpec`, `buildEpcPayload`, `codeImage`) accept — one list, no second handwritten copy. Endpoint: `images.codes` reads exactly it; the harness asserts the live response deep-equals the exported enumerator and that the render gate accepts every published spec. Public claim: `/docs#images` "QR codes and barcodes" |
+| The 43 formatters | Served from `src/template/formatters.js` via `src/capabilities.js` `formatterNames()` (pre-existing). The harness asserts both directions against the docs formatter table (43 claimed ↔ 43 listed, name for name) and against the docs' own "43 of them" count claim |
+| The async/jobs readback — keys `async`, `enabled`, `endpoint` (`/v1/jobs`), `webhook_signature` (HMAC-SHA256 over `{timestamp}.{body}` in `X-DocMint-Signature`), `webhook_attempts`, `webhook_requires_public_url`, `worker` | Shipped code: the jobs queue and webhook in `src/jobs.js`, the batch caps measured in `src/config.js` and `src/batch.js`. NOT claimed positively on `/docs` — its "Not available yet" section is dated 25 August 2026 and is stale. Until the docs page is brought current, this row is the trace, per the honest-claims rule |
+| The limits readback — batch and job keys `max_batch_items`, `max_sync_batch_pdf_items`, `batch_budget_ms`, `job_file_ttl_minutes`, `job_retention_days`, `max_stored_file_bytes` | `src/config.js` (its own comment: "These are the numbers quoted in the docs; keep them in sync"). The docs claim `max_template_bytes`, `max_data_bytes`, `max_versions_kept`, `pdf_timeout_ms`; the batch/job keys trace to this row plus `src/config.js` |
+| What this round did NOT list in the readback, on purpose | The per-renderer byte-format claim (PNG/JPEG/GIF/BMP in Word and Excel, PNG/JPEG/GIF in PowerPoint) has no canonical list in the code — acceptance is per-renderer magic-byte probing, not one list — so enumerating it in `/v1/capabilities` would create precisely the second handwritten list this fix exists to prevent. Those claims stay pinned to the render test suite, which embeds real bytes of every format. The image-bytes size cap (24 MB) is a limit, carried in the docs, not a code list |
+
+Harness run: local throwaway environment only — throwaway Postgres published on
+127.0.0.1, server from the working tree bound to 127.0.0.1, no production
+traffic, no production writes (the established pattern from the 2026-09-19
+full-suite proof above).

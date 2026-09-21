@@ -8,7 +8,7 @@ const { ApiError, bad } = require('./errors');
 const { query } = require('./db');
 const { authenticate, consumeCredits, refundCredits, issueApiKey, revokeApiKey, listApiKeys } = require('./auth');
 const { rateLimit } = require('./ratelimit');
-const { formatterNames } = require('./capabilities');
+const { formatterNames, imageCapabilities } = require('./capabilities');
 const templates = require('./templates');
 const renderer = require('./render');
 const pdf = require('./pdf');
@@ -633,6 +633,10 @@ router.get('/capabilities', asyncRoute(async (req, res) => {
     outputs: ['document', 'pdf', 'both'],
     pdf: { available: lo.available, engine: lo.available ? 'libreoffice' : null, concurrency: config.maxConcurrentPdf },
     formatters: formatterNames(),
+    // The image placeholders (bytes, plus the QR/EPC/barcode codes the service
+    // draws itself), read out of the render path's own code list — the same
+    // single source the renderers gate on, not a second handwritten list.
+    images: imageCapabilities(),
     limits: {
       max_template_bytes: config.maxTemplateBytes,
       max_data_bytes: config.maxDataBytes,
