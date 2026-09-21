@@ -66,9 +66,10 @@
       <li><a href="#capabilities">GET /v1/capabilities</a></li>
       <li><a href="#healthz">GET /healthz</a></li>
       <li><a href="#pricing">Billing endpoints</a></li>
-      <li><a href="#notyet">Not available yet</a></li>
-      <li><a href="#async" class="sub">Asynchronous</a></li>
-      <li><a href="#batch" class="sub">Batch</a></li>
+      <li><a href="#jobs">Batch, jobs and webhooks</a></li>
+      <li><a href="#batch" class="sub">POST /v1/render/batch</a></li>
+      <li><a href="#async" class="sub">POST /v1/jobs</a></li>
+      <li><a href="#webhooks" class="sub">Webhooks</a></li>
     </ul>
     <h2>Reference</h2>
     <ul>
@@ -1134,19 +1135,113 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 }</code></pre></div>
 </section>
 
-<!-- ========================================================== not yet live -->
-<section id="notyet">
-<h2>Not available yet<a class="anchor" href="#notyet">#</a></h2>
-<p>Two things are being built and are <strong>not reachable on this deployment</strong>. They have sections here because the code that will emit them already links to these anchors, and a documentation link in an error message that 404s is worse than no link at all.</p>
-<p>Every one of these answered <code>404 unknown_endpoint</code> when this page was written, on 25 August 2026: <code>POST /v1/jobs</code>, <code>GET /v1/jobs</code>, <code>GET /v1/jobs/:id</code>, <code>POST /v1/jobs/:id/cancel</code>, <code>POST /v1/render/batch</code>, <code>GET /v1/webhooks</code>. Nothing about their behaviour is described here, because nothing about their behaviour has been observed.</p>
+<!-- ================================================== batch, jobs, webhooks -->
+<section id="jobs">
+<h2>Batch, jobs and webhooks<a class="anchor" href="#jobs">#</a></h2>
+<p>Three ways to produce more than one document, in increasing order of decoupling: a batch inside one synchronous call, a queue that outlives the connection, and a webhook that reports the result without being asked. All three are live. Verified against the running service on 21 September 2026: each of <code>POST /v1/render/batch</code>, <code>POST /v1/jobs</code>, <code>GET /v1/jobs</code>, <code>GET /v1/jobs/:id</code>, <code>POST /v1/jobs/:id/cancel</code> and <code>GET /v1/webhooks</code> answered <code>401 missing_api_key</code> to a request sent without a key — routed and authenticated, not the <code>404 unknown_endpoint</code> an earlier version of this page reported for all six.</p>
 
-<h3 id="async">Asynchronous rendering<a class="anchor" href="#async">#</a></h3>
-<p>Not available yet. Every render today is synchronous: you POST, and the response body is the file. That is the right shape for one document and the wrong shape for five hundred, so a queued mode with a webhook callback is in progress.</p>
-<p><strong>Until it ships:</strong> render one document per request. A PDF takes about 2.7 s and conversions are serialised per instance, so pace a large run rather than firing it all at once — the <a href="#limits">rate limit</a> is 120 requests a minute with a burst of 30, and a full conversion queue answers <code>503 pdf_queue_full</code> rather than dropping the request silently.</p>
-<p>When it ships, this section is replaced by its reference. If you have arrived here from an error message naming <code>/docs#async</code> and this is still the text you see, the feature is newer than this page — please report it, because that is exactly the drift this page is built to avoid.</p>
+<p><a href="#capabilities"><code>GET /v1/capabilities</code></a> publishes the batch caps and the job lifetimes in its <code>limits</code> object (<code>max_batch_items</code>, <code>max_sync_batch_pdf_items</code>, <code>batch_budget_ms</code>, <code>job_file_ttl_minutes</code>, <code>job_retention_days</code>, <code>max_stored_file_bytes</code>) and an <code>async</code> block (<code>enabled</code>, <code>endpoint</code>, <code>webhook_signature</code>, <code>webhook_attempts</code>, <code>webhook_requires_public_url</code>, <code>worker</code>), so the numbers below can be checked against the running code rather than trusted.</p>
 
-<h3 id="batch">Batch rendering<a class="anchor" href="#batch">#</a></h3>
-<p>Not available yet. One template, many data rows, one call. Same status as above, and the same advice: loop over <a href="#render"><code>POST /v1/render</code></a> in your workflow tool for now, which is what an n8n or Make loop does naturally, and which keeps a failure attributable to a single row.</p>
+<!-- --------------------------------------------------------------- batch -->
+<h3 id="batch"><span class="pill post">POST</span><span class="path">/v1/render/batch</span><a class="anchor" href="#batch">#</a></h3>
+<p>One template, many data sets, one synchronous call. The measured reason it exists: 500 invoices through <a href="#render"><code>POST /v1/render</code></a> are 500 HTTP round trips against a service that restarts on deploy, and the PDF stage serialises anyway, so a month-end run was about 25 minutes of wall clock with no way to resume it.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>items</code></td><td class="t">array</td><td class="wrap">Required. One entry per document: <code>{"data": {…}}</code>, each optionally with its own <code>filename</code>. There is no top-level <code>filename</code> on a batch.</td></tr>
+<tr><td><code>template</code>, <code>template_base64</code>, <code>template_version</code></td><td class="t"></td><td class="wrap">Exactly as on <a href="#render">render</a> — one template for the whole batch.</td></tr>
+<tr><td><code>output</code></td><td class="t">string</td><td class="wrap"><code>document</code>, <code>pdf</code> or <code>both</code>, per batch. Per item: 1 credit for a document, 2 when a PDF is involved.</td></tr>
+<tr><td><code>response</code></td><td class="t">string</td><td class="wrap"><code>json</code> (the default) or <code>zip</code>. Unlike render, the default response is a JSON envelope.</td></tr>
+<tr><td><code>on_error</code></td><td class="t">string</td><td class="wrap"><code>fail</code> (the default) or <code>continue</code>. See below.</td></tr>
+<tr><td><code>locale</code>, <code>currency</code>, <code>timezone</code>, <code>onMissing</code>, <code>strictScope</code>, <code>images</code>, <code>now</code></td><td class="t"></td><td class="wrap">Exactly as on render, one value for the whole batch — including the clock: every item of a run agrees about what <em>now</em> is.</td></tr>
+</tbody></table></div>
+
+<p>Every item is validated before the first one renders, so a typo in item 79 fails the call instead of surfacing after 78 documents have already been produced.</p>
+
+<p>The JSON response is one entry per item, in the order they were sent — <code>index</code>, <code>ok</code>, <code>format</code>, <code>ms</code>, and for a produced document the same <code>document</code>/<code>pdf</code> objects render returns, base64-encoded — plus <code>count</code>, <code>ok</code>, <code>failed</code>, each item's <code>warnings</code> when it produced any, <code>credits</code> (<code>used</code>, <code>refunded</code>, <code>remaining</code>, <code>limit</code>) and <code>stats</code>. Every batch response also carries <code>X-DocMint-Batch-Ok</code> and <code>X-DocMint-Batch-Failed</code> next to the usual headers.</p>
+
+<p><code>"response": "zip"</code> streams the batch as one <code>application/zip</code> attachment instead, named after the template. Names are uniqued inside the archive, so two invoices for the same customer both survive as <code>invoice.pdf</code> and <code>invoice-2.pdf</code>; and under <code>"on_error": "continue"</code> the failures have nowhere else to go, so the zip carries an <code>errors.json</code> entry listing each failed item and its error.</p>
+
+<div class="tw"><table>
+<thead><tr><th><code>on_error</code></th><th>When an item fails</th></tr></thead>
+<tbody>
+<tr><td><code>fail</code><br>(the default)</td><td class="wrap">The first failing item ends the call with that item's own error, prefixed by its position. Nothing is delivered and nothing is charged — including the documents already produced when it stopped.</td></tr>
+<tr><td><code>continue</code></td><td class="wrap">The batch runs to the end. Failed items come back in <code>results</code> with their errors, and only the documents actually produced are charged.</td></tr>
+</tbody></table></div>
+
+<div class="note">
+  <p><strong>Credits are reserved for the whole batch before the first item renders, and refunded for the items that failed.</strong> A batch that cannot be paid for is refused before it starts: <code>402 batch_exceeds_quota</code> names how many of the items would have fitted, rather than stopping at item 41 of 60 and leaving a partial run to reconcile by hand.</p>
+</div>
+
+<p>Three caps bound a synchronous batch, all served by <a href="#capabilities"><code>GET /v1/capabilities</code></a>:</p>
+<div class="tw"><table>
+<thead><tr><th>Limit</th><th>Default</th><th>Exceeded</th></tr></thead>
+<tbody>
+<tr><td><code>max_batch_items</code></td><td class="t">100</td><td class="wrap"><code>413 batch_too_large</code>, before anything renders.</td></tr>
+<tr><td><code>max_sync_batch_pdf_items</code></td><td class="t">20</td><td class="wrap"><code>413 batch_pdf_too_large</code> for <code>pdf</code>/<code>both</code> output. PDF conversion runs one at a time at about 2.6 s each, so a larger PDF batch would end past the proxy timeout with nothing in the caller's hands; the error points at <a href="#async"><code>POST /v1/jobs</code></a>, where there is no connection to lose. <code>document</code> output is not capped this way.</td></tr>
+<tr><td><code>batch_budget_ms</code></td><td class="t">300,000</td><td class="wrap"><code>504 batch_budget_exceeded</code> — a wall-clock backstop for a pathologically slow dataset, not the normal limit; the two caps above are what actually bind.</td></tr>
+</tbody></table></div>
+<p>These are the readback's names; in <code>src/config.js</code> (linked from the footer) the same three settings are <code>maxBatchItems</code>, <code>maxSyncBatchPdfItems</code> and <code>batchBudgetMs</code>.</p>
+
+<!-- --------------------------------------------------------------- async -->
+<h3 id="async"><span class="pill post">POST</span><span class="path">/v1/jobs</span><a class="anchor" href="#async">#</a></h3>
+<p>The same work as a batch, without the connection. The queue is a Postgres table polled in-process — no Redis, no separate worker service — so a job survives a deploy that would drop a synchronous call, and it can be inspected and cancelled while it runs.</p>
+
+<p>The body is a <a href="#render">render</a> body (<code>data</code>, one document) or a <a href="#batch">batch</a> body (<code>items</code>) — one document is just a batch of one, so the single form is normalised into the batch form and only one shape ever reaches the worker. Sending both is refused with <code>items_and_data</code>. An optional <code>webhook_url</code> is accepted for either; <code>filename</code> only means something in the single-document form.</p>
+
+<div class="code"><div class="cap">202 Accepted — a job queued with a webhook (the webhook_url key is absent when none was sent)</div><pre><code>{
+  "id": "job_RLFhHRQzNsYd",
+  "status": "queued",
+  "kind": "batch",
+  "count": 12,
+  "output": "pdf",
+  "status_url": "https://docmint.app.mintapis.com/v1/jobs/job_RLFhHRQzNsYd",
+  "webhook_url": "https://example.com/hooks/docmint",
+  "credits": { "reserved": 24, "remaining": 6, "limit": 30 },
+  "note": "Poll status_url, or wait for the webhook. Credits are reserved now and whatever the job does not produce is given back."
+}</code></pre></div>
+
+<p>Everything that can be checked before the work starts is checked before the 202: the batch shape, the template (a typo in its name fails here rather than five minutes later in a webhook the caller has to go and read) and the webhook URL if one was sent. Credits are reserved for the whole batch at enqueue; the job keeps what it produces and the rest is given back — on finishing, on cancelling, or by the recovery pass if the process died mid-job.</p>
+
+<div class="note warn">
+  <p><strong><code>webhook_url</code> has to be reachable from the public internet.</strong> DocMint calls the webhook from its own servers, so <code>localhost</code>, private addresses and the cloud metadata endpoint are refused, http and https are the only schemes accepted, and the host is resolved before it is trusted — a name pointed at <code>169.254.169.254</code> is the same attack as writing the address. The URL is re-checked on every delivery attempt, not only when the job was queued.</p>
+</div>
+
+<h3><span class="pill get">GET</span><span class="path">/v1/jobs</span></h3>
+<p>The account's jobs, newest first. <code>?limit=</code> caps the page at 100, default 25. The listing carries a summary, not per-item detail: a finished batch's <code>items</code> come back as their count, because a page of twenty 100-item batches would otherwise be two thousand item records nobody read.</p>
+
+<h3><span class="pill get">GET</span><span class="path">/v1/jobs/:id</span></h3>
+<p>One job in full: <code>id</code>, <code>kind</code>, <code>status</code> (<code>queued</code>, <code>running</code>, <code>succeeded</code>, <code>failed</code>, <code>cancelled</code>), <code>created_at</code>, <code>started_at</code>, <code>finished_at</code>, and once finished the <code>result</code> — <code>ok</code>, <code>failed</code>, and <code>files</code> with absolute download URLs built from the host that is answering, so a link can never point at whichever instance happened to do the rendering — or the <code>error</code>. A job queued with a <code>webhook_url</code> also carries a <code>webhook</code> block: the URL, the delivery status, every recorded attempt, the delivery id and the time of the next attempt if one is due.</p>
+
+<h3><span class="pill post">POST</span><span class="path">/v1/jobs/:id/cancel</span></h3>
+<p>Cancels a queued or running job and gives back every credit it reserved. The release is a single statement that zeroes the reservation and returns the old value in the same round trip, so a cancel racing the worker's own settlement cannot refund twice. A running batch cannot be stopped mid-item, but the loop checks between items, so a 100-item batch stops within one document rather than after ninety-nine. A job that has already finished answers <code>409 job_already_finished</code>; an id that does not exist — or belongs to another account — answers <code>404 job_not_found</code>.</p>
+
+<div class="note">
+  <p><strong>What a job leaves behind, and for how long.</strong> Result files download from <code>/f/{token}</code> with no API key — the unguessable token is the capability, which is also why an expired link is useless. They live for <code>job_file_ttl_minutes</code>, 24 hours by default, after which the link answers <code>404 file_expired</code>. A job that produces more than one file — or that was queued with <code>response: "zip"</code> — stores one zip archive named after the job. The job record itself — status, result summary, error, webhook attempts — is kept for <code>job_retention_days</code>, 7 days by default. A hosted file is capped at <code>max_stored_file_bytes</code>, 40 MB, and a result over it is refused with <code>file_too_large</code> and a hint to split the batch. Both lifetimes and the cap are in <a href="#capabilities"><code>GET /v1/capabilities</code></a>'s <code>limits</code>.</p>
+</div>
+
+<!-- ------------------------------------------------------------ webhooks -->
+<h3 id="webhooks"><span class="pill get">GET</span><span class="path">/v1/webhooks</span><a class="anchor" href="#webhooks">#</a></h3>
+<p>A job queued with a <code>webhook_url</code> POSTs its outcome once it reaches a terminal state: <code>succeeded</code>, <code>failed</code> or <code>cancelled</code>. <code>GET /v1/webhooks</code> returns the account's <code>signing_secret</code> — per account, never rotated automatically, and only ever returned to a request already holding one of that account's API keys — together with the signature construction below, because a signature nobody can check is decoration.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Header</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>X-DocMint-Signature</code></td><td class="wrap"><code>sha256=</code> followed by the hex HMAC-SHA256 of <code>{X-DocMint-Timestamp}.{raw request body}</code> — the timestamp header's own value, a dot, then the raw body bytes — keyed with the account's signing secret.</td></tr>
+<tr><td><code>X-DocMint-Timestamp</code></td><td class="wrap">Unix seconds, when the delivery was signed.</td></tr>
+<tr><td><code>X-DocMint-Job-Id</code></td><td class="wrap">The job the delivery is about.</td></tr>
+<tr><td><code>X-DocMint-Event</code></td><td class="wrap"><code>job.succeeded</code>, <code>job.failed</code> or <code>job.cancelled</code>.</td></tr>
+<tr><td><code>X-DocMint-Delivery-Id</code></td><td class="wrap"><code>{job id}:{status}</code>. A lost acknowledgement can repeat an identical delivery, so a receiver must deduplicate on this id.</td></tr>
+</tbody></table></div>
+
+<p>The body is <code>{ "job_id", "kind", "status", "created_at" }</code> plus either the <code>result</code> — with each file's absolute download URL — or the <code>error</code>, sent as <code>application/json</code> from <code>User-Agent: DocMint-Webhook/1</code>.</p>
+
+<div class="note">
+  <p><strong>Verifying a delivery.</strong> Recompute the HMAC over <code>{timestamp}.{body}</code> with your account's secret, compare it with a constant-time compare, and reject a timestamp more than a few minutes old so an old delivery cannot be replayed.</p>
+</div>
+
+<p>Deliveries retry, bounded: <code>webhook_attempts</code> — 3 by default, in <a href="#capabilities"><code>GET /v1/capabilities</code></a>'s <code>async</code> block — with the next attempt scheduled 4 seconds after the first failure and 8 after the second. Every attempt is recorded on the job with its HTTP status or failure reason and is visible in <a href="#async"><code>GET /v1/jobs/:id</code></a>. A receiver that is down for a moment does not lose the delivery; one that is down for good does not get retried forever.</p>
 </section>
 
 <!-- =============================================================== formats -->

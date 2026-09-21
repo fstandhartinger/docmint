@@ -154,15 +154,93 @@ when('every capability the readback lists traces to a docs claim or a DECISIONS 
   for (const key of Object.keys(json.limits)) {
     assert.ok(DOCS_ALL.includes(key) || DECISIONS.includes(key), `limit "${key}" traces neither to the docs page nor to a DECISIONS.md row`);
   }
-  // The async/jobs capability is not claimed positively on the docs page (its
-  // "Not available yet" section predates the jobs feature), so every key of
-  // its readback traces to the DECISIONS rows added this round.
+  // The async/jobs capability is claimed positively on the docs page since the
+  // stale "Not available yet" section was replaced with real reference sections
+  // (2026-09-21), so each key of its readback may trace to the docs OR to the
+  // DECISIONS rows that carried the claim while the page was stale. Both traces
+  // stay real: at least one must name the key.
   for (const key of Object.keys(json.async)) {
-    assert.ok(DECISIONS.includes(key), `async readback key "${key}" has no DECISIONS.md row`);
+    assert.ok(
+      DOCS_ALL.includes(key) || DECISIONS.includes(key),
+      `async readback key "${key}" traces neither to the docs page nor to a DECISIONS.md row`,
+    );
   }
   // The image-code entries trace back to the docs claims they surface.
   for (const entry of json.images.codes) {
     const needle = entry.key === 'barcode' ? `"barcode": "${entry.barcode}"` : `"${entry.key}"`;
     assert.ok(DOCS_IMAGES.includes(needle), `the readback lists ${needle} but the docs page does not claim it`);
+  }
+});
+
+/* ------------------------------------------------------------------------- *
+ * AT-D2: the async/batch/webhook claims. The old "Not available yet" section
+ * answered "404 unknown_endpoint" for six endpoints that had already shipped —
+ * the drift this file exists to catch, in the opposite direction (claimed
+ * absent when shipped). The file-only tests below keep that stale copy from
+ * returning and pin the anchors that error messages in src/api.js,
+ * src/batch.js, src/jobs.js and src/net.js link to; the live probe proves the
+ * routes answer as authenticated endpoints, not 404s.
+ * ------------------------------------------------------------------------- */
+const ASYNC_PATHS = ['/v1/jobs', '/v1/render/batch', '/v1/webhooks'];
+
+// The stale copy exactly as the old #notyet section read before it was replaced,
+// so the detector below cannot pass vacuously. Copied verbatim from
+// public/docs.html before it was edited.
+const STALE_ASYNC_COPY = `<section id="notyet">
+<h2>Not available yet</h2>
+<p>Every one of these answered <code>404 unknown_endpoint</code> when this page was written, on 25 August 2026: <code>POST /v1/jobs</code>, <code>GET /v1/jobs</code>, <code>GET /v1/jobs/:id</code>, <code>POST /v1/jobs/:id/cancel</code>, <code>POST /v1/render/batch</code>, <code>GET /v1/webhooks</code>. Nothing about their behaviour is described here.</p>
+<h3 id="async">Asynchronous rendering</h3>
+<p>Not available yet. Every render today is synchronous: you POST, and the response body is the file.</p>
+<h3 id="batch">Batch rendering</h3>
+<p>Not available yet. One template, many data rows, one call.</p>
+</section>`;
+
+function staleAsyncClaims(html) {
+  const hits = [];
+  const text = visibleText(html);
+  if (/answered 404 unknown_endpoint[\s\S]{0,200}\/v1\/jobs/.test(text)) {
+    hits.push('the stale "answered 404 unknown_endpoint" sentence naming /v1/jobs');
+  }
+  for (const m of html.matchAll(/<section id="([^"]+)">([\s\S]*?)<\/section>/g)) {
+    const s = visibleText(m[2]);
+    const named = ASYNC_PATHS.filter((p) => s.includes(p));
+    if (s.includes('not available yet') && named.length) {
+      hits.push(`section #${m[1]} claims "not available yet" while naming ${named.join(', ')}`);
+    }
+  }
+  return hits;
+}
+
+test('the stale-claim detector detects the old copy it is aimed at (no vacuous pass)', () => {
+  const hits = staleAsyncClaims(STALE_ASYNC_COPY);
+  assert.ok(hits.length >= 2, `the detector found nothing in the stale fixture: ${JSON.stringify(hits)}`);
+});
+
+test('the docs contain no stale unavailability claim for the shipped async/batch endpoints', () => {
+  assert.deepEqual(staleAsyncClaims(DOCS), []);
+  assert.ok(!/id="notyet"/.test(DOCS), 'the #notyet section was removed but its id remains');
+});
+
+test('the async and batch anchors survive, because error messages link to them', () => {
+  for (const anchor of ['async', 'batch']) {
+    assert.ok(new RegExp(`id="${anchor}"`).test(DOCS), `public/docs.html lost id="${anchor}"`);
+  }
+});
+
+when('each shipped async/batch/webhook endpoint answers 401 missing_api_key, not 404', async () => {
+  const probes = [
+    ['POST', '/v1/jobs'],
+    ['GET', '/v1/jobs'],
+    ['GET', '/v1/jobs/no-such-job'],
+    ['POST', '/v1/jobs/no-such-job/cancel'],
+    ['POST', '/v1/render/batch'],
+    ['GET', '/v1/webhooks'],
+  ];
+  for (const [method, path] of probes) {
+    // eslint-disable-next-line no-await-in-loop
+    const { res, json } = await req(path, { method });
+    assert.equal(res.status, 401, `${method} ${path} did not demand a key`);
+    assert.equal(json?.error?.code, 'missing_api_key', `${method} ${path}`);
+    assert.notEqual(json?.error?.code, 'unknown_endpoint', `${method} ${path} is routed but claimed otherwise`);
   }
 });

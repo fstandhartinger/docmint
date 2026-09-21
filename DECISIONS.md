@@ -401,3 +401,40 @@ Harness run: local throwaway environment only — throwaway Postgres published o
 127.0.0.1, server from the working tree bound to 127.0.0.1, no production
 traffic, no production writes (the established pattern from the 2026-09-19
 full-suite proof above).
+
+### Follow-up (2026-09-21): the async/batch/webhook claims are on the page
+
+The row above recorded that the async readback was NOT claimed positively on
+/docs and that "until the docs page is brought current, this row is the trace".
+The page is current. The stale "Not available yet" section — which reported all
+six of POST /v1/jobs, GET /v1/jobs, GET /v1/jobs/:id, POST /v1/jobs/:id/cancel,
+POST /v1/render/batch and GET /v1/webhooks as having answered "404
+unknown_endpoint" on 25 August 2026 — described shipped endpoints as absent,
+while live probes on 2026-09-21 found every one of the six answering 401
+missing_api_key without a key (routed and authenticated, not 404). The section
+and its TOC entry are gone, replaced by real reference sections; the #async and
+#batch anchors survive, because error messages in src/api.js, src/batch.js,
+src/jobs.js and src/net.js link to /docs#async and /docs#batch. Endpoint
+behaviour was not touched; this was a docs round.
+
+| Claim, now positive on /docs | Evidence: code | Docs anchor |
+|---|---|---|
+| POST /v1/render/batch — one template, many datasets, one sync call; JSON (default) or zip response; caps max_batch_items (100), max_sync_batch_pdf_items (20), batch_budget_ms (300000) in the capabilities readback | src/api.js:176-270, src/batch.js:40-157 and 182-303, src/config.js:43/55/63, readback src/api.js:650-652 | /docs#batch |
+| POST /v1/jobs — 202 queued with status_url, optional webhook_url, credits.reserved; body is a render body ("data") or a batch body ("items"); validated before the 202 | src/api.js:281-349 | /docs#async |
+| webhook_url must be public — http(s) only, host resolved before trusted, private ranges and cloud metadata refused, re-checked per delivery attempt | src/net.js:65-118, re-check src/jobs.js:217-219, readback flag src/api.js:665 | /docs#async |
+| GET /v1/jobs — list, newest first, limit default 25 max 100, summary result | src/api.js:360-363, src/jobs.js:103-121 | /docs#async |
+| GET /v1/jobs/:id — status plus result with absolute file URLs; webhook block | src/api.js:352-367, src/jobs.js:76-90 | /docs#async |
+| POST /v1/jobs/:id/cancel — queued/running only, full refund, job_already_finished otherwise | src/api.js:369-373, src/jobs.js:136-159 | /docs#async |
+| GET /v1/webhooks — returns the account's signing secret, algorithm, signed_value '{X-DocMint-Timestamp}.{raw request body}', header names, max_attempts | src/api.js:384-399 | /docs#webhooks |
+| Webhook delivery — HMAC-SHA256 over '{timestamp}.{body}' as sha256=…, event job.<status>, delivery id {job}:{status}, 3 attempts with 4 s / 8 s backoff, deduplicate on delivery id | src/jobs.js:221-300 (headers and signature 278-287, backoff 298), src/net.js:134-181, attempts src/config.js:74 | /docs#webhooks |
+| Job file lifetime — job_file_ttl_minutes (24 h) and job_retention_days (7 d), plus max_stored_file_bytes (40 MB), all in the capabilities readback | src/config.js:78/82/94, readback src/api.js:653-655, reaper src/jobs.js:545-562 | /docs#async |
+
+The harness guards the fix in both directions
+(test/capabilities-parity.test.js): a non-vacuous stale-copy detector (the old
+sentence is kept in the test as a fixture and proven to trip), the #async and
+#batch anchors pinned by id, and — on a running server — one unauthenticated 401
+missing_api_key probe per endpoint. The harness's async-readback assertion now
+accepts a docs trace as well as a DECISIONS trace; the DECISIONS rows above
+remain the second, independent trace. Harness run 2026-09-21: the file-only
+tests ran green locally; the server probes are written and skip cleanly without
+a server, as the file's other live tests do.
