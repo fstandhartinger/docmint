@@ -57,6 +57,7 @@
       <li><a href="#data" class="sub">The data object</a></li>
       <li><a href="#output" class="sub">Output modes</a></li>
       <li><a href="#pdf" class="sub">PDF output</a></li>
+      <li><a href="#pdf-password" class="sub">PDF password</a></li>
       <li><a href="#localisation" class="sub">Localisation</a></li>
       <li><a href="#inspect">POST /v1/inspect</a></li>
       <li><a href="#templates">Template management</a></li>
@@ -670,6 +671,7 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td><code>currency</code></td><td class="t">string</td><td class="wrap">3-letter ISO code, default <code>USD</code>.</td></tr>
 <tr><td><code>timezone</code></td><td class="t">string</td><td class="wrap">IANA zone, default <code>UTC</code>.</td></tr>
 <tr><td><code>images</code></td><td class="t">object</td><td class="wrap">Bytes for image URLs the data refers to. See <a href="#images">Images</a>.</td></tr>
+<tr><td><code>pdf_password</code></td><td class="t">string</td><td class="wrap">Open password for the PDF, 1-128 characters. Needs <code>output</code> <code>pdf</code> or <code>both</code>. See <a href="#pdf-password">PDF password</a>.</td></tr>
 </tbody></table></div>
 
 <div class="note">
@@ -807,7 +809,37 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td class="t">504</td><td><code>pdf_timeout</code></td><td class="wrap">Longer than 90 seconds and it was stopped.</td></tr>
 </tbody></table></div>
 
-<p>Not supported: PDF/A, watermarking, PDF encryption, page-range selection, and any choice of converter. There is one converter and one profile.</p>
+<p>Not supported: PDF/A, watermarking, owner passwords and copy/print restrictions, page-range selection, and any choice of converter. There is one converter and one profile. The one thing a PDF can be given is an <a href="#pdf-password">open password</a>.</p>
+
+<!-- -------------------------------------------------------- pdf password -->
+<h3 id="pdf-password">PDF password<a class="anchor" href="#pdf-password">#</a></h3>
+<p>Send <code>"pdf_password": "…"</code> on <code>POST /v1/render</code> and the returned PDF is encrypted with that <strong>open password</strong>: it will not open until the recipient types it in. That is the protection payslips, contracts and medical letters need when they travel by email. Only the PDF is encrypted; the Office file is never touched, and with <code>output: "both"</code> the two parts come back as they always do — one protected, one not.</p>
+
+<div class="tw"><table>
+<thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td class="wrap"><code>pdf_password</code></td><td class="wrap">A string, 1 to 128 characters, no control characters. Anything else is a 400 <code>bad_pdf_password</code>, decided before any credit is spent.</td></tr>
+<tr><td class="wrap"><code>output</code></td><td class="wrap">Must be <code>pdf</code> or <code>both</code>. With <code>document</code> (the default) the field is refused as 400 <code>pdf_password_needs_pdf</code> rather than silently ignored — there is no PDF to protect.</td></tr>
+<tr><td class="wrap">Endpoints</td><td class="wrap"><code>POST /v1/render</code> only. <code>POST /v1/render/batch</code> and <code>POST /v1/jobs</code> refuse the field with 400 <code>pdf_password_unsupported_here</code> — a batch that quietly produced unprotected files would be worse than a refusal.</td></tr>
+<tr><td class="wrap">Secrecy</td><td class="wrap">The password is never stored, never written to the database, never echoed in an error or a response, and never logged. If the conversion fails, anything LibreOffice prints that contains it is replaced with <code>[redacted]</code> before it reaches a log line or an error detail.</td></tr>
+</tbody></table></div>
+
+<div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template":"payslip","output":"pdf","pdf_password":"s3cret-Ä1",
+       "data":{"employee":"Ada","amount":3120.40}}'</code></pre></div>
+
+<div class="tw"><table>
+<thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td class="t">400</td><td><code>bad_pdf_password</code></td><td class="wrap">Not a string, empty, over 128 characters, or contains a control character. The message names the rule that was broken, never the value.</td></tr>
+<tr><td class="t">400</td><td><code>pdf_password_needs_pdf</code></td><td class="wrap">Sent with <code>output</code> <code>document</code> (or unset), where there is no PDF to protect.</td></tr>
+<tr><td class="t">400</td><td><code>pdf_password_unsupported_here</code></td><td class="wrap">Sent on <code>/v1/render/batch</code> or <code>/v1/jobs</code>, which do not support it yet.</td></tr>
+<tr><td class="t">502</td><td><code>pdf_encryption_failed</code></td><td class="wrap">LibreOffice produced a PDF without the requested encryption. DocMint refuses to hand back an unprotected file when protection was asked for, so this is a failure, never a quiet downgrade.</td></tr>
+</tbody></table></div>
+
+<p>What the password does <strong>not</strong> do: it sets no owner password and no copy/print restrictions, and it is not a watermark. The encryption itself is stated as measured, not from a marketing page: on a produced file <code>qpdf --show-encryption</code> reports the PDF standard security handler at revision 3 — 128-bit RC4, as applied by LibreOffice 7.4. An open password that keeps casual readers out, stated plainly rather than oversold. <code>GET /v1/capabilities</code> publishes the same value as <code>pdf.password_protection.encryption</code>, next to the field name and the limits the validator enforces.</p>
 
 <!-- ------------------------------------------------------------ localisation -->
 <h3 id="localisation">Localisation<a class="anchor" href="#localisation">#</a></h3>
@@ -1107,7 +1139,10 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
     { "id": "pptx", "name": "PowerPoint deck", "mime": "application/vnd.openxml…" }
   ],
   "outputs": ["document", "pdf", "both"],
-  "pdf": { "available": true, "engine": "libreoffice", "concurrency": 1 },
+  "pdf": {
+    "available": true, "engine": "libreoffice", "concurrency": 1,
+    "password_protection": { "field": "pdf_password", "min_length": 1, "max_length": 128, "endpoints": ["/v1/render"] }
+  },
   "formatters": [
     { "name": "add", "does": "add:5" },
     { "name": "count", "does": "how many items" },
@@ -1342,6 +1377,7 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td><code>template_corrupt</code></td><td class="wrap">It looks like a zip but could not be read.</td></tr>
 <tr><td><code>template_too_large</code></td><td class="wrap">Over 25 MB on upload. (The same condition on a render is a 413.)</td></tr>
 <tr><td><code>bad_email</code> <code>weak_password</code></td><td class="wrap">See <a href="#signup">Sign up</a>.</td></tr>
+<tr><td><code>bad_pdf_password</code> <code>pdf_password_needs_pdf</code> <code>pdf_password_unsupported_here</code></td><td class="wrap">See <a href="#pdf-password">PDF password</a>.</td></tr>
 </tbody></table></div>
 
 <h3>401, 402, 404, 409 — who you are, what you have</h3>
@@ -1413,6 +1449,7 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td class="t">501</td><td><code>pdf_not_available</code></td><td class="wrap">No LibreOffice on this instance.</td></tr>
 <tr><td class="t">501</td><td><code>format_not_available</code></td><td class="wrap">This build has no renderer for that format — a deployment fault, not your request.</td></tr>
 <tr><td class="t">502</td><td><code>pdf_conversion_failed</code></td><td class="wrap">LibreOffice ran and produced no usable PDF.</td></tr>
+<tr><td class="t">502</td><td><code>pdf_encryption_failed</code></td><td class="wrap">The PDF came back without the requested encryption, so it was not returned. See <a href="#pdf-password">PDF password</a>.</td></tr>
 <tr><td class="t">503</td><td><code>pdf_queue_full</code></td><td class="wrap">The conversion queue on this instance is full.</td></tr>
 <tr><td class="t">504</td><td><code>pdf_timeout</code></td><td class="wrap">Conversion took longer than 90 seconds.</td></tr>
 </tbody></table></div>

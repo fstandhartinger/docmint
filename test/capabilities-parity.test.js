@@ -7,7 +7,8 @@ const path = require('node:path');
 
 const { req, serverUp, BASE } = require('./helpers');
 const codes = require('../src/render/codes');
-const { imageCapabilities } = require('../src/capabilities');
+const { imageCapabilities, pdfPasswordCapability } = require('../src/capabilities');
+const input = require('../src/input');
 
 /**
  * AT-P2/AT-P5 honest-claims parity harness. Proves, on a running server, that
@@ -46,6 +47,13 @@ function visibleText(html) {
 function section(id) {
   const m = DOCS.match(new RegExp(`<section id="${id}">([\\s\\S]*?)</section>`));
   assert.ok(m, `the docs page has no section #${id}`);
+  return m[1];
+}
+
+/** An h3 anchor (like #pdf-password) inside a section, up to the next h3 or the section end. */
+function subsection(id) {
+  const m = DOCS.match(new RegExp(`<h3 id="${id}">([\\s\\S]*?)(?=<h3 id=|</section>)`));
+  assert.ok(m, `the docs page has no subsection #${id}`);
   return m[1];
 }
 
@@ -101,6 +109,46 @@ test('the published images capability is composed only from the render module', 
   }
   assert.ok(published.bytes.keys.includes('url'));
   assert.equal(published.bytes.url_not_fetched, true);
+});
+
+/* ------------------------------------------------------------------------- *
+ * AT-P6, file-only: the pdf_password readback is built from the validator's
+ * constants and the docs #pdf-password section claims exactly what is
+ * enforced — the field, the limits, the refusing endpoints and the measured
+ * encryption. Needs no server; the live probe below asserts the endpoint
+ * serves the same object.
+ * ------------------------------------------------------------------------- */
+const DOCS_PDF_PASSWORD = visibleText(subsection('pdf-password'));
+
+test('AT-P6 the pdf_password capability is the validator constants, and the docs claim them', () => {
+  const cap = pdfPasswordCapability();
+  assert.deepEqual(cap, {
+    field: 'pdf_password',
+    min_length: input.PDF_PASSWORD_MIN_LENGTH,
+    max_length: input.PDF_PASSWORD_MAX_LENGTH,
+    endpoints: ['/v1/render'],
+    encryption: 'RC4-128 (PDF standard security handler revision 3, as applied by LibreOffice 7.4)',
+  });
+  // The docs section names the field, the limits and the refusing endpoints.
+  assert.ok(DOCS_PDF_PASSWORD.includes(cap.field), 'the docs #pdf-password section stopped naming the field');
+  assert.ok(
+    DOCS_PDF_PASSWORD.includes(`${cap.min_length} to ${cap.max_length}`),
+    'the docs #pdf-password section stopped stating the length limits',
+  );
+  for (const refusing of ['/v1/render/batch', '/v1/jobs']) {
+    assert.ok(DOCS_PDF_PASSWORD.includes(refusing), `the docs #pdf-password section stopped naming the refusing ${refusing}`);
+  }
+  for (const code of ['bad_pdf_password', 'pdf_password_needs_pdf', 'pdf_password_unsupported_here']) {
+    assert.ok(DOCS_PDF_PASSWORD.includes(code), `the docs #pdf-password section stopped naming ${code}`);
+  }
+  // The published encryption is the measured one, and the docs state it too.
+  assert.ok(DOCS_PDF_PASSWORD.includes('rc4'), 'the docs #pdf-password section stopped stating the measured encryption');
+});
+
+when('AT-P6 the live readback serves the same pdf.password_protection object the code publishes', async () => {
+  const { res, json } = await req('/v1/capabilities');
+  assert.equal(res.status, 200);
+  assert.deepEqual(json.pdf.password_protection, pdfPasswordCapability());
 });
 
 /* ------------------------------------------------------------------------- *

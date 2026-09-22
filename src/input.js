@@ -92,6 +92,83 @@ function rejectUnknown(body, known, docs) {
   }
 }
 
+/* ----------------------------------------------------------- pdf_password */
+
+/**
+ * The PDF open password, and the limits on it.
+ *
+ * These constants are the single source of truth: the validator below enforces
+ * them, and /v1/capabilities publishes them (src/capabilities.js reads them
+ * from here), so the docs, the readback and the code cannot drift apart.
+ */
+const PDF_PASSWORD_MIN_LENGTH = 1;
+const PDF_PASSWORD_MAX_LENGTH = 128;
+
+// eslint-disable-next-line no-control-regex
+const PDF_PASSWORD_CONTROL = /[\u0000-\u001f\u007f]/;
+
+/**
+ * The PDF open password.
+ *
+ * A string of 1-128 characters with no control characters. The value is never
+ * put into an error message: a 400 that echoes the password back would be a
+ * problem of its own, so the message names the rule that was broken, not the
+ * value that broke it.
+ */
+function checkPdfPassword(value) {
+  const docs = '/docs#pdf-password';
+  const hint = 'The password is only used to encrypt the PDF for this one render; it is never stored, logged or echoed back.';
+  if (typeof value !== 'string') {
+    throw bad('bad_pdf_password',
+      `"pdf_password" must be a string, not ${value === null ? 'null' : typeof value}.`, { hint, docs });
+  }
+  if (value.length < PDF_PASSWORD_MIN_LENGTH) {
+    throw bad('bad_pdf_password',
+      `"pdf_password" must be at least ${PDF_PASSWORD_MIN_LENGTH} character.`, { hint, docs });
+  }
+  if (value.length > PDF_PASSWORD_MAX_LENGTH) {
+    throw bad('bad_pdf_password',
+      `"pdf_password" is ${value.length} characters; the limit is ${PDF_PASSWORD_MAX_LENGTH}.`, { hint, docs });
+  }
+  if (PDF_PASSWORD_CONTROL.test(value)) {
+    throw bad('bad_pdf_password',
+      '"pdf_password" contains a control character, which is not allowed.', { hint, docs });
+  }
+  return value;
+}
+
+/**
+ * `pdf_password` on an endpoint that does not support it yet.
+ *
+ * Refused with a specific code rather than the generic unknown-field refusal,
+ * so the caller learns the field exists but not here — and never gets a
+ * silently unprotected file back from a batch or a job.
+ */
+function pdfPasswordUnsupportedHere() {
+  throw bad('pdf_password_unsupported_here',
+    '"pdf_password" is not supported on this endpoint yet.', {
+      hint: 'Use POST /v1/render for a password-protected PDF. Batch and jobs refuse the field rather than silently produce unprotected files.',
+      docs: '/docs#pdf-password',
+    });
+}
+
+/**
+ * `pdf_password` only makes sense when a PDF is produced. A render that asks
+ * for the Office file alone has nothing to protect, so the field is refused
+ * rather than silently ignored — the same policy as every other field here.
+ */
+function checkPdfPasswordForOutput(value, output) {
+  const password = value === undefined ? null : checkPdfPassword(value);
+  if (password !== null && output === 'document') {
+    throw bad('pdf_password_needs_pdf',
+      '"pdf_password" needs "output" to be "pdf" or "both".', {
+        hint: 'The password protects the PDF, so a render that produces no PDF cannot use it. Send "output": "pdf" (or "both"), or drop "pdf_password".',
+        docs: '/docs#pdf-password',
+      });
+  }
+  return password;
+}
+
 const enumOr = (value, allowed, field, docs) => {
   if (value === undefined || value === null || value === '') return allowed[0];
   const v = String(value);
@@ -196,4 +273,9 @@ function checkDataSize(data) {
   return size;
 }
 
-module.exports = { decodeBase64, rejectUnknown, enumOr, checkLocale, checkTimezone, checkCurrency, checkInstant, renderFilename, checkDataSize, ALIASES };
+module.exports = {
+  decodeBase64, rejectUnknown, enumOr, checkLocale, checkTimezone, checkCurrency,
+  checkInstant, renderFilename, checkDataSize, ALIASES,
+  PDF_PASSWORD_MIN_LENGTH, PDF_PASSWORD_MAX_LENGTH,
+  checkPdfPassword, checkPdfPasswordForOutput, pdfPasswordUnsupportedHere,
+};

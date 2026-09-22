@@ -205,8 +205,12 @@ Not everything is in our favour and the docs must not pretend otherwise.
 - **Carbone offers converter choice** (LibreOffice / OnlyOffice / Chromium / their
   own ICE engine, which they claim is "60x faster than LibreOffice on a 1000-page
   document"), PDF/A, watermarking and PDF encryption. We have LibreOffice only.
-- **Docupilot has richtext (HTML and Markdown into DOCX), QR codes, maps and
-  dynamic PDF passwords.** We have none of those yet.
+- **Docupilot has richtext (HTML and Markdown into DOCX) and maps.** We have
+  neither. Docupilot's dynamic PDF passwords now have a DocMint counterpart:
+  since 2026-09-22 a PDF open password exists on `POST /v1/render` only (not
+  `/v1/render/batch`, not `/v1/jobs` — both refuse the field rather than
+  silently produce unprotected files), and there are no copy/print
+  restrictions yet. QR codes and barcodes DocMint draws itself.
 - **Docupilot and Carbone both offer delivery integrations** (email, Drive, S3).
   We return the file and let n8n do the delivering — which is the right split for
   a workflow tool, but it is a difference, not a strict advantage.
@@ -476,3 +480,50 @@ one-resolver grep) and `test/image-input-http.test.js` (PPTX and XLSX over
 `test/capabilities-parity.test.js`. The docs footer wording fix from the review
 MINOR — the `src/config.js` mention now links to the file directly instead of
 claiming the footer links there — is part of the same pass.
+
+## pdf_password: a PDF open password on /v1/render (2026-09-22)
+
+Plumsail ships an encrypted PDF with copy/edit restrictions; Documint's
+"Documint Password" field only gates the shared link, not the PDF file itself
+(its own docs say so); DocMint had neither. This round ships the open-password
+half: no owner password and no copy/print restrictions yet, and sync renders
+only.
+
+- **Mechanism: LibreOffice JSON export options.** LibreOffice ≥ 7.4 takes PDF
+  export options as JSON on `--convert-to`:
+  `pdf:<filter>:{"EncryptFile":{"type":"boolean","value":"true"},"DocumentOpenPassword":{"type":"string","value":"…"}}`,
+  with the per-format filters `writer_` / `calc_` / `impress_pdf_Export`. The
+  options are built with `JSON.stringify` and passed as one argv element to a
+  `spawn` without a shell, so no character in a password — `:` `"` `\` `{`,
+  non-ASCII — is read by anything but the JSON parser inside LibreOffice; the
+  HTTP suite round-trips exactly such a password (`a:b"c\d{Ä}`).
+- **Fail closed on `/Encrypt`.** When a password was requested, a produced PDF
+  whose bytes contain no `/Encrypt` entry is a wrong answer, not a degraded
+  one: the API answers 502 `pdf_encryption_failed` and returns no file, and
+  the credit is refunded like any other conversion failure (the render route
+  refunds in its catch). Handing back a file that opens without a password
+  when the caller asked for one would be the worst possible failure mode for
+  this feature.
+- **Secrecy.** The password exists only as part of the soffice argv inside the
+  container for the duration of the conversion — visible in the process list
+  there, accepted because the container is single-tenant and there is no shell
+  to expand it. It is never stored, never written to the database, never
+  echoed in an error or response, and never logged: a failing LibreOffice can
+  print its own argv, so stderr and stdout are scrubbed through `redactSecret`
+  (every occurrence becomes `[redacted]`) before a byte of them reaches a log
+  line or an error detail, and the validation 400s name the rule that was
+  broken, never the value.
+- **Scope and refusal codes.** The field is validated before anything is
+  loaded or charged, so a 400 costs no credit. `bad_pdf_password` (not a
+  string, empty, over 128 characters, or a control character),
+  `pdf_password_needs_pdf` (with `output` `document` or unset — there is no
+  PDF to protect, and silently ignoring fields is not this API's policy), and
+  `pdf_password_unsupported_here` on `/v1/render/batch` and `/v1/jobs` — a
+  batch that quietly produced unprotected files would be worse than a refusal.
+  Batch/jobs support is the natural follow-up.
+- **Published truth.** `GET /v1/capabilities` → `pdf.password_protection` is
+  built from the same constants the validator in `src/input.js` enforces
+  (`field`, `min_length`, `max_length`, `endpoints`), plus the measured
+  encryption: `RC4-128 (PDF standard security handler revision 3, as applied
+  by LibreOffice 7.4)` — `qpdf --show-encryption` on a produced file reports
+  R = 3, i.e. 128-bit RC4; stated plainly rather than oversold.

@@ -3,6 +3,7 @@
 const { names } = require('./template/formatters');
 const { codePlaceholders, IMAGE_BYTES_KEYS } = require('./render/codes');
 const { DATA_KEYS, URL_KEYS } = require('./render/image-input');
+const { PDF_PASSWORD_MIN_LENGTH, PDF_PASSWORD_MAX_LENGTH } = require('./input');
 
 /**
  * The published capability list is read out of the code, not written by hand.
@@ -73,4 +74,28 @@ const imageCapabilities = () => ({
   codes: codePlaceholders(),
 });
 
-module.exports = { formatterNames, DESCRIPTIONS, imageCapabilities };
+/**
+ * The encryption LibreOffice applies when EncryptFile is set, as measured on
+ * a produced file: `qpdf --show-encryption` reports the PDF standard security
+ * handler at revision 3, which is 128-bit RC4. Published so a client knows what it is getting — an
+ * open password that keeps casual readers out, stated plainly rather than
+ * oversold.
+ */
+const PDF_PASSWORD_ENCRYPTION = 'RC4-128 (PDF standard security handler revision 3, as applied by LibreOffice 7.4)';
+
+/**
+ * The PDF open-password capability, read out of the same constants the
+ * validator in src/input.js enforces, so the published limits and the enforced
+ * limits are one object. The field name and the endpoints it works on are
+ * part of the contract: a client should be able to switch on `field` and
+ * `endpoints` rather than hard-coding them.
+ */
+const pdfPasswordCapability = () => ({
+  field: 'pdf_password',
+  min_length: PDF_PASSWORD_MIN_LENGTH,
+  max_length: PDF_PASSWORD_MAX_LENGTH,
+  endpoints: ['/v1/render'],
+  encryption: PDF_PASSWORD_ENCRYPTION,
+});
+
+module.exports = { formatterNames, DESCRIPTIONS, imageCapabilities, pdfPasswordCapability, PDF_PASSWORD_ENCRYPTION };

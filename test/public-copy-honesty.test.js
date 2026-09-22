@@ -52,6 +52,10 @@ const STALE = [
   'You need charts, barcodes, HTML-into-Word, or PDF operations',
   'a studio, charts, barcodes or an on-premise licence',
   'You need rich text, QR codes, maps or dynamic PDF passwords',
+  // The PDF open password shipped on /v1/render (2026-09-22), so the gap copy
+  // that listed it under "does not do yet" is stale; its absence is guarded.
+  'No rich text, maps or dynamic PDF passwords',
+  'You need rich text, maps or dynamic PDF passwords',
 ];
 
 // The old copy exactly as it read before the AT12 rewrite, so the fixture below cannot
@@ -92,6 +96,8 @@ test a render and manage API keys; everything also works as an API call. There a
 deletion is an email today.</li>
         <b>No rich text, QR codes, maps or dynamic PDF passwords</b>
 <li><b>You need rich text, QR codes, maps or dynamic PDF passwords.</b> Docupilot has all four,
+        <b>No rich text, maps or dynamic PDF passwords</b>
+<li><b>You need rich text, maps or dynamic PDF passwords.</b> Docupilot has all three,
 <tr><td>Charts, barcodes, HTML into Word</td><td>No</td><td>Yes (Enterprise Edition)</td>
 <li><b>What is in the documents?</b> Charts, barcodes, formatted HTML flowed into Word, QR codes,
 exactly that. If the thing you need is a studio, charts, barcodes or an on-premise licence, Carbone

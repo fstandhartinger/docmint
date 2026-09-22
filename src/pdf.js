@@ -79,13 +79,49 @@ function clearStaleLock() {
 }
 
 /**
+ * The PDF export filter per format, and the filter options that encrypt it.
+ *
+ * LibreOffice takes export options on the --convert-to argument. The JSON
+ * syntax (LibreOffice >= 7.4) is the only one that carries a password at all:
+ * EncryptFile turns on encryption and DocumentOpenPassword is the open
+ * password. The options are built with JSON.stringify and passed as a single
+ * argv element to a spawn without a shell, so nothing in the password can be
+ * interpreted by anything but the JSON parser inside LibreOffice.
+ */
+const PDF_FILTERS = { docx: 'writer_pdf_Export', xlsx: 'calc_pdf_Export', pptx: 'impress_pdf_Export' };
+
+function exportFilter(format, password) {
+  const filter = PDF_FILTERS[format];
+  if (!filter) throw new Error(`no PDF export filter for format "${format}"`);
+  if (!password) return `pdf:${filter}`;
+  const options = JSON.stringify({
+    EncryptFile: { type: 'boolean', value: 'true' },
+    DocumentOpenPassword: { type: 'string', value: password },
+  });
+  return `pdf:${filter}:${options}`;
+}
+
+/**
+ * Every occurrence of the password becomes `[redacted]`.
+ *
+ * LibreOffice is a separate process; if it fails it can echo its own argv —
+ * and the argv carries the password inside the filter options. Anything that
+ * reaches a log line or an error detail must be scrubbed first.
+ */
+function redactSecret(text, secret) {
+  if (!text || !secret) return text;
+  return String(text).split(secret).join('[redacted]');
+}
+
+/**
  * @param {Buffer} buffer   the filled Office document
  * @param {'docx'|'xlsx'|'pptx'} format
- * @param {{log?:object, timeoutMs?:number}} opts
+ * @param {{log?:object, timeoutMs?:number, password?:string}} opts
  * @returns {Promise<{buffer: Buffer, ms: number, queuedMs: number}>}
  */
 async function toPdf(buffer, format, opts = {}) {
   const l = opts.log || log;
+  const password = opts.password || null;
   const queueStart = process.hrtime.bigint();
   await acquire();
   const queuedMs = Math.round(Number(process.hrtime.bigint() - queueStart) / 1e5) / 10;
@@ -98,7 +134,7 @@ async function toPdf(buffer, format, opts = {}) {
   try {
     await fs.writeFile(inPath, buffer);
     clearStaleLock();
-    await runSoffice(inPath, dir, opts.timeoutMs || config.pdfTimeoutMs, l);
+    await runSoffice(inPath, dir, opts.timeoutMs || config.pdfTimeoutMs, l, password);
 
     let pdf;
     try {
@@ -114,8 +150,20 @@ async function toPdf(buffer, format, opts = {}) {
       throw new ApiError(502, 'pdf_conversion_failed', 'LibreOffice produced a file that is not a PDF.', { docs: '/docs#pdf' });
     }
 
+    // Fail closed: when protection was asked for, an unencrypted PDF is a
+    // wrong answer, not a degraded one. Handing back a file that opens without
+    // a password when the caller asked for one would be the worst possible
+    // failure mode for this feature.
+    if (password && !pdf.includes(Buffer.from('/Encrypt'))) {
+      throw new ApiError(502, 'pdf_encryption_failed',
+        'LibreOffice produced a PDF without the requested encryption, so it was not returned.', {
+          hint: 'The document converted fine; the encryption step did not take. Retry once, and if it keeps happening it is worth reporting with the request id.',
+          docs: '/docs#pdf-password',
+        });
+    }
+
     const ms = Math.round(Number(process.hrtime.bigint() - started) / 1e5) / 10;
-    l.info('pdf.ok', { format, in_bytes: buffer.length, out_bytes: pdf.length, ms, queued_ms: queuedMs, pages: countPages(pdf) });
+    l.info('pdf.ok', { format, in_bytes: buffer.length, out_bytes: pdf.length, ms, queued_ms: queuedMs, pages: countPages(pdf), encrypted: Boolean(password) });
     return { buffer: pdf, ms, queuedMs, pages: countPages(pdf) };
   } finally {
     release();
@@ -123,24 +171,26 @@ async function toPdf(buffer, format, opts = {}) {
   }
 }
 
-function runSoffice(inPath, outDir, timeoutMs, l) {
+function runSoffice(inPath, outDir, timeoutMs, l, password) {
   return new Promise((resolve, reject) => {
+    // Calc and Impress need their own export filter names; `pdf` alone works for
+    // all three, and the explicit writer filter above only helps Writer, so pick
+    // per extension rather than guessing. With a password the filter carries
+    // the JSON export options that do the encrypting.
+    const ext = path.extname(inPath).slice(1);
     const args = [
       '--headless', '--norestore', '--nolockcheck', '--nodefault', '--nofirststartwizard',
       `-env:UserInstallation=file://${PROFILE_DIR}`,
-      '--convert-to', 'pdf:writer_pdf_Export',
+      '--convert-to', exportFilter(ext, password),
       '--outdir', outDir, inPath,
     ];
-    // Calc and Impress need their own export filter names; `pdf` alone works for
-    // all three, and the explicit writer filter above only helps Writer, so pick
-    // per extension rather than guessing.
-    const ext = path.extname(inPath).slice(1);
-    if (ext === 'xlsx') args[args.indexOf('pdf:writer_pdf_Export')] = 'pdf:calc_pdf_Export';
-    if (ext === 'pptx') args[args.indexOf('pdf:writer_pdf_Export')] = 'pdf:impress_pdf_Export';
 
     const child = spawn(config.sofficeBin, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, HOME: os.tmpdir(), SAL_USE_VCLPLUGIN: 'svp' },
+      // A UTF-8 locale, always: the container has none, and without one
+      // LibreOffice decodes argv as ASCII, so a password with "Ä" in it
+      // encrypted the PDF with some other password that nobody could type.
+      env: { ...process.env, HOME: os.tmpdir(), SAL_USE_VCLPLUGIN: 'svp', LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' },
     });
 
     let stderr = '';
@@ -173,6 +223,13 @@ function runSoffice(inPath, outDir, timeoutMs, l) {
     child.on('close', (code) => {
       clearTimeout(timer);
       if (code !== 0) {
+        // The argv carries the password inside the filter options, and a
+        // failing LibreOffice can echo its argv. Scrub both streams before
+        // anything of them is logged or put into the error.
+        if (password) {
+          stderr = redactSecret(stderr, password);
+          stdout = redactSecret(stdout, password);
+        }
         l.warn('pdf.soffice_nonzero', { code, stderr: stderr.slice(0, 500), stdout: stdout.slice(0, 500) });
         reject(new ApiError(502, 'pdf_conversion_failed',
           `LibreOffice exited with code ${code} while converting this document.`, {
@@ -208,4 +265,4 @@ async function probe() {
   });
 }
 
-module.exports = { toPdf, probe, stats, countPages, PROFILE_DIR };
+module.exports = { toPdf, probe, stats, countPages, exportFilter, redactSecret, PROFILE_DIR };

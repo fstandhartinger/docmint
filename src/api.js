@@ -8,7 +8,7 @@ const { ApiError, bad } = require('./errors');
 const { query } = require('./db');
 const { authenticate, consumeCredits, refundCredits, issueApiKey, revokeApiKey, listApiKeys } = require('./auth');
 const { rateLimit } = require('./ratelimit');
-const { formatterNames, imageCapabilities } = require('./capabilities');
+const { formatterNames, imageCapabilities, pdfPasswordCapability } = require('./capabilities');
 const templates = require('./templates');
 const renderer = require('./render');
 const pdf = require('./pdf');
@@ -51,6 +51,7 @@ const CREDITS = { document: 1, pdf: 2, both: 2 };
 const RENDER_FIELDS = [
   'template', 'template_base64', 'template_version', 'data', 'output', 'filename',
   'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'images', 'now',
+  'pdf_password',
 ];
 
 router.post('/render', withAuth, asyncRoute(async (req, res) => {
@@ -59,6 +60,9 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
   input.rejectUnknown(body, RENDER_FIELDS, '/docs#render');
 
   const output = input.enumOr(body.output, ['document', 'pdf', 'both'], 'output', '/docs#output');
+  // The password is validated before anything is loaded or charged: a 400 must
+  // cost nothing, and a refused render must not leave a credit behind.
+  const pdfPassword = input.checkPdfPasswordForOutput(body.pdf_password, output);
   const wantJson = String(body.response || '').toLowerCase() === 'json'
     || (!body.response && String(req.get('accept') || '').includes('application/json'));
 
@@ -93,7 +97,7 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
     t.mark('fill');
 
     if (output === 'pdf' || output === 'both') {
-      pdfOut = await pdf.toPdf(filled.buffer, filled.format, { log: req.log });
+      pdfOut = await pdf.toPdf(filled.buffer, filled.format, { log: req.log, password: pdfPassword });
       t.mark('pdf');
     }
   } catch (e) {
@@ -124,6 +128,7 @@ router.post('/render', withAuth, asyncRoute(async (req, res) => {
     in_bytes: templateBuffer.length, data_bytes: dataBytes,
     doc_bytes: filled.buffer.length, pdf_bytes: pdfOut?.buffer.length || null,
     pages: pdfOut?.pages ?? null, pdf_queued_ms: pdfOut?.queuedMs ?? null,
+    pdf_encrypted: Boolean(pdfPassword),
     tags: filled.stats.tags, resolved: filled.stats.resolved, sections: filled.stats.sections,
     images: filled.stats.images, warnings: filled.warnings.length,
     credits: cost, credits_remaining: balance.remaining,
@@ -176,6 +181,9 @@ const BATCH_DOCS = '/docs#batch';
 router.post('/render/batch', withAuth, asyncRoute(async (req, res) => {
   const t = log.timer();
   const body = req.body || {};
+  // Before the generic unknown-field refusal, so the caller gets the specific
+  // message: the field exists, it is just not here yet.
+  if (body.pdf_password !== undefined) input.pdfPasswordUnsupportedHere();
   const spec = batchLib.parseBatch(body, { docs: BATCH_DOCS });
   batchLib.assertSyncPdfLimit(spec);
 
@@ -305,6 +313,10 @@ function normaliseJobBody(body) {
 
 router.post('/jobs', withAuth, asyncRoute(async (req, res) => {
   const body = req.body || {};
+  // A job body is a render body or a batch body, and in both forms the field
+  // would sit at the top level — so the refusal goes here, before the generic
+  // unknown-field check, for the same reason as on /render/batch.
+  if (body.pdf_password !== undefined) input.pdfPasswordUnsupportedHere();
   input.rejectUnknown(body, JOB_FIELDS, '/docs#async');
   const { kind, request, webhookUrl } = normaliseJobBody(body);
 
@@ -631,7 +643,12 @@ router.get('/capabilities', asyncRoute(async (req, res) => {
   res.json({
     formats: Object.entries(FORMATS).map(([id, f]) => ({ id, name: f.name, mime: f.mime })),
     outputs: ['document', 'pdf', 'both'],
-    pdf: { available: lo.available, engine: lo.available ? 'libreoffice' : null, concurrency: config.maxConcurrentPdf },
+    pdf: {
+      available: lo.available, engine: lo.available ? 'libreoffice' : null, concurrency: config.maxConcurrentPdf,
+      // The open-password capability, from the same constants the validator
+      // enforces, so the readback and the 400s cannot disagree.
+      password_protection: pdfPasswordCapability(),
+    },
     formatters: formatterNames(),
     // The image placeholders (bytes, plus the QR/EPC/barcode codes the service
     // draws itself), read out of the render path's own code list — the same
