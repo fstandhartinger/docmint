@@ -34,5 +34,5 @@ Prefer a forward correction. If binary rollback is necessary: disable the new di
 
 - `node --test --test-reporter=tap --test-concurrency=1 test/*.test.js`
 - Job integration requires a **fresh disposable** loopback database named `jobqa` (or `jobqa_*`) via `QA_JOB_DATABASE_URL`, and `QA_JOB_BASELINE` pointing to unchanged `src/jobs.js` from462db08922b1b478723ee924f633624449c6c501. It applies the real schema, uses real HTTP/PG, actual committed Office fixtures, and SIGKILLs only its child workers.
-- Billing concurrency uses a separate fresh loopback `billingqa` database via `QA_BILLING_DATABASE_URL`; set `RECOVERY_TEST_DB=1` only against the isolated migrated DB. Recovery mail is injected, not sent.
+- Billing concurrency uses a separate fresh loopback `billingqa` database via `QA_BILLING_DATABASE_URL` (each billing suite creates and drops its own schema inside that database); set `RECOVERY_TEST_DB=1` only against the isolated migrated DB. Recovery mail is injected, not sent.
 - Full source tests additionally need the real isolated API, Docker LibreOffice probe and host poppler. An absent tool that causes skip is not a passed acceptance criterion.

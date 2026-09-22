@@ -20,12 +20,24 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
   const fs = require("node:fs");
   const vm = require("node:vm");
   const path = require("node:path");
-  const { Pool } = require("pg");
+  const { Pool, Client } = require("pg");
+  const crypto = require("node:crypto");
+  const schema = (
+    "bqa_portal_" +
+    process.pid +
+    "_" +
+    crypto.randomBytes(4).toString("hex")
+  )
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_");
+  const suiteUrl = new URL(process.env.QA_BILLING_DATABASE_URL);
+  suiteUrl.searchParams.set("options", "-c search_path=" + schema);
+  const admin = new Client(process.env.QA_BILLING_DATABASE_URL);
   const product = "docmint";
   assert(["pdfmint", "docmint", "mailmint"].includes(product));
   const base = path.join(__dirname, "..", "src");
   const env = {
-    DATABASE_URL: process.env.QA_BILLING_DATABASE_URL,
+    DATABASE_URL: suiteUrl.toString(),
     STRIPE_SECRET_KEY: "fixture_not_a_key",
     STRIPE_WEBHOOK_SECRET: "whsec_fixture_20260909",
     MAILMINT_BILLING: "1",
@@ -272,14 +284,21 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
     assert.equal(Number(r[used]), usage);
   }
   before(async () => {
+    await admin.connect();
+    await admin.query(`CREATE SCHEMA "${schema}"`);
     await db.query(
       `CREATE TABLE accounts(id integer PRIMARY KEY,email text,plan text,credits_limit integer,credits_used integer,quota_month integer,used_month integer,stripe_customer_id text,stripe_subscription_id text,period_start timestamp);CREATE TABLE stripe_events(id text PRIMARY KEY);CREATE TABLE audit(id serial,plan text);CREATE FUNCTION audit_account() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN INSERT INTO audit(plan) VALUES(NEW.plan); RETURN NEW; END $$;CREATE TRIGGER account_audit AFTER UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION audit_account();CREATE FUNCTION reject_update() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture transient DB failure' USING ERRCODE='40001'; END $$;`,
     );
   });
   before(async()=>{server=app.listen(0,"127.0.0.1");await new Promise(r=>server.once("listening",r));baseUrl="http://127.0.0.1:"+server.address().port});
   after(async () => {
-    if(server) await new Promise(r=>server.close(r));
-    await db.pool.end();
+    try {
+      if(server) await new Promise(r=>server.close(r));
+      await db.pool.end();
+    } finally {
+      await admin.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+      await admin.end();
+    }
   });
   test(product+' HTTP authenticated portal route returns correct destination',async()=>{
     await reset();const r=await post(portalPath);assert.equal(r.status,product==='docmint'?200:303);
