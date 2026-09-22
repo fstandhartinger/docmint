@@ -13,6 +13,7 @@ const {
 } = require('../template/resolve');
 const { TemplateError, didYouMean } = require('../template/errors');
 const codes = require('./codes');
+const { resolveImageInput } = require('./image-input');
 
 /**
  * The WordprocessingML renderer.
@@ -820,8 +821,6 @@ function toBytes(src, tag) {
   return buf;
 }
 
-const isUrl = (s) => typeof s === 'string' && /^(https?:|file:)\/\//i.test(s.trim());
-
 function urlUnsupported(tag, url) {
   return new TemplateError('image_url_unsupported',
     `{%${tag.path}} points at a URL (${String(url).slice(0, 120)}), and this renderer does not fetch images.`, {
@@ -838,26 +837,20 @@ function imagePayload(tag, value, job) {
     const img = codes.codeImage(value, tag.path);
     value = { data: img.png, width: img.width, height: img.height, alt: img.alt };
   }
-  let spec = value;
-  if (Buffer.isBuffer(value) || value instanceof Uint8Array || typeof value === 'string') spec = { data: value };
-  if (!spec || typeof spec !== 'object') {
+  // A number, boolean or similar is not an object and cannot carry keys: name
+  // it, exactly as before the shared image-input contract existed.
+  if (value !== null && value !== undefined && !Buffer.isBuffer(value) && !(value instanceof Uint8Array)
+    && typeof value !== 'object' && typeof value !== 'string') {
     throw new TemplateError('image_invalid',
       `{%${tag.path}} is a ${typeof value}, which is not an image.`, {
         field: tag.path,
         hint: 'Send base64, a data URI, or {"data": "<base64>", "width": 120, "height": 40}.',
       });
   }
-
-  let src = spec.data ?? spec.base64 ?? spec.bytes ?? spec.content ?? null;
-  const url = spec.url ?? spec.href ?? (isUrl(src) ? src : null);
-  if (url) {
-    const supplied = job.images.get(url) ?? job.images.get(tag.path);
-    if (supplied === undefined || supplied === null) throw urlUnsupported(tag, url);
-    src = (typeof supplied === 'object' && !Buffer.isBuffer(supplied) && !(supplied instanceof Uint8Array))
-      ? (supplied.data ?? supplied.base64 ?? supplied.bytes)
-      : supplied;
-  }
-  if (src === null || src === undefined) {
+  const input = resolveImageInput(value, tag.path, job.images, {
+    urlError: (url) => urlUnsupported(tag, url),
+  });
+  if (input.kind === 'none' || input.src === null || input.src === undefined) {
     throw new TemplateError('image_invalid',
       `{%${tag.path}} has no image data — expected "data", "base64" or "url".`, {
         field: tag.path,
@@ -865,15 +858,15 @@ function imagePayload(tag, value, job) {
       });
   }
 
-  const bytes = toBytes(src, tag);
+  const bytes = toBytes(input.src, tag);
   const info = imageInfo(bytes);
   const px = (v) => {
     if (v === null || v === undefined || v === '') return 0;
     const n = typeof v === 'number' ? v : Number(String(v).replace(/px$/i, ''));
     return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
   };
-  let w = px(spec.width);
-  let h = px(spec.height);
+  let w = px(input.width);
+  let h = px(input.height);
   const iw = info.width || 0;
   const ih = info.height || 0;
   if (!w && !h) { w = iw || 96; h = ih || 96; } else if (w && !h) {
@@ -881,7 +874,14 @@ function imagePayload(tag, value, job) {
   } else if (!w && h) {
     w = ih ? Math.max(1, Math.round((h * iw) / ih)) : h;
   }
-  return { bytes, info, width: w, height: h, alt: spec.alt || spec.title || tag.path };
+  return { bytes, info, width: w, height: h, alt: input.alt || objectTitle(value) || tag.path };
+}
+
+/** The docx-specific "title" fallback for alt text, read off the caller's own object. */
+function objectTitle(value) {
+  return (value && typeof value === 'object' && !Buffer.isBuffer(value) && !(value instanceof Uint8Array))
+    ? value.title
+    : undefined;
 }
 
 function drawingXml({ rId, width, height, alt, id, name }) {
@@ -914,22 +914,31 @@ function renderImage(node, stack, job) {
   job.ctx.location = node.loc;
   probeTag(node.tag, stack, job.ctx);
   const { found, value } = lookup(node.tag.path, stack);
+  let v = value;
   if (!found) {
-    if (job.ctx.onMissing === 'empty' || job.ctx.onMissing === 'keep') return '';
-    const available = visibleKeys(stack);
-    throw new TemplateError('image_unresolved',
-      `The template places an image with {%${node.tag.path}} but the data has no "${node.tag.path}".`, {
-        field: node.tag.path,
-        location: node.loc,
-        available: available.slice(0, 40),
-        hint: hintFor(node.tag.path, available),
-      });
+    // The images option can carry the bytes for a tag the data does not name at
+    // all — the same rule every renderer applies, before the missing-field
+    // contract gets a say.
+    if (job.images.has(node.tag.path)) {
+      v = job.images.get(node.tag.path);
+    } else if (job.ctx.onMissing === 'empty' || job.ctx.onMissing === 'keep') {
+      return '';
+    } else {
+      const available = visibleKeys(stack);
+      throw new TemplateError('image_unresolved',
+        `The template places an image with {%${node.tag.path}} but the data has no "${node.tag.path}".`, {
+          field: node.tag.path,
+          location: node.loc,
+          available: available.slice(0, 40),
+          hint: hintFor(node.tag.path, available),
+        });
+    }
   }
-  if (value === null || value === undefined || value === '') { job.st.resolved.add(node.id); return ''; }
+  if (v === null || v === undefined || v === '') { job.st.resolved.add(node.id); return ''; }
 
   let payload;
   try {
-    payload = imagePayload(node.tag, value, job);
+    payload = imagePayload(node.tag, v, job);
   } catch (e) {
     if (e instanceof TemplateError && !e.location) e.location = node.loc;
     throw e;

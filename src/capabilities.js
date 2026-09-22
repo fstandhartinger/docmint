@@ -2,6 +2,7 @@
 
 const { names } = require('./template/formatters');
 const { codePlaceholders, IMAGE_BYTES_KEYS } = require('./render/codes');
+const { DATA_KEYS, URL_KEYS } = require('./render/image-input');
 
 /**
  * The published capability list is read out of the code, not written by hand.
@@ -47,19 +48,24 @@ const DESCRIPTIONS = {
 const formatterNames = () => names().map((n) => ({ name: n, does: DESCRIPTIONS[n] || null }));
 
 /**
- * The image capability of an image placeholder: bytes from the data (base64 or
- * a data: URI, or supplied through the request's images option) or one of the
- * code placeholders the service draws itself. The codes list is the canonical
- * one from src/render/codes.js — the same module the DOCX, XLSX and PPTX
- * renderers gate on; test/capabilities-parity.test.js checks the list against
- * the validators' own constants in both directions. bytes.keys are the keys that
- * mark an object as image bytes; each renderer reads its own subset of them.
+ * The image capability of an image placeholder, identical in DOCX, XLSX and
+ * PPTX: bytes from the data (base64 or a data: URI) or one of the code
+ * placeholders the service draws itself. A URL in the data is never fetched —
+ * the bytes for it come through the request's images option, keyed by the URL
+ * or by the tag path, in all three formats alike. The keys are read out of
+ * src/render/image-input.js, the one contract all three renderers resolve
+ * placeholders through; codes is the canonical list from src/render/codes.js —
+ * test/capabilities-parity.test.js checks both against the docs in both
+ * directions. bytes.keys are the keys that mark an object as image bytes or a
+ * URL; data_keys and url_keys say which is which.
  */
 const imageCapabilities = () => ({
   tag: '{%tag}',
   bytes: {
-    supplied_as: 'base64 or a data: URI on the tag value, or through the request\'s images option keyed by URL or tag path',
+    supplied_as: 'base64 or a data: URI on the tag value — same keys in Word, Excel and PowerPoint — or bytes for a URL through the request\'s images option, keyed by the URL or by the tag path',
     keys: [...IMAGE_BYTES_KEYS],
+    data_keys: [...DATA_KEYS],
+    url_keys: [...URL_KEYS],
     // The URL keys are accepted only so they can be refused precisely: DocMint
     // never downloads anything. Bytes for a URL go through the images option.
     url_not_fetched: true,

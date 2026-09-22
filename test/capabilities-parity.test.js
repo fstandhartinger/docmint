@@ -103,6 +103,58 @@ test('the published images capability is composed only from the render module', 
   assert.equal(published.bytes.url_not_fetched, true);
 });
 
+/* ------------------------------------------------------------------------- *
+ * AT-I4, file-only: the #images alias sentence must claim exactly the byte
+ * keys the readback publishes as data_keys (data itself excepted), and the
+ * URL keys must be named in the same section — both directions. Needs no
+ * server: the docs are read as a file, like the stale-copy tests below.
+ * ------------------------------------------------------------------------- */
+
+// The #images section up to the next heading: the alias table, the URL row and
+// the images-option example — the section where the image contract is claimed.
+const IMAGES_SECTION = section('images').split('<h3')[0];
+
+/**
+ * The alias claim, as the docs write it: every <code>name</code> in the table
+ * cell that carries "accepted as aliases for", before that phrase.
+ */
+function claimedAliases(html) {
+  const at = html.indexOf('accepted as aliases for');
+  if (at === -1) return null;
+  const cellStart = html.lastIndexOf('<td', at);
+  const cellEnd = html.indexOf('</td>', at);
+  if (cellStart === -1 || cellEnd === -1) return null;
+  return [...html.slice(cellStart, at).matchAll(/<code>([^<]+)<\/code>/g)].map((m) => m[1]);
+}
+
+function aliasParity(html) {
+  const published = imageCapabilities().bytes.data_keys.filter((k) => k !== 'data');
+  const claimed = claimedAliases(html) || [];
+  return {
+    missing: published.filter((k) => !claimed.includes(k)),
+    extra: claimed.filter((k) => !published.includes(k)),
+  };
+}
+
+test('AT-I4 the docs alias sentence claims exactly the published data_keys minus data, and names every URL key, both directions', () => {
+  const { missing, extra } = aliasParity(IMAGES_SECTION);
+  assert.deepEqual(missing, [], `the docs alias sentence omits published data keys: ${missing.join(', ') || '(none)'}`);
+  assert.deepEqual(extra, [], `the docs alias sentence claims keys the readback does not publish: ${extra.join(', ') || '(none)'}`);
+  // Every URL key appears in the same section, as <code>name</code> or as
+  // {"name" inside a code element.
+  for (const key of imageCapabilities().bytes.url_keys) {
+    const plain = new RegExp(`<code>${key}<\\/code>`).test(IMAGES_SECTION);
+    const jsonKey = new RegExp(`<code>\\{"${key}"`).test(IMAGES_SECTION);
+    assert.ok(plain || jsonKey, `the docs #images section stopped naming the URL key "${key}"`);
+  }
+  // Not a vacuous pass: the extractor must detect a claim removed from the
+  // docs copy, so the both-directions check above cannot pass against nothing.
+  const mutated = IMAGES_SECTION.replace(/<code>buffer<\/code> and\s*/, '');
+  const after = aliasParity(mutated);
+  assert.ok(after.missing.includes('buffer'),
+    `the extractor did not notice the docs no longer claiming "buffer": ${JSON.stringify(after)}`);
+});
+
 when('the live /v1/capabilities serves the image-code placeholders from the one code list the render path uses', async () => {
   const { res, json } = await req('/v1/capabilities');
   assert.equal(res.status, 200);

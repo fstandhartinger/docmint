@@ -12,6 +12,7 @@ const {
 const { applyFormatters } = require('../template/formatters');
 const { TemplateError } = require('../template/errors');
 const codes = require('./codes');
+const { resolveImageInput, imagesHas, imagesEntry } = require('./image-input');
 
 /**
  * XLSX renderer.
@@ -1225,14 +1226,21 @@ function decodeImage(value, tag, ctx) {
       throw e;
     }
   }
-  let data = value;
+  // Which keys carry the bytes, and how a URL is satisfied from the images
+  // option, is the one shared image-input contract — not this renderer's dialect.
+  const input = resolveImageInput(value, tag.path, ctx.imagesOpt, {
+    urlError: (url) => new TemplateError('image_url_unsupported',
+      `{%${tag.path}} is a URL. DocMint does not fetch images over the network.`, {
+        field: tag.path,
+        location: ctx.location,
+        hint: 'Supply the bytes for that URL through the request\'s "images" option, or send the image inline as base64 or a data: URI.',
+      }),
+  });
+  let data = input.kind === 'none' ? null : input.src;
   let width = null;
   let height = null;
-  if (data && typeof data === 'object' && !Buffer.isBuffer(data)) {
-    width = Number(data.width) || null;
-    height = Number(data.height) || null;
-    data = data.data ?? data.base64 ?? data.buffer ?? data.content;
-  }
+  if (input.width !== undefined && input.width !== null) width = Number(input.width) || null;
+  if (input.height !== undefined && input.height !== null) height = Number(input.height) || null;
   let buf = null;
   if (Buffer.isBuffer(data)) buf = data;
   else if (data instanceof Uint8Array) buf = Buffer.from(data);
@@ -1597,6 +1605,9 @@ async function render(buffer, data, opts = {}) {
   // collected back off it afterwards. Making a private one here silently drops
   // every `resolved_from_outer_scope` warning, which was the case until this line.
   const ctx = opts.ctx || makeContext(opts);
+  // The request's images option, read by the shared image-input contract when an
+  // image placeholder carries a URL or names a field the data does not have.
+  ctx.imagesOpt = opts.images && typeof opts.images === 'object' ? opts.images : null;
   const workbookPath = findWorkbookPath(zip);
   const sheets = listSheets(zip, workbookPath);
   const shared = readSharedStrings(zip);
@@ -1653,22 +1664,29 @@ async function render(buffer, data, opts = {}) {
       ctx.location = `${sheet.name}!${req.cell.col}${req.srcRow}`;
       probeTag(req.tag, [...req.stack], ctx);
       const { found, value } = lookup(req.tag.path, [...req.stack]);
+      let v = value;
       if (!found) {
-        if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') continue;
-        throw new TemplateError('placeholder_unresolved',
-          `The template uses {%${req.tag.path}} but the data has no "${req.tag.path}".`, {
-            field: req.tag.path,
-            location: ctx.location,
-            hint: `Add "${req.tag.path}" to the data as base64 image data, or remove the {%${req.tag.path}} placeholder.`,
-          });
+        // The images option can carry the bytes for a tag the data does not name
+        // at all — the same rule every renderer applies, before the
+        // missing-field contract gets a say.
+        if (imagesHas(ctx.imagesOpt, req.tag.path)) v = imagesEntry(ctx.imagesOpt, req.tag.path);
+        else if (ctx.onMissing === 'empty' || ctx.onMissing === 'keep') continue;
+        else {
+          throw new TemplateError('placeholder_unresolved',
+            `The template uses {%${req.tag.path}} but the data has no "${req.tag.path}".`, {
+              field: req.tag.path,
+              location: ctx.location,
+              hint: `Add "${req.tag.path}" to the data as base64 image data, or remove the {%${req.tag.path}} placeholder.`,
+            });
+        }
       }
-      if (value === null || value === undefined || value === '') continue;
+      if (v === null || v === undefined || v === '') continue;
       const outRow = state.outRows.find((r) => r.cells.includes(req.out));
       requests.push({
         col: req.cell.col,
         newRow: outRow ? outRow.newRow : req.srcRow,
         tag: req.tag,
-        image: decodeImage(value, req.tag, ctx),
+        image: decodeImage(v, req.tag, ctx),
       });
     }
     if (requests.length) {

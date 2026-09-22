@@ -13,6 +13,7 @@ const {
 } = require('../template/resolve');
 const { TemplateError } = require('../template/errors');
 const codes = require('./codes');
+const { resolveImageInput } = require('./image-input');
 
 /**
  * PPTX rendering.
@@ -226,28 +227,29 @@ function decodeImageValue(value, tag, ctx) {
     }
   }
 
-  let raw = value;
+  // Which keys carry the bytes, and how a URL is satisfied from the images
+  // option, is the one shared image-input contract — not this renderer's dialect.
+  const input = resolveImageInput(value, tag.path, ctx.imagesOpt, {
+    urlError: (url) => new TemplateError('image_url_unsupported',
+      `{%${tag.expr}} was given a URL. DocMint does not fetch images over the network.`,
+      {
+        field: tag.path,
+        location: ctx.location,
+        hint: 'Download the image in your workflow and pass it as base64, e.g. {"data": "<base64>"} or a "data:image/png;base64,..." string.',
+      }),
+  });
+  if (input.kind === 'none') return null;
+
+  const raw = input.src;
+  if (raw === null || raw === undefined || raw === '') return null;
+
   let wantW = null;
   let wantH = null;
-
-  if (typeof value === 'object' && !Buffer.isBuffer(value)) {
-    if (value.url || value.href || value.uri) {
-      throw new TemplateError('image_url_unsupported',
-        `{%${tag.expr}} was given a URL. DocMint does not fetch images over the network.`,
-        {
-          field: tag.path,
-          location: ctx.location,
-          hint: 'Download the image in your workflow and pass it as base64, e.g. {"data": "<base64>"} or a "data:image/png;base64,..." string.',
-        });
-    }
-    raw = value.data ?? value.base64 ?? value.src ?? value.content;
-    if (raw === null || raw === undefined || raw === '') return null;
-    if (value.width !== undefined && value.width !== null) wantW = Number(value.width);
-    if (value.height !== undefined && value.height !== null) wantH = Number(value.height);
-    if ((wantW !== null && !Number.isFinite(wantW)) || (wantH !== null && !Number.isFinite(wantH))) {
-      throw new TemplateError('image_bad_size',
-        `{%${tag.expr}} was given a non-numeric width or height.`, { field: tag.path, location: ctx.location });
-    }
+  if (input.width !== undefined && input.width !== null) wantW = Number(input.width);
+  if (input.height !== undefined && input.height !== null) wantH = Number(input.height);
+  if ((wantW !== null && !Number.isFinite(wantW)) || (wantH !== null && !Number.isFinite(wantH))) {
+    throw new TemplateError('image_bad_size',
+      `{%${tag.expr}} was given a non-numeric width or height.`, { field: tag.path, location: ctx.location });
   }
 
   const buf = Buffer.isBuffer(raw) ? raw : decodeBase64Image(raw, tag, ctx);

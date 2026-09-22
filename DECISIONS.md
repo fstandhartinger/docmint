@@ -438,3 +438,41 @@ accepts a docs trace as well as a DECISIONS trace; the DECISIONS rows above
 remain the second, independent trace. Harness run 2026-09-21: the file-only
 tests ran green locally; the server probes are written and skip cleanly without
 a server, as the file's other live tests do.
+
+## One image-input contract across DOCX, XLSX and PPTX (2026-09-21)
+
+The docs and the readback promised one image contract for all three formats, but
+each renderer picked image bytes out of the data with its own `??` chain and its
+own URL policy: DOCX read data/base64/bytes/content and refused url/href, PPTX
+read data/base64/src/content and refused every URL key even when the request's
+images option carried the bytes, and XLSX read data/base64/buffer/content,
+ignored the images option entirely and answered a `{url}` object with the
+misleading `image_bad_data`. An n8n flow that worked against a Word template
+broke when the same data went to an Excel or PowerPoint template, contradicting
+the README claim "One placeholder syntax across all three formats, images
+included". Direction chosen: make the implementation match the one published
+contract. `src/render/image-input.js` now holds the key lists and the resolver;
+all three renderers resolve image placeholders through it and keep only their own
+byte decoding, format probing and sizing.
+
+| Claim, now true in all three formats | Evidence: code | Docs/readback anchor |
+|---|---|---|
+| The byte keys are `data`, `base64`, `bytes`, `content`, `buffer`, `src` (first present wins), identical in Word, Excel and PowerPoint | `src/render/image-input.js` `DATA_KEYS` + `resolveImageInput`; `src/render/codes.js` `IMAGE_BYTES_KEYS` is derived from it (`[...DATA_KEYS, ...URL_KEYS]`), so the readback cannot list a key no renderer reads | `/docs#images` alias sentence; `GET /v1/capabilities` `images.bytes.data_keys` / `keys` |
+| A URL is named by `url`, `href`, `uri` or a bare `https://…` string in a byte key; DocMint never fetches — bytes for a URL come through the request's images option, keyed by the URL or by the tag path, in all three formats | `src/render/image-input.js` `URL_KEYS` + rule (d) in `resolveImageInput`; renderers pass their own `image_url_unsupported` message. PPTX now accepts `images` by URL (it used to refuse every URL key outright); XLSX now reads the images option at all (a `{url}` without it answers `image_url_unsupported` instead of `image_bad_data`) | `/docs#images` URL row; `GET /v1/capabilities` `images.bytes.url_keys` / `url_not_fetched` / `supplied_as` |
+| A field absent from the data but present in `images[tagPath]` supplies the image, in all three formats | rule (e): `src/render/docx.js` renderImage, `src/render/pptx.js` resolveImage (pre-existing), `src/render/xlsx.js` render image-request pass with `opts.images` threaded into the renderer context | `/docs#images` URL row ("keyed by the URL or by the tag path") |
+
+Known precision change, widening only: no previously-working input renders
+differently or fails that did not fail before. The URL scheme set is
+http/https/file — the old DOCX renderer's `file:` handling (a `file://` value
+in a byte key was resolved through the images option, never the filesystem) is
+preserved by the shared resolver, not narrowed; nothing previously working is
+rejected now. The only observable error-code moves remain the two named ones:
+XLSX `{url}` without the images option moved from `image_bad_data` to
+`image_url_unsupported`, and a bare URL string for PPTX keeps its code but is
+now satisfiable through the images option. Harness:
+`test/image-input.test.js` (3 formats × byte-key and URL-contract matrices, the
+one-resolver grep) and `test/image-input-http.test.js` (PPTX and XLSX over
+`POST /v1/render`), plus the readback/docs parity extension in
+`test/capabilities-parity.test.js`. The docs footer wording fix from the review
+MINOR — the `src/config.js` mention now links to the file directly instead of
+claiming the footer links there — is part of the same pass.

@@ -19,6 +19,7 @@
 
 const zlib = require('node:zlib');
 const { TemplateError } = require('../template/errors');
+const { DATA_KEYS, URL_KEYS } = require('./image-input');
 
 // ---------------------------------------------------------------------------
 // CRC-32 (PNG chunks) — table-based; node:20-bookworm-slim has no zlib.crc32.
@@ -788,7 +789,10 @@ function codeImage(spec, field) {
   return out;
 }
 
-const IMAGE_BYTES_KEYS = ['data', 'base64', 'bytes', 'content', 'buffer', 'src', 'url', 'href', 'uri'];
+// Derived from the one image-input contract (src/render/image-input.js) that the
+// DOCX, PPTX and XLSX renderers all resolve placeholders through — no literal
+// key list of its own to drift.
+const IMAGE_BYTES_KEYS = [...DATA_KEYS, ...URL_KEYS];
 
 /** True for a plain object carrying one of the code keys — never for bytes. */
 function isCodeSpec(value) {
@@ -908,7 +912,7 @@ module.exports = {
   isCodeSpec, // (value) -> boolean; the renderers gate on this before image bytes
   codeImage, // (spec, tagPath) -> { png, width, height, alt } or a TemplateError
   codePlaceholders, // () -> the published list of code placeholders, from the same constants the validators above use
-  IMAGE_BYTES_KEYS, // the keys that mark an object as image bytes (each renderer reads its own subset); shared with the readback
+  IMAGE_BYTES_KEYS, // the keys that mark an object as image bytes; derived from src/render/image-input.js, shared with the readback
   CODE_KEYS, // the code spec keys the validators accept; the parity test checks codePlaceholders() covers them
   BARCODE_KINDS, // the barcode kinds barcodeSpec accepts; same check
   // Everything below exists for the test suite (test/codes.test.js).
