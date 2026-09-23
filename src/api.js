@@ -181,9 +181,9 @@ const BATCH_DOCS = '/docs#batch';
 router.post('/render/batch', withAuth, asyncRoute(async (req, res) => {
   const t = log.timer();
   const body = req.body || {};
-  // Before the generic unknown-field refusal, so the caller gets the specific
-  // message: the field exists, it is just not here yet.
-  if (body.pdf_password !== undefined) input.pdfPasswordUnsupportedHere();
+  // A top-level pdf_password is validated inside parseBatch, before anything
+  // is rendered or charged, and runs through runBatch to encrypt every item's
+  // PDF. Inside an item it stays an unknown field.
   const spec = batchLib.parseBatch(body, { docs: BATCH_DOCS });
   batchLib.assertSyncPdfLimit(spec);
 

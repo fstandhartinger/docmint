@@ -27,6 +27,10 @@ const log = require('./log');
 const BATCH_FIELDS = [
   'template', 'template_base64', 'template_version', 'items', 'output',
   'locale', 'currency', 'timezone', 'onMissing', 'strictScope', 'response', 'on_error', 'images', 'now',
+  // Top level only: one password for every PDF the batch produces. Inside an
+  // item it stays an unknown field, so a caller cannot silently unprotect one
+  // item of a protected batch.
+  'pdf_password',
 ];
 
 const ITEM_FIELDS = ['data', 'filename'];
@@ -62,6 +66,10 @@ function parseBatch(body, { docs = '/docs#batch' } = {}) {
   const output = input.enumOr(body.output, ['document', 'pdf', 'both'], 'output', '/docs#output');
   const response = input.enumOr(body.response, ['json', 'zip'], 'response', docs);
   const onError = input.enumOr(body.on_error, ['fail', 'continue'], 'on_error', docs);
+  // The same helper and rules as POST /v1/render, raised here — before anything
+  // is rendered, queued or charged. The password rides on the spec, so the
+  // synchronous route and the jobs worker both hand it to the PDF stage.
+  const pdfPassword = input.checkPdfPasswordForOutput(body.pdf_password, output);
 
   const opts = {
     locale: input.checkLocale(body.locale),
@@ -108,7 +116,7 @@ function parseBatch(body, { docs = '/docs#batch' } = {}) {
     return { index: i, data, filename: raw.filename || null };
   });
 
-  return { items: parsed, output, response, onError, opts, dataBytes };
+  return { items: parsed, output, response, onError, opts, dataBytes, pdfPassword };
 }
 
 /**
@@ -180,7 +188,7 @@ function failBatch(e, index, done) {
  * document would cost more than the document does.
  */
 async function runBatch({ account, spec, templateBuffer, log: l = log, deadlineAt = Date.now() + config.batchBudgetMs, isCancelled = null }) {
-  const { items, output, opts, onError } = spec;
+  const { items, output, opts, onError, pdfPassword } = spec;
   const records = items.map((it) => ({ index: it.index, ok: false, error: null, warnings: [], ms: 0 }));
   const stages = { fill: 0, pdf: 0, zip: 0 };
   const wantPdf = output === 'pdf' || output === 'both';
@@ -263,8 +271,12 @@ async function runBatch({ account, spec, templateBuffer, log: l = log, deadlineA
         }
         const started = process.hrtime.bigint();
         try {
+          // One password protects every item, and toPdf itself refuses to hand
+          // back a PDF without a verifiable /Encrypt entry — so with
+          // on_error "fail" the batch fails whole, and with "continue" the
+          // item becomes an error entry. An unencrypted file is never delivered.
           // eslint-disable-next-line no-await-in-loop
-          const out = await pdf.toPdf(rec.docBuffer, rec.format, { log: quiet(l) });
+          const out = await pdf.toPdf(rec.docBuffer, rec.format, { log: quiet(l), password: pdfPassword });
           rec.pdfBuffer = out.buffer;
           rec.pages = out.pages;
           rec.pdfQueuedMs = out.queuedMs;
