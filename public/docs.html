@@ -813,30 +813,40 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 
 <!-- -------------------------------------------------------- pdf password -->
 <h3 id="pdf-password">PDF password<a class="anchor" href="#pdf-password">#</a></h3>
-<p>Send <code>"pdf_password": "…"</code> on <code>POST /v1/render</code> and the returned PDF is encrypted with that <strong>open password</strong>: it will not open until the recipient types it in. That is the protection payslips, contracts and medical letters need when they travel by email. Only the PDF is encrypted; the Office file is never touched, and with <code>output: "both"</code> the two parts come back as they always do — one protected, one not.</p>
+<p>Send <code>"pdf_password": "…"</code> on <code>POST /v1/render</code>, <code>POST /v1/render/batch</code> or <code>POST /v1/jobs</code> and every PDF that call produces is encrypted with that <strong>open password</strong>: it will not open until the recipient types it in. That is the protection payslips, contracts and medical letters need when they travel by email. Only the PDF is encrypted; the Office file is never touched, and with <code>output: "both"</code> the two parts come back as they always do — one protected, one not.</p>
+
+<p>On a batch, the one password protects <em>every</em> item's PDF, and it fails closed per item: an item whose PDF did not verifiably come back encrypted is never delivered — with <code>on_error: "fail"</code> the batch ends under its usual failure contract with nothing charged, with <code>"continue"</code> the item comes back as an error entry, never as an unencrypted file. A job protects its async result the same way, and its <code>GET /v1/jobs/:id</code> body carries the file links but never the password.</p>
 
 <div class="tw"><table>
 <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
 <tbody>
 <tr><td class="wrap"><code>pdf_password</code></td><td class="wrap">A string, 1 to 128 characters, no control characters. Anything else is a 400 <code>bad_pdf_password</code>, decided before any credit is spent.</td></tr>
 <tr><td class="wrap"><code>output</code></td><td class="wrap">Must be <code>pdf</code> or <code>both</code>. With <code>document</code> (the default) the field is refused as 400 <code>pdf_password_needs_pdf</code> rather than silently ignored — there is no PDF to protect.</td></tr>
-<tr><td class="wrap">Endpoints</td><td class="wrap"><code>POST /v1/render</code> only. <code>POST /v1/render/batch</code> and <code>POST /v1/jobs</code> refuse the field with 400 <code>pdf_password_unsupported_here</code> — a batch that quietly produced unprotected files would be worse than a refusal.</td></tr>
-<tr><td class="wrap">Secrecy</td><td class="wrap">The password is never stored, never written to the database, never echoed in an error or a response, and never logged. If the conversion fails, anything LibreOffice prints that contains it is replaced with <code>[redacted]</code> before it reaches a log line or an error detail.</td></tr>
+<tr><td class="wrap">Endpoints</td><td class="wrap">Top level on all three render endpoints. Inside a batch <code>item</code> the field stays an unknown field (400 <code>unknown_field</code>): one password per call, so no item of a protected batch can quietly come out unprotected.</td></tr>
+<tr><td class="wrap">Jobs and restarts</td><td class="wrap">A job's password is held only in memory against the job id and never written to the job's stored request. If the process restarts before a protected job runs, the password is gone: the job fails with <code>pdf_encryption_failed</code> and its reserved credits are refunded, rather than render an unprotected file. Submit the job again with the password.</td></tr>
+<tr><td class="wrap">Secrecy</td><td class="wrap">The password is never stored, never written to the database, never echoed in an error, a response body or <code>GET /v1/jobs/:id</code>, and never logged. If a conversion fails, anything LibreOffice prints that contains it is replaced with <code>[redacted]</code> before it reaches a log line or an error detail.</td></tr>
 </tbody></table></div>
 
 <div class="code"><button class="copy" type="button">Copy</button><pre><code>curl -X POST https://docmint.app.mintapis.com/v1/render \
   -H "Authorization: Bearer dm_live_xxx" \
   -H "Content-Type: application/json" \
   -d '{"template":"payslip","output":"pdf","pdf_password":"s3cret-Ä1",
-       "data":{"employee":"Ada","amount":3120.40}}'</code></pre></div>
+       "data":{"employee":"Ada","amount":3120.40}}'
+
+# A month of payslips in one call — every PDF in the result is protected:
+curl -X POST https://docmint.app.mintapis.com/v1/render/batch \
+  -H "Authorization: Bearer dm_live_xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"template":"payslip","output":"pdf","pdf_password":"s3cret-Ä1",
+       "items":[{"data":{"employee":"Ada","amount":3120.40}},
+                {"data":{"employee":"Ben","amount":2870.00}}]}'</code></pre></div>
 
 <div class="tw"><table>
 <thead><tr><th>Status</th><th>Code</th><th>Meaning</th></tr></thead>
 <tbody>
 <tr><td class="t">400</td><td><code>bad_pdf_password</code></td><td class="wrap">Not a string, empty, over 128 characters, or contains a control character. The message names the rule that was broken, never the value.</td></tr>
 <tr><td class="t">400</td><td><code>pdf_password_needs_pdf</code></td><td class="wrap">Sent with <code>output</code> <code>document</code> (or unset), where there is no PDF to protect.</td></tr>
-<tr><td class="t">400</td><td><code>pdf_password_unsupported_here</code></td><td class="wrap">Sent on <code>/v1/render/batch</code> or <code>/v1/jobs</code>, which do not support it yet.</td></tr>
-<tr><td class="t">502</td><td><code>pdf_encryption_failed</code></td><td class="wrap">LibreOffice produced a PDF without the requested encryption. DocMint refuses to hand back an unprotected file when protection was asked for, so this is a failure, never a quiet downgrade.</td></tr>
+<tr><td class="t">502</td><td><code>pdf_encryption_failed</code></td><td class="wrap">A produced PDF lacked the requested encryption — or a protected job's in-memory password was lost to a restart before it ran. DocMint refuses to hand back an unprotected file when protection was asked for, so this is a failure with the credits refunded, never a quiet downgrade.</td></tr>
 </tbody></table></div>
 
 <p>What the password does <strong>not</strong> do: it sets no owner password and no copy/print restrictions, and it is not a watermark. The encryption itself is stated as measured, not from a marketing page: on a produced file <code>qpdf --show-encryption</code> reports the PDF standard security handler at revision 3 — 128-bit RC4, as applied by LibreOffice 7.4. An open password that keeps casual readers out, stated plainly rather than oversold. <code>GET /v1/capabilities</code> publishes the same value as <code>pdf.password_protection.encryption</code>, next to the field name and the limits the validator enforces.</p>
@@ -1189,6 +1199,7 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td><code>output</code></td><td class="t">string</td><td class="wrap"><code>document</code>, <code>pdf</code> or <code>both</code>, per batch. Per item: 1 credit for a document, 2 when a PDF is involved.</td></tr>
 <tr><td><code>response</code></td><td class="t">string</td><td class="wrap"><code>json</code> (the default) or <code>zip</code>. Unlike render, the default response is a JSON envelope.</td></tr>
 <tr><td><code>on_error</code></td><td class="t">string</td><td class="wrap"><code>fail</code> (the default) or <code>continue</code>. See below.</td></tr>
+<tr><td><code>pdf_password</code></td><td class="t">string</td><td class="wrap">Optional, top level only: the one <a href="#pdf-password">open password</a> every item's PDF is encrypted with. Inside an item it is an unknown field.</td></tr>
 <tr><td><code>locale</code>, <code>currency</code>, <code>timezone</code>, <code>onMissing</code>, <code>strictScope</code>, <code>images</code>, <code>now</code></td><td class="t"></td><td class="wrap">Exactly as on render, one value for the whole batch — including the clock: every item of a run agrees about what <em>now</em> is.</td></tr>
 </tbody></table></div>
 
@@ -1237,7 +1248,7 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
   "note": "Poll status_url, or wait for the webhook. Credits are reserved now and whatever the job does not produce is given back."
 }</code></pre></div>
 
-<p>Everything that can be checked before the work starts is checked before the 202: the batch shape, the template (a typo in its name fails here rather than five minutes later in a webhook the caller has to go and read) and the webhook URL if one was sent. Credits are reserved for the whole batch at enqueue; the job keeps what it produces and the rest is given back — on finishing, on cancelling, or by the recovery pass if the process died mid-job.</p>
+<p>Everything that can be checked before the work starts is checked before the 202: the batch shape, the template (a typo in its name fails here rather than five minutes later in a webhook the caller has to go and read) and the webhook URL if one was sent. A top-level <code>pdf_password</code> is validated here exactly as on <a href="#render">render</a> and then held only in memory for the job's lifetime — never written to the stored request; see <a href="#pdf-password">PDF password</a> for what a restart does. Credits are reserved for the whole batch at enqueue; the job keeps what it produces and the rest is given back — on finishing, on cancelling, or by the recovery pass if the process died mid-job.</p>
 
 <div class="note warn">
   <p><strong><code>webhook_url</code> has to be reachable from the public internet.</strong> DocMint calls the webhook from its own servers, so <code>localhost</code>, private addresses and the cloud metadata endpoint are refused, http and https are the only schemes accepted, and the host is resolved before it is trusted — a name pointed at <code>169.254.169.254</code> is the same attack as writing the address. The URL is re-checked on every delivery attempt, not only when the job was queued.</p>
@@ -1377,7 +1388,7 @@ pixels (up to 2400&nbsp;px per side), so it stays crisp in the PDF.</p>
 <tr><td><code>template_corrupt</code></td><td class="wrap">It looks like a zip but could not be read.</td></tr>
 <tr><td><code>template_too_large</code></td><td class="wrap">Over 25 MB on upload. (The same condition on a render is a 413.)</td></tr>
 <tr><td><code>bad_email</code> <code>weak_password</code></td><td class="wrap">See <a href="#signup">Sign up</a>.</td></tr>
-<tr><td><code>bad_pdf_password</code> <code>pdf_password_needs_pdf</code> <code>pdf_password_unsupported_here</code></td><td class="wrap">See <a href="#pdf-password">PDF password</a>.</td></tr>
+<tr><td><code>bad_pdf_password</code> <code>pdf_password_needs_pdf</code></td><td class="wrap">See <a href="#pdf-password">PDF password</a>.</td></tr>
 </tbody></table></div>
 
 <h3>401, 402, 404, 409 — who you are, what you have</h3>

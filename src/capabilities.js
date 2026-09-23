@@ -94,7 +94,7 @@ const pdfPasswordCapability = () => ({
   field: 'pdf_password',
   min_length: PDF_PASSWORD_MIN_LENGTH,
   max_length: PDF_PASSWORD_MAX_LENGTH,
-  endpoints: ['/v1/render'],
+  endpoints: ['/v1/render', '/v1/render/batch', '/v1/jobs'],
   encryption: PDF_PASSWORD_ENCRYPTION,
 });
 

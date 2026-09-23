@@ -206,11 +206,10 @@ Not everything is in our favour and the docs must not pretend otherwise.
   own ICE engine, which they claim is "60x faster than LibreOffice on a 1000-page
   document"), PDF/A, watermarking and PDF encryption. We have LibreOffice only.
 - **Docupilot has richtext (HTML and Markdown into DOCX) and maps.** We have
-  neither. Docupilot's dynamic PDF passwords now have a DocMint counterpart:
-  since 2026-09-22 a PDF open password exists on `POST /v1/render` only (not
-  `/v1/render/batch`, not `/v1/jobs` — both refuse the field rather than
-  silently produce unprotected files), and there are no copy/print
-  restrictions yet. QR codes and barcodes DocMint draws itself.
+  neither. Docupilot's dynamic PDF passwords have a DocMint counterpart:
+  since 2026-09-23 a PDF open password exists on all three render endpoints —
+  `POST /v1/render`, `POST /v1/render/batch` and `POST /v1/jobs` — and there
+  are no copy/print restrictions yet. QR codes and barcodes DocMint draws itself.
 - **Docupilot and Carbone both offer delivery integrations** (email, Drive, S3).
   We return the file and let n8n do the delivering — which is the right split for
   a workflow tool, but it is a difference, not a strict advantage.
@@ -527,3 +526,45 @@ only.
   encryption: `RC4-128 (PDF standard security handler revision 3, as applied
   by LibreOffice 7.4)` — `qpdf --show-encryption` on a produced file reports
   R = 3, i.e. 128-bit RC4; stated plainly rather than oversold.
+
+## pdf_password on batch and jobs: the in-memory side channel (2026-09-23)
+
+The open password moved from `/v1/render`-only to all three render endpoints.
+Batch and jobs accept a **top-level** `pdf_password` — validated by the same
+helper as `/v1/render`, same rules (1–128 characters, no control characters,
+`output` `pdf`/`both`), same 400 codes, before anything is rendered, queued or
+charged. Inside a batch item the field stays an unknown field, so one call
+carries exactly one password and no item of a protected batch can come out
+unprotected. `GET /v1/capabilities` → `pdf.password_protection.endpoints` is
+now exactly `["/v1/render", "/v1/render/batch", "/v1/jobs"]`.
+
+- **Batch: one password, every item, fail closed per item.** The password is
+  threaded through `runBatch` into each item's LibreOffice conversion, whose
+  `/Encrypt` verification already refuses an unprotected result. With
+  `on_error: "fail"` the batch ends under the existing failure contract (the
+  502 `pdf_encryption_failed` semantics of `/v1/render`, nothing charged);
+  with `"continue"` the item becomes an error entry. An item whose PDF is not
+  verifiably encrypted is never delivered.
+- **Jobs: the password is never persisted — the hard constraint, and the
+  design follows from it.** `jobs.request` is a durable JSONB column on
+  purpose (restart resilience), and a plaintext credential in a database row
+  would outlive the process and land in every dump and backup. So the route
+  validates the password at submit, `enqueue` strips the field from the
+  stored request and holds the plaintext in a module-level map keyed by job
+  id — the worker runs inside the same single process that accepts jobs, so
+  submit and run share it — and the row records only
+  `pdf_password_protected: true`. The worker takes the password from the map
+  when the job runs; taking deletes the entry, so no copy outlives the run,
+  success or failure, and cancel drops it for a job that never runs.
+- **A restart fails closed.** The map lives in one process; the job row
+  survives it. A protected job whose map entry is gone (restart, crash, or a
+  second instance claiming the row) throws `pdf_encryption_failed` and goes
+  through the worker's ordinary failure path: status `failed`, reserved
+  credits refunded, a `usage_events` row carrying the error code. Never an
+  unencrypted render. Encrypted-at-rest storage with an app-held key is the
+  possible follow-up, deliberately out of scope for this round.
+- **What did not change:** the secrecy model of the 2026-09-22 round — never
+  stored, never logged, never echoed in an error or a response body
+  (including `GET /v1/jobs/:id`); the soffice-argv exposure during
+  conversion stays accepted-and-disclosed (single-tenant container,
+  leak-path tests) — and the measured RC4-128/R3 encryption claim.
