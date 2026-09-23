@@ -2,25 +2,25 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const os = require('node:os');
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 const { req, account, serverUp, BASE } = require('./helpers');
 const H = require('./helpers/docx-fixtures');
 const PX = require('./helpers/pptx-fixtures');
 const XX = require('./helpers/xlsx-fixtures');
+const { isPdf, hasEncrypt, assertQpdfProtected, assertPdfTextContains, qpdfAvailable, qpdfRequiresPassword, fakeServer } = require('./helpers/pdf-probe');
 const { readZip } = require('../src/ooxml/zip');
 
 /**
  * AT-P1..P5 and AT-P9 over HTTP: pdf_password end to end against a running
- * server with real LibreOffice. Needs TEST_BASE_URL; skips when there is
- * none, like codes-http.test.js. The qpdf assertions run only when qpdf is on
- * the machine that runs the suite (it is in the Docker build, not on every
+ * server. Needs TEST_BASE_URL; skips when there is none, like
+ * codes-http.test.js. The qpdf assertions run only when qpdf is on the
+ * machine that runs the suite (it is in the Docker build, not on every
  * workstation), and the text-extraction assertion only when python3 with
  * pypdf is; when neither tool is installed the password-opening assertions
- * skip cleanly and the tool-free /Encrypt trailer check still stands.
+ * skip cleanly and the tool-free /Encrypt trailer check still stands. Against
+ * a server running the committed fake soffice (DOCMINT_FAKE_CTRL set, see
+ * test/helpers/fake-soffice.sh) the trailer check is what stands; the deep
+ * real-encryption assertions are for the real LibreOffice runs.
  */
 const PW = 's3cret-Ä1';
 
@@ -70,95 +70,6 @@ const FORMATS = [
     zipPart: 'ppt/presentation.xml',
   },
 ];
-
-function isPdf(buf) {
-  return buf.length > 5 && buf.subarray(0, 5).equals(Buffer.from('%PDF-'));
-}
-
-const hasEncrypt = (buf) => buf.includes(Buffer.from('/Encrypt'));
-
-function qpdfAvailable() {
-  try {
-    return spawnSync('qpdf', ['--version']).status === 0;
-  } catch { return false; }
-}
-
-function pypdfAvailable() {
-  try {
-    return spawnSync('python3', ['-c', 'import pypdf']).status === 0;
-  } catch { return false; }
-}
-
-/** qpdf on a file: 0 = a password is required, 2 = it opens without one. */
-function qpdfRequiresPassword(file) {
-  return spawnSync('qpdf', ['--requires-password', file]).status;
-}
-
-/**
- * Text of a password-protected PDF extracted with python3-pypdf (a real PDF
- * library, not a byte grep): null when it could not open the file with this
- * password, the flattened text otherwise. The password goes as an argv
- * element, so like the soffice spawn itself nothing in it reaches a shell.
- */
-function pypdfText(file, password) {
-  const r = spawnSync('python3', ['-c', `
-import sys
-from pypdf import PdfReader
-r = PdfReader(sys.argv[1])
-if r.is_encrypted:
-    if not r.decrypt(sys.argv[2]):
-        sys.exit(3)
-sys.stdout.write(" ".join((p.extract_text() or "") for p in r.pages))
-`, file, password], { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 });
-  if (r.status !== 0) return null;
-  return r.stdout.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * The "opens only with the password" half of AT-P1/AT-P2/AT-P9: qpdf proves
- * the file demands a password, opens with exactly this one (and not with a
- * wrong one), and that the decrypted roundtrip needs no password any more.
- */
-function assertQpdfProtected(t, pdfBuf, password) {
-  if (!qpdfAvailable()) { t.diagnostic('qpdf not on this machine; skipping qpdf assertions'); return; }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docmint-pw-'));
-  try {
-    const file = path.join(dir, 'doc.pdf');
-    fs.writeFileSync(file, pdfBuf);
-    assert.equal(qpdfRequiresPassword(file), 0, 'qpdf says the protected file needs no password');
-    const dec = path.join(dir, 'decrypted.pdf');
-    const r = spawnSync('qpdf', [`--password=${password}`, '--decrypt', file, dec]);
-    assert.equal(r.status, 0, `qpdf --password=… --decrypt failed: ${r.stderr?.toString()}`);
-    assert.ok(fs.existsSync(dec), 'qpdf produced no decrypted file');
-    assert.equal(qpdfRequiresPassword(dec), 2, 'the decrypted file still requires a password');
-    const wrong = spawnSync('qpdf', ['--password=not-the-password', '--decrypt', file, path.join(dir, 'nope.pdf')]);
-    assert.notEqual(wrong.status, 0, 'the file opened with a password that was never set');
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-/**
- * The "extracted text contains a filled value" half of AT-P1: pypdf opens the
- * file with the password and the text layer carries the value the template
- * was filled with. Skips cleanly when python3-pypdf is not installed.
- */
-function assertPdfTextContains(t, pdfBuf, password, needle) {
-  if (!pypdfAvailable()) { t.diagnostic('python3-pypdf not on this machine; skipping the text-content assertion'); return; }
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docmint-pw-'));
-  try {
-    const file = path.join(dir, 'doc.pdf');
-    fs.writeFileSync(file, pdfBuf);
-    const text = pypdfText(file, password);
-    assert.notEqual(text, null, 'pypdf could not open the encrypted PDF with the password');
-    assert.ok(
-      text.includes(needle),
-      `the decrypted PDF text does not contain the filled value ${JSON.stringify(needle)}: ${text.slice(0, 300)}…`,
-    );
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
 
 /* ------------------------------------------------- AT-P1/AT-P2: encrypted */
 
@@ -210,7 +121,7 @@ for (const f of FORMATS) {
     const pdf = Buffer.from(json.pdf.base64, 'base64');
     assert.ok(isPdf(pdf), 'no PDF came back');
     assert.ok(!hasEncrypt(pdf), 'the PDF is encrypted although no password was sent');
-    if (qpdfAvailable()) {
+    if (!fakeServer() && qpdfAvailable()) {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'docmint-pw-'));
       try {
         const file = path.join(dir, 'doc.pdf');
@@ -277,17 +188,26 @@ when('AT-P4 pdf_password with output document (or unset) is 400 pdf_password_nee
   await expect400(t, '/v1/render', { ...body, pdf_password: PW }, 'pdf_password_needs_pdf');
 });
 
-when('AT-P4 batch and jobs refuse pdf_password with 400 pdf_password_unsupported_here', async (t) => {
+when('AT-P4 pdf_password inside a batch item is an unknown field, and the top-level field validates on both bulk endpoints', async (t) => {
   const template = H.fixture('invoice').toString('base64');
-  await expect400(t, '/v1/render/batch',
-    { template_base64: template, items: [{ data: H.invoiceData() }], pdf_password: PW },
-    'pdf_password_unsupported_here');
-  await expect400(t, '/v1/jobs',
-    { template_base64: template, data: H.invoiceData(), pdf_password: PW },
-    'pdf_password_unsupported_here');
-  await expect400(t, '/v1/jobs',
-    { template_base64: template, items: [{ data: H.invoiceData() }], pdf_password: PW },
-    'pdf_password_unsupported_here');
+  // Per-item: still an unknown field, so one call carries exactly one password.
+  {
+    const { key } = await account();
+    const { res, json } = await req('/v1/render/batch', {
+      method: 'POST', key,
+      body: { template_base64: template, output: 'pdf', items: [{ data: H.invoiceData(), pdf_password: PW }] },
+    });
+    assert.equal(res.status, 400, JSON.stringify(json));
+    assert.equal(json?.error?.code, 'unknown_field');
+    assert.equal(json?.error?.details?.item, 0, 'the error does not say which item sent the field');
+    assert.ok(!JSON.stringify(json).includes(PW), 'the password appears in the error response');
+  }
+  // The same validation errors as render, on both bulk endpoints.
+  await expect400(t, '/v1/render/batch', { template_base64: template, output: 'pdf', items: [{ data: H.invoiceData() }], pdf_password: '' }, 'bad_pdf_password');
+  await expect400(t, '/v1/render/batch', { template_base64: template, items: [{ data: H.invoiceData() }], pdf_password: PW }, 'pdf_password_needs_pdf');
+  await expect400(t, '/v1/jobs', { template_base64: template, data: H.invoiceData(), output: 'pdf', pdf_password: '' }, 'bad_pdf_password');
+  await expect400(t, '/v1/jobs', { template_base64: template, data: H.invoiceData(), pdf_password: PW }, 'pdf_password_needs_pdf');
+  await expect400(t, '/v1/jobs', { template_base64: template, items: [{ data: H.invoiceData() }], output: 'pdf', pdf_password: 'x'.repeat(129) }, 'bad_pdf_password');
 });
 
 /* ------------------------------------- AT-P4: refused requests cost nothing */
@@ -312,8 +232,8 @@ when('AT-P4 a refused batch does not reduce the credit balance', async () => {
   const { key } = await account();
   const before = await balance(key);
   await expect400(null, '/v1/render/batch',
-    { template_base64: H.fixture('invoice').toString('base64'), items: [{ data: H.invoiceData() }], pdf_password: PW },
-    'pdf_password_unsupported_here');
+    { template_base64: H.fixture('invoice').toString('base64'), output: 'pdf', items: [{ data: H.invoiceData() }], pdf_password: '' },
+    'bad_pdf_password');
   const after = await balance(key);
   assert.equal(after.used, before.used, 'a refused batch charged a credit');
   assert.equal(after.remaining, before.remaining, 'a refused batch reduced the balance');
@@ -322,9 +242,10 @@ when('AT-P4 a refused batch does not reduce the credit balance', async () => {
 when('AT-P4 a refused job does not reduce the credit balance', async () => {
   const { key } = await account();
   const before = await balance(key);
+  // No "output" means the default "document", so the password is refused.
   await expect400(null, '/v1/jobs',
     { template_base64: H.fixture('invoice').toString('base64'), data: H.invoiceData(), pdf_password: PW },
-    'pdf_password_unsupported_here');
+    'pdf_password_needs_pdf');
   const after = await balance(key);
   assert.equal(after.used, before.used, 'a refused job charged a credit');
   assert.equal(after.remaining, before.remaining, 'a refused job reduced the balance');
