@@ -171,3 +171,24 @@ test('privacy policy names the running product', () => {
     'privacy.html must not promise a retention period for the password-reset hashes',
   );
 });
+
+// AT-V2b/AT-V5: the visitor-statistics copy must state the own-zone rule the
+// running code implements — subdomains of our own domain zone are our own
+// traffic (views, not visits, no host stored), direct loads count as visits,
+// and views/visits have the zone-based meanings.
+test('privacy states the own-domain-zone rule of the visitor statistics', () => {
+  const text = visibleText(fs.readFileSync(path.join(PUBLIC_DIR, 'privacy.html'), 'utf8'));
+  for (const wanted of [
+    'own domain zone (mintapis.com)',
+    'referrers from subdomains of our own domain zone',
+    'treated as our own traffic',
+    'count as views, not as visits',
+    'no host is stored for them',
+    'entries from outside our domain zone',
+    'a load with no referrer at all counts as a visit',
+    'page loads were served (these are the views)',
+  ]) {
+    assert.ok(text.includes(wanted.toLowerCase()),
+      `privacy.html is missing the visitor-statistics statement ${JSON.stringify(wanted)}`);
+  }
+});

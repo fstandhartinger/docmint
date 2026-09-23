@@ -9,11 +9,32 @@ const { AGENT_UA_PATTERN, PUBLIC_PAGE_PATHS } = require('./analytics');
  * Visitor statistics, beside the AT9 kind counters in analytics.js.
  *
  * One row per UTC day, per public page path and per referring host in
- * `site_visit_daily`: how often a page was served ("views") and how often a
- * load entered the site from outside ("visits"). The server counts the page
- * requests it delivers anyway. Nothing is written to or read from the
- * visitor's device (no cookie, storage, script, pixel or client hint), and no
- * identifier is derived — no IP, no hash, no fingerprint — so unique visitors
+ * `site_visit_daily`. "views" counts the page loads the server actually
+ * served — including traffic that is not a site entry, such as navigations
+ * from our own domain zone. "visits" is the visitor-side metric: page loads
+ * that entered the site from outside our own domain zone (the earlier
+ * same-site definition is replaced by this zone-based one), including direct
+ * loads with no referrer at all. The operator report is judged on `visits`
+ * and on the delta of the two, never on `views` alone.
+ *
+ * A referrer host belongs to our own domain zone when it is the zone itself
+ * or any subdomain of it: `docmint.app.mintapis.com` and zone-squatting
+ * siblings like `foo.com.mintapis.com` are our own traffic, while lookalikes
+ * outside the zone (`mintapis.com.evil.test`, `evilmintapis.com`) stay
+ * foreign. The zone is derived ONCE at module load from the canonical
+ * PUBLIC_URL's host, by taking its last two labels ("mintapis.com") — the
+ * same canonical URL both live hosts are configured with, so the Render
+ * mirror classifies exactly like the canonical host, whichever host serves
+ * the request; the request's Host header is never read, and a missing or
+ * malformed PUBLIC_URL falls back to the literal production zone. Exact
+ * hosts the zone rule cannot cover stay in OWN_HOSTS: the live Render mirror
+ * (a sibling subdomain of onrender.com, which is not our zone — so its other
+ * subdomains still count as foreign) and local use. Own traffic counts the
+ * view but not a visit and stores no referrer host.
+ *
+ * The server counts the page requests it delivers anyway. Nothing is written
+ * to or read from the visitor's device (no cookie, storage, script, pixel or
+ * client hint), and no identifier is derived — no IP, no hash, no fingerprint — so unique visitors
  * are deliberately not measured and nothing here could name a person. What is
  * deliberately NOT stored: IP addresses, the user-agent string (read only to
  * filter agents), full referrer URLs (only the host, never a path or query),
@@ -47,18 +68,40 @@ const PAGE_ALIASES = Object.freeze({
 });
 
 /**
- * Referers from these hosts mean "navigated within the site, or typed the
- * address": the page view still counts, but not a visit, and no host is
- * stored. The canonical host comes from PUBLIC_URL; the fixed four cover the
- * deployment hostname, the live Render mirror (ops/INFRASTRUCTURE.md: two
- * hosts, both live, one database), and local use.
+ * The own domain zone, fixed at module load: the last two labels of the
+ * canonical PUBLIC_URL's host ("mintapis.com"). Both live hosts are
+ * configured with the same canonical PUBLIC_URL (ops/INFRASTRUCTURE.md), so
+ * the zone is independent of which host serves the request and is never
+ * derived from the request's Host header or from a mirror-style URL. A
+ * missing or malformed PUBLIC_URL falls back to the literal production zone
+ * rather than guessing.
+ */
+const FALLBACK_ZONE = 'mintapis.com';
+
+const OWN_ZONE = (() => {
+  if (!config.publicUrl) return FALLBACK_ZONE;
+  try {
+    const labels = new URL(config.publicUrl).hostname.toLowerCase().replace(/^www\./, '').split('.');
+    return labels.length >= 2 ? labels.slice(-2).join('.') : FALLBACK_ZONE;
+  } catch {
+    return FALLBACK_ZONE; // a malformed PUBLIC_URL must not stop the module from loading
+  }
+})();
+
+/** H is own when it is the zone itself or any subdomain of it. */
+function isOwnZoneHost(host) {
+  return host === OWN_ZONE || host.endsWith(`.${OWN_ZONE}`);
+}
+
+/**
+ * Exact hosts that count as own even though the zone rule does not cover
+ * them: the live Render mirror (ops/INFRASTRUCTURE.md: two hosts, both live,
+ * one database — it is a subdomain of onrender.com, which is not our zone, so
+ * its sibling subdomains still count as foreign) and local use. Referers from
+ * these hosts, like every own-zone referer, count the page view but not a
+ * visit and store no host.
  */
 const OWN_HOSTS = new Set(['docmint.app.mintapis.com', 'docmint-832s.onrender.com', 'localhost', '127.0.0.1']);
-if (config.publicUrl) {
-  try {
-    OWN_HOSTS.add(new URL(config.publicUrl).hostname.toLowerCase().replace(/^www\./, ''));
-  } catch { /* a malformed PUBLIC_URL must not stop the module from loading */ }
-}
 
 /**
  * Decide whether one incoming request is a page load worth counting.
@@ -94,14 +137,16 @@ function classifyRequest(req) {
   if (!PUBLIC_PAGE_PATHS.has(path)) return null;
 
   // The referer is reduced to its host and kept only when it came from
-  // somewhere else; own and direct traffic count without a host.
+  // outside our own domain zone; own-zone and direct traffic count without a
+  // host. A sibling subdomain of the zone (foo.com.mintapis.com) is own, a
+  // lookalike outside the zone (mintapis.com.evil.test) is foreign.
   let refHost = null;
   try {
     refHost = new URL(req.get('referer') || '').hostname.toLowerCase().replace(/^www\./, '');
   } catch { /* a missing or unparseable referer is simply "no host" */ }
 
   if (refHost === null) return { path, referrerHost: '', visit: true };
-  if (OWN_HOSTS.has(refHost)) return { path, referrerHost: '', visit: false };
+  if (OWN_HOSTS.has(refHost) || isOwnZoneHost(refHost)) return { path, referrerHost: '', visit: false };
   return { path, referrerHost: refHost.slice(0, 100), visit: true };
 }
 
@@ -237,6 +282,7 @@ module.exports = {
   RETENTION_MONTHS,
   MIN_REPORT_COUNT,
   PAGE_ALIASES,
+  OWN_ZONE,
   classifyRequest,
   recordVisit,
   countVisit,

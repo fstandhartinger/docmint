@@ -7,12 +7,12 @@ const assert = require('node:assert/strict');
  * visit-stats — pure unit tests. No server, no database.
  *
  * classifyRequest sees hand-built request objects, the report and the
- * retention get an injected query function, and the one piece that writes
- * through src/db (recordVisit) gets a stubbed require cache — installed before
+ * retention get an injected query function, and the pieces that read src/db
+ * and src/config at load time get stubbed require caches — installed before
  * the module under test is first required, because that is the only seam a
- * module leaves open when it takes its executor from ./db, exactly like
- * src/analytics.js does. Nothing here needs DATABASE_URL, so this file never
- * skips.
+ * module leaves open when it takes its executor from ./db and its zone from
+ * ./config, exactly like src/analytics.js does. Nothing here needs
+ * DATABASE_URL, so this file never skips.
  */
 
 /* Replace ./db in the require cache before anything pulls it in. */
@@ -33,6 +33,22 @@ require.cache[dbPath] = {
     tx: async () => { throw new Error('tx is not used by visit-stats'); },
   },
 };
+
+/* Replace ./config the same way ./db is replaced, with the canonical PUBLIC_URL
+   both live hosts are configured with (ops/INFRASTRUCTURE.md): the module under
+   test then derives its own zone at load time through the real derivation path,
+   independent of the ambient environment. */
+const configPath = require.resolve('../src/config');
+const CONFIG_PUBLIC_URL = 'https://docmint.app.mintapis.com';
+function configStub(publicUrl) {
+  return {
+    id: configPath,
+    filename: configPath,
+    loaded: true,
+    exports: { config: { publicUrl } },
+  };
+}
+require.cache[configPath] = configStub(CONFIG_PUBLIC_URL);
 
 const { AGENT_UA_TOKENS } = require('../src/analytics');
 const log = require('../src/log');
@@ -168,6 +184,59 @@ test('the live Render mirror is same-site too: ops/INFRASTRUCTURE.md names two l
     headers: { ...BROWSER_HEADERS, referer: 'https://docmint-832s.onrender.com/docs' },
   }));
   assert.deepEqual(hit, { path: '/', referrerHost: '', visit: false });
+});
+
+/* ------------------------------------------------- own-zone rule (AT-V1) */
+
+test('a sibling subdomain of our own zone is own traffic: view counted, visit not, no host stored', () => {
+  const hit = visitStats.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://foo.com.mintapis.com/spam' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: '', visit: false });
+});
+
+test('the bare zone itself counts as own traffic', () => {
+  const hit = visitStats.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://mintapis.com/' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: '', visit: false });
+});
+
+test('a www. referrer of the zone is own too — www is stripped before the zone test', () => {
+  const hit = visitStats.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://www.mintapis.com/' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: '', visit: false });
+});
+
+test('a lookalike host under a foreign zone is still a foreign visit, with the host stored', () => {
+  const hit = visitStats.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://mintapis.com.evil.test/' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: 'mintapis.com.evil.test', visit: true });
+});
+
+test('a lookalike that merely contains the zone as a substring is foreign too', () => {
+  const hit = visitStats.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://evilmintapis.com/' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: 'evilmintapis.com', visit: true });
+});
+
+test('a sibling subdomain of onrender.com is not ours — the residual pin — and stores the host', () => {
+  const hit = visitStats.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://something-else.onrender.com/' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: 'something-else.onrender.com', visit: true });
+});
+
+test('regression: canonical host, Render mirror and localhost still classify as own', () => {
+  for (const host of ['docmint.app.mintapis.com', 'docmint-832s.onrender.com', 'localhost', '127.0.0.1']) {
+    const hit = visitStats.classifyRequest(fakeReq({
+      headers: { ...BROWSER_HEADERS, referer: `https://${host}/docs` },
+    }));
+    assert.deepEqual(hit, { path: '/', referrerHost: '', visit: false }, host);
+  }
 });
 
 test('an unparseable referer counts a visit without a host', () => {
@@ -350,4 +419,48 @@ test('visitReport answers unique_visitors: null with the reason', async () => {
   assert.equal(report.unique_visitors, null);
   assert.ok(typeof report.unique_visitors_note === 'string' && /identifier/i.test(report.unique_visitors_note),
     'the note must say that counting unique visitors would need an identifier');
+});
+
+/* ------------------------------------------- own-zone derivation (the seam) */
+
+/**
+ * The zone is fixed at module load, so its derivation can only be proven by
+ * re-requiring the module with a different ./config — the same require-cache
+ * seam the db stub at the top of this file uses. Every classification test
+ * above already runs against the canonical PUBLIC_URL stub; these pin the
+ * derivation itself and the missing/malformed fallback. They sit last so the
+ * swapped cache cannot disturb the other sections.
+ */
+function freshVisitStatsWithConfig(publicUrl) {
+  require.cache[configPath] = configStub(publicUrl);
+  delete require.cache[require.resolve('../src/visit-stats')];
+  return require('../src/visit-stats');
+}
+
+test('OWN_ZONE is the last two labels of the canonical PUBLIC_URL host, derived at module load', () => {
+  const fresh = freshVisitStatsWithConfig(CONFIG_PUBLIC_URL);
+  assert.equal(fresh.OWN_ZONE, 'mintapis.com');
+  const hit = fresh.classifyRequest(fakeReq({
+    headers: { ...BROWSER_HEADERS, referer: 'https://foo.com.mintapis.com/' },
+  }));
+  assert.deepEqual(hit, { path: '/', referrerHost: '', visit: false });
+});
+
+test('a missing PUBLIC_URL falls back to the literal production zone', () => {
+  const fresh = freshVisitStatsWithConfig('');
+  assert.equal(fresh.OWN_ZONE, 'mintapis.com');
+  assert.deepEqual(
+    fresh.classifyRequest(fakeReq({ headers: { ...BROWSER_HEADERS, referer: 'https://foo.com.mintapis.com/' } })),
+    { path: '/', referrerHost: '', visit: false },
+  );
+});
+
+test('a malformed PUBLIC_URL falls back to the literal production zone too', () => {
+  const fresh = freshVisitStatsWithConfig('::: not a url :::');
+  assert.equal(fresh.OWN_ZONE, 'mintapis.com');
+});
+
+test('a single-label PUBLIC_URL host cannot yield a zone — the fallback wins', () => {
+  const fresh = freshVisitStatsWithConfig('https://docmintapp');
+  assert.equal(fresh.OWN_ZONE, 'mintapis.com');
 });

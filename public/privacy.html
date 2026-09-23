@@ -56,10 +56,13 @@
   website at all</strong> — these pages load nothing from any host other than this one.</p>
 <p>What DocMint does count is a handful of daily totals, in that same database (see
   processors below): for each UTC day, one number each for views of the public pages, new
-  accounts, started checkouts and completed payments — and, per public page, how often it was
-  served and how many of those loads arrived from outside the site (direct entries count too,
-  without a host stored) and per referring host name — the host only, never a path or query —
-  how many entries it sent. That is the entire dataset: a date, a kind or a page, a host
+  accounts, started checkouts and completed payments — and, per public page, how many page
+  loads were served (these are the views) and how many of those loads were entries from
+  outside our domain zone (these are the visits; a load with no referrer at all counts as a
+  visit too). Referrers from subdomains of our own domain zone (mintapis.com) are treated as
+  our own traffic: they count as views, not as visits, and no host is stored for them. Per
+  referring host name — the host only, never a path or query — the readout shows how many
+  entries it sent. That is the entire dataset: a date, a kind or a page, a host
   name, and numbers. For this, DocMint stores <strong>no IP addresses, no
   user-agent strings, no cookies, no fingerprints and nothing that could identify a
   person</strong>, builds no personal profiles, and sends nothing to any third-party analytics
@@ -120,7 +123,7 @@
   </tr>
   <tr>
     <td>Daily site totals and visitor statistics</td>
-    <td>Daily aggregates only. For each UTC day, one number each for public page views, new accounts, started checkouts and completed payments. For each UTC day and public page, how many full page loads it served and how many were entries from outside the site. And per referring host — the host name only, never the path, query string or full URL — how many entries it sent; direct entries and entries from the site itself are counted without a host. <strong>No IP addresses, user-agent strings, cookies or fingerprints are stored</strong> for any of this, unique visitors are not counted, and no personal profiles are built, so nothing in these rows can be tied to you. A browser that signals an objection with <code>Sec-GPC: 1</code> or <code>DNT: 1</code> is not counted at all, and neither are bots, prefetches or anything that is not a full page load.</td>
+    <td>Daily aggregates only. For each UTC day, one number each for public page views, new accounts, started checkouts and completed payments. For each UTC day and public page, how many page loads were served (the views) and how many of those loads were entries from outside our domain zone (the visits). A load with no referrer at all counts as a visit; referrers from subdomains of our own domain zone (mintapis.com) are treated as our own traffic — they count as views, not as visits, and no host is stored for them. And per referring host — the host name only, never the path, query string or full URL — how many entries it sent. <strong>No IP addresses, user-agent strings, cookies or fingerprints are stored</strong> for any of this, unique visitors are not counted, and no personal profiles are built, so nothing in these rows can be tied to you. A browser that signals an objection with <code>Sec-GPC: 1</code> or <code>DNT: 1</code> is not counted at all, and neither are bots, prefetches or anything that is not a full page load.</td>
     <td>Kept for 13 months; older rows are deleted by a cleanup that runs hourly.</td>
   </tr>
 </table>
