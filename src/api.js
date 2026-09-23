@@ -313,16 +313,16 @@ function normaliseJobBody(body) {
 
 router.post('/jobs', withAuth, asyncRoute(async (req, res) => {
   const body = req.body || {};
-  // A job body is a render body or a batch body, and in both forms the field
-  // would sit at the top level — so the refusal goes here, before the generic
-  // unknown-field check, for the same reason as on /render/batch.
-  if (body.pdf_password !== undefined) input.pdfPasswordUnsupportedHere();
   input.rejectUnknown(body, JOB_FIELDS, '/docs#async');
   const { kind, request, webhookUrl } = normaliseJobBody(body);
 
   // Everything that can be checked now IS checked now. A job that is going to
   // fail because the template name is a typo should say so in the 202 response,
   // not five minutes later in a webhook the caller has to go and read.
+  // parseBatch also validates a top-level pdf_password here — same helper and
+  // rules as /v1/render, before anything is queued or charged. The plaintext
+  // itself never reaches the stored request: enqueue strips the field and
+  // holds the password in memory against the job id.
   const spec = batchLib.parseBatch(request, { docs: '/docs#async' });
   const { template } = await loadTemplate(req.account, request, req.log);
   if (webhookUrl !== undefined && webhookUrl !== null && webhookUrl !== '') {
@@ -336,7 +336,10 @@ router.post('/jobs', withAuth, asyncRoute(async (req, res) => {
 
   let id;
   try {
-    id = await jobs.enqueue(req.account.id, { kind, request, webhookUrl: webhookUrl || null, creditsReserved: reserved });
+    id = await jobs.enqueue(req.account.id, {
+      kind, request, webhookUrl: webhookUrl || null, creditsReserved: reserved,
+      pdfPassword: spec.pdfPassword,
+    });
   } catch (e) {
     await refundCredits(req.account.id, reserved);
     throw e;

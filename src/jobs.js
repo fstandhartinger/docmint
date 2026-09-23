@@ -57,13 +57,34 @@ async function storeFile(accountId, buffer, filename, contentType, ttlMinutes) {
 
 /* ------------------------------------------------------------------ queue */
 
-async function enqueue(accountId, { kind, request, webhookUrl, creditsReserved }) {
+/**
+ * The plaintext PDF open password of a protected job, held only in memory and
+ * keyed by job id.
+ *
+ * The queue is a durable table on purpose, so the one place the password must
+ * never reach is the stored request: a plaintext credential in a database row
+ * would outlive the process, appear in every dump and backup, and be exactly
+ * the leak this feature refuses to create. The worker runs inside the same
+ * single process that accepts jobs, so submit and run share this map: enqueue
+ * holds the password, runJob takes it — taking deletes it, so no copy outlives
+ * the run, success or failure — and cancel drops it. Exported for tests, which
+ * clear it to simulate the restart that empties it.
+ */
+const pendingPasswords = new Map();
+
+async function enqueue(accountId, { kind, request, webhookUrl, creditsReserved, pdfPassword = null }) {
   const id = `job_${crypto.randomBytes(12).toString('base64url')}`;
+  // The INSERT never sees the password: the field is stripped from the request
+  // and the row records only THAT the job is protected, so a restart that
+  // loses the map can fail the job closed rather than render it unencrypted.
+  const { pdf_password: _stripped, ...stored } = request || {};
+  if (pdfPassword) stored.pdf_password_protected = true;
   await query(
     `INSERT INTO jobs (id, account_id, kind, request, webhook_url, credits_reserved)
      VALUES ($1,$2,$3,$4,$5,$6)`,
-    [id, accountId, kind, JSON.stringify(request), webhookUrl || null, creditsReserved],
+    [id, accountId, kind, JSON.stringify(stored), webhookUrl || null, creditsReserved],
   );
+  if (pdfPassword) pendingPasswords.set(id, pdfPassword);
   return id;
 }
 
@@ -146,6 +167,9 @@ async function cancel(accountId, id) {
     [id, accountId],
   );
   if (rows.length) {
+    // A cancelled job never runs, so its side-channel password must go now:
+    // the plaintext of a job that will never render has no reason to remain.
+    pendingPasswords.delete(id);
     await settleCredits(id, accountId, 0);
     return { id, status: 'cancelled' };
   }
@@ -308,14 +332,34 @@ async function deliverPending() {
 async function runJob(job, { loadTemplate }) {
   const l = log.child({ job: job.id, account: job.account_id });
   const t = log.timer();
-  const body = job.request;
+  const body = job.request || {};
+
+  // Take the password out of the side channel first — taking deletes the
+  // entry, so the plaintext outlives neither the run nor a failure.
+  const pdfPassword = pendingPasswords.get(job.id) || null;
+  pendingPasswords.delete(job.id);
+  // The protected marker is envelope, not request: written by enqueue, never
+  // accepted from a caller, and stripped before anything parses the request.
+  const { pdf_password_protected: protectedMarker, ...storedRequest } = body;
 
   const { rows } = await query(`SELECT * FROM accounts WHERE id = $1`, [job.account_id]);
   const account = rows[0];
   if (!account) throw new ApiError(410, 'account_gone', 'The account that queued this job no longer exists.');
 
-  const spec = batch.parseBatch(body);
-  const { buffer: templateBuffer, template, source } = await loadTemplate(account, body, l);
+  const spec = batch.parseBatch(storedRequest);
+  if (protectedMarker && !pdfPassword) {
+    // The map lives in one process, and a restart empties it while the job
+    // row survives. Fail closed with the same refund the worker's failure
+    // path applies to any render failure — never render an unprotected file
+    // when protection was asked for.
+    throw new ApiError(502, 'pdf_encryption_failed',
+      'This job was submitted with a PDF open password, which the service holds only in memory, and that memory was lost to a restart. The job failed instead of producing an unprotected file.', {
+        hint: 'Submit the job again with the password. The reserved credits are refunded with this failure.',
+        docs: '/docs#pdf-password',
+      });
+  }
+  if (pdfPassword) spec.pdfPassword = pdfPassword;
+  const { buffer: templateBuffer, template, source } = await loadTemplate(account, storedRequest, l);
   t.mark('load');
 
   const run = await batch.runBatch({
@@ -563,5 +607,5 @@ function startReapers() {
 
 module.exports = {
   enqueue, get, list, cancel, storeFile, runJob, startWorker, startReapers,
-  settleCredits, creditsPerItem, assertPublicUrl, FORMATS,
+  settleCredits, creditsPerItem, assertPublicUrl, FORMATS, pendingPasswords,
 };

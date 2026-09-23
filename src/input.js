@@ -138,21 +138,6 @@ function checkPdfPassword(value) {
 }
 
 /**
- * `pdf_password` on an endpoint that does not support it yet.
- *
- * Refused with a specific code rather than the generic unknown-field refusal,
- * so the caller learns the field exists but not here — and never gets a
- * silently unprotected file back from a batch or a job.
- */
-function pdfPasswordUnsupportedHere() {
-  throw bad('pdf_password_unsupported_here',
-    '"pdf_password" is not supported on this endpoint yet.', {
-      hint: 'Use POST /v1/render for a password-protected PDF. Batch and jobs refuse the field rather than silently produce unprotected files.',
-      docs: '/docs#pdf-password',
-    });
-}
-
-/**
  * `pdf_password` only makes sense when a PDF is produced. A render that asks
  * for the Office file alone has nothing to protect, so the field is refused
  * rather than silently ignored — the same policy as every other field here.
@@ -277,5 +262,5 @@ module.exports = {
   decodeBase64, rejectUnknown, enumOr, checkLocale, checkTimezone, checkCurrency,
   checkInstant, renderFilename, checkDataSize, ALIASES,
   PDF_PASSWORD_MIN_LENGTH, PDF_PASSWORD_MAX_LENGTH,
-  checkPdfPassword, checkPdfPasswordForOutput, pdfPasswordUnsupportedHere,
+  checkPdfPassword, checkPdfPasswordForOutput,
 };
