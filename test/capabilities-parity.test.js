@@ -114,9 +114,10 @@ test('the published images capability is composed only from the render module', 
 /* ------------------------------------------------------------------------- *
  * AT-P6, file-only: the pdf_password readback is built from the validator's
  * constants and the docs #pdf-password section claims exactly what is
- * enforced — the field, the limits, the refusing endpoints and the measured
- * encryption. Needs no server; the live probe below asserts the endpoint
- * serves the same object.
+ * enforced — the field, the limits, the supported endpoints, the per-item
+ * rejection, the jobs restart limitation and the measured encryption. Needs
+ * no server; the live probe below asserts the endpoint serves the same
+ * object.
  * ------------------------------------------------------------------------- */
 const DOCS_PDF_PASSWORD = visibleText(subsection('pdf-password'));
 
@@ -126,21 +127,31 @@ test('AT-P6 the pdf_password capability is the validator constants, and the docs
     field: 'pdf_password',
     min_length: input.PDF_PASSWORD_MIN_LENGTH,
     max_length: input.PDF_PASSWORD_MAX_LENGTH,
-    endpoints: ['/v1/render'],
+    endpoints: ['/v1/render', '/v1/render/batch', '/v1/jobs'],
     encryption: 'RC4-128 (PDF standard security handler revision 3, as applied by LibreOffice 7.4)',
   });
-  // The docs section names the field, the limits and the refusing endpoints.
+  // The docs section names the field, the limits and every supported endpoint.
   assert.ok(DOCS_PDF_PASSWORD.includes(cap.field), 'the docs #pdf-password section stopped naming the field');
   assert.ok(
     DOCS_PDF_PASSWORD.includes(`${cap.min_length} to ${cap.max_length}`),
     'the docs #pdf-password section stopped stating the length limits',
   );
-  for (const refusing of ['/v1/render/batch', '/v1/jobs']) {
-    assert.ok(DOCS_PDF_PASSWORD.includes(refusing), `the docs #pdf-password section stopped naming the refusing ${refusing}`);
+  for (const endpoint of cap.endpoints) {
+    assert.ok(DOCS_PDF_PASSWORD.includes(endpoint), `the docs #pdf-password section stopped naming the supported ${endpoint}`);
   }
-  for (const code of ['bad_pdf_password', 'pdf_password_needs_pdf', 'pdf_password_unsupported_here']) {
+  // Top-level-only: the per-item rejection is claimed, and with the generic
+  // unknown-field code, exactly as the API answers it.
+  assert.ok(DOCS_PDF_PASSWORD.includes('unknown_field'), 'the docs #pdf-password section stopped claiming the per-item rejection');
+  // The jobs restart limitation is disclosed, not just the happy path.
+  assert.ok(/restart/.test(DOCS_PDF_PASSWORD), 'the docs #pdf-password section stopped disclosing the jobs restart limitation');
+  for (const code of ['bad_pdf_password', 'pdf_password_needs_pdf', 'pdf_encryption_failed']) {
     assert.ok(DOCS_PDF_PASSWORD.includes(code), `the docs #pdf-password section stopped naming ${code}`);
   }
+  // The field is supported everywhere now; a claimed refusal would be stale copy.
+  assert.ok(
+    !DOCS_PDF_PASSWORD.includes('pdf_password_unsupported_here'),
+    'the docs #pdf-password section still claims the removed pdf_password_unsupported_here refusal',
+  );
   // The published encryption is the measured one, and the docs state it too.
   assert.ok(DOCS_PDF_PASSWORD.includes('rc4'), 'the docs #pdf-password section stopped stating the measured encryption');
 });
