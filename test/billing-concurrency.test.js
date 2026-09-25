@@ -160,6 +160,9 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
     webhooks: { constructEvent: (b) => b },
   };
   const routes = {};
+  // Counted, not silenced: the invoice.paid branch must book only OUR invoices
+  // as paid conversions, and the only way to see that is to watch the calls.
+  const analytics = { calls: [], increment(kind) { this.calls.push(kind); } };
   const billing = load("billing.js", (n) => {
     if (n === "./config") return cfg;
     if (n === "./db") return db;
@@ -187,7 +190,7 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
           }
         },
       };
-    if (n === "./analytics") return { increment: () => {} };
+    if (n === "./analytics") return analytics;
     throw Error(n);
   });
   const fire = async (e) => {
@@ -253,6 +256,7 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
       creates: 0,
       customers: 0,
     };
+    analytics.calls = [];
   }
   async function expectPlan(plan, subscription = "sub_current", usage = 123) {
     const r = await row();
@@ -464,6 +468,75 @@ if (!process.env.QA_BILLING_DATABASE_URL) {
       await Promise.all([fire(e), fire(e)]);
       await expectPlan("starter");
       assert.equal(await markers(), 1);
+    },
+  );
+  test(
+    product +
+      " real DB: a sibling product's invoice.paid is not a DocMint paid conversion",
+    async () => {
+      // The shared Stripe account delivers Benchmark-Heaven support payments
+      // and OpenClaw renewals to this endpoint too. Both were being counted as
+      // DocMint conversions — the readout claimed four paying customers for a
+      // product that has never had one.
+      await reset();
+      await fire(
+        event(
+          "evt_foreign_invoice",
+          {
+            customer: "cus_fixture",
+            lines: {
+              data: [
+                {
+                  description: "Support Benchmark Heaven",
+                  price: { id: "price_not_ours" },
+                },
+              ],
+            },
+          },
+          "invoice.paid",
+        ),
+      );
+      assert.deepEqual(analytics.calls, [], "a foreign invoice must not count");
+      // The event was still consumed and the renewal path still ran.
+      assert.equal(await markers(), 1);
+    },
+  );
+  test(
+    product +
+      " real DB: our own invoice.paid still counts exactly one paid conversion",
+    async () => {
+      await reset();
+      await fire(
+        event(
+          "evt_own_invoice",
+          {
+            customer: "cus_fixture",
+            lines: {
+              data: [{ description: "Starter", price: { id: "price_starter" } }],
+            },
+          },
+          "invoice.paid",
+        ),
+      );
+      assert.deepEqual(analytics.calls, ["paid_conversion"]);
+    },
+  );
+  test(
+    product +
+      " real DB: an unreadable invoice keeps the old behaviour instead of guessing",
+    async () => {
+      // Stripe returns line items for a limited window. An empty list means we
+      // could not read the invoice, not that it is foreign — so it must count
+      // exactly as it did before the fix.
+      await reset();
+      await fire(
+        event(
+          "evt_unreadable_invoice",
+          { customer: "cus_fixture" },
+          "invoice.paid",
+        ),
+      );
+      assert.deepEqual(analytics.calls, ["paid_conversion"]);
     },
   );
   test(

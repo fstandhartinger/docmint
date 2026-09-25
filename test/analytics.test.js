@@ -91,6 +91,16 @@ test('the billing and signup wiring is exactly the permitted counters (C1)', () 
   const nextCase = billing.indexOf('case ', paidAt);
   assert.ok(caseAt > -1 && paidAt > caseAt && (nextCase === -1 || paidAt < nextCase),
     'paid_conversion must sit inside the invoice.paid branch, after the stripe_events dedupe');
+  // A shared Stripe account means this branch also receives sibling products'
+  // invoices. The counter must therefore sit behind the same own-price guard
+  // classifySession uses, or a support payment is booked as a DocMint sale.
+  assert.equal(billing.match(/const ourInvoice = lineItems\.length === 0/g)?.length, 1,
+    'invoice.paid must decide ownership from the line items');
+  assert.ok(billing.indexOf('const ourInvoice = lineItems.length === 0') < paidAt
+    && billing.indexOf('if (ourInvoice) {') < paidAt,
+    'paid_conversion must be guarded by the own-invoice check');
+  assert.equal(billing.match(/planForPriceId\(item\.price\?\.id\)/g)?.length, 2,
+    'both the session and the invoice path must test the price against our plans');
 
   const web = fs.readFileSync(path.join(__dirname, '..', 'src', 'web.js'), 'utf8');
   assert.equal(web.match(/analytics\.increment\('signup'\)/g)?.length, 1);

@@ -611,16 +611,36 @@ async function handleEventInTransaction(event) {
       await applySubscription(event.data.object, run);
       break;
     case 'invoice.paid': {
-      // AT9: one counter per invoice.paid event, deduplicated by the
-      // stripe_events marker above. Fire-and-forget — increment() cannot throw,
-      // and billing must never wait on a counter.
-      analytics.increment('paid_conversion');
+      const invoice = event.data.object;
+      // Not every invoice.paid that arrives here is ours. All our products share
+      // one Stripe account (see classifySession above), so this endpoint also
+      // receives the support payments and renewals of the sibling products. The
+      // counter used to fire for every one of them: on 18.09 two OpenClaw
+      // 0-USD renewals and on 20.09+24.09 the two "Support Benchmark Heaven"
+      // payments were each counted as a DocMint paid conversion, so the readout
+      // claimed four paying customers for a product that has never had one.
+      // Only count an invoice whose line items are priced on a DocMint plan.
+      // Same rule as classifySession: an EMPTY line list means we could not read
+      // the invoice at all (Stripe returns line items for a limited window), so
+      // absence is not evidence of foreign-ness and stays counted exactly as
+      // before — the bug being fixed is counting a line item we can read and do
+      // not sell.
+      const lineItems = invoice.lines?.data || [];
+      const ourInvoice = lineItems.length === 0
+        || lineItems.some((item) => planForPriceId(item.price?.id));
+      // The renewal/period reset below already keys on a matching
+      // stripe_customer_id, so it is unaffected either way.
+      if (ourInvoice) {
+        // AT9: one counter per invoice.paid event, deduplicated by the
+        // stripe_events marker above. Fire-and-forget — increment() cannot throw,
+        // and billing must never wait on a counter.
+        analytics.increment('paid_conversion');
+      }
       // A renewal starts a new period — but only if the current one has actually
       // ended. rollPeriod() already resets the counter on the calendar 1st, so
       // resetting again on the billing anniversary handed a customer who
       // subscribed mid-month a second full quota every cycle. The number of
       // documents is the only thing being sold, so that was giving it away.
-      const invoice = event.data.object;
       const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
       if (customerId) {
         await run(
