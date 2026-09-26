@@ -231,10 +231,12 @@
       </div>
 
       <div class="code-card">
-        <div class="code-tabs" role="tablist" aria-label="Example requests">
-          <button role="tab" id="tab-render" aria-controls="panel-render" aria-selected="true">render</button>
-          <button role="tab" id="tab-fields" aria-controls="panel-fields" aria-selected="false">fields</button>
-          <button role="tab" id="tab-signup" aria-controls="panel-signup" aria-selected="false">sign up</button>
+        <div class="code-toolbar">
+          <div class="code-tabs" role="tablist" aria-label="Example requests">
+            <button role="tab" id="tab-render" aria-controls="panel-render" aria-selected="true" tabindex="0">render</button>
+            <button role="tab" id="tab-fields" aria-controls="panel-fields" aria-selected="false" tabindex="-1">fields</button>
+            <button role="tab" id="tab-signup" aria-controls="panel-signup" aria-selected="false" tabindex="-1">sign up</button>
+          </div>
           <button class="code-copy" type="button" id="copyBtn">Copy</button>
         </div>
 
@@ -892,14 +894,29 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
 <script>
 (function () {
   var tabs = document.querySelectorAll('.code-tabs [role="tab"]');
-  function show(id) {
+  function show(id, focusTab) {
     tabs.forEach(function (t) {
       var on = t.id === id;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
       document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
     });
+    if (focusTab) document.getElementById(id).focus();
   }
-  tabs.forEach(function (t) { t.addEventListener('click', function () { show(t.id); }); });
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () { show(t.id, false); });
+    t.addEventListener('keydown', function (event) {
+      var index = Array.prototype.indexOf.call(tabs, t);
+      var next = null;
+      if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      if (next === null) return;
+      event.preventDefault();
+      show(tabs[next].id, true);
+    });
+  });
 
   var btn = document.getElementById('copyBtn');
   if (btn) btn.addEventListener('click', function () {
