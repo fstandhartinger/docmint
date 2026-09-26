@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 
+const path = require('node:path');
+const { readdir, readFile } = require('node:fs/promises');
+
 /**
  * Tell search engines the pages exist, instead of waiting to be found.
  *
@@ -10,33 +13,59 @@
  * inbound links yet. Google does not take part — for Google the levers are the
  * sitemap in robots.txt, Search Console, and links.
  *
- *   INDEXNOW_KEY=<key> node scripts/submit-indexnow.js
+ *   node scripts/submit-indexnow.js
  *
  * Run it after a deploy that adds or changes a public page.
  */
 
-const KEY = process.env.INDEXNOW_KEY;
-const HOST = 'docmint-832s.onrender.com';
+const HOST = 'docmint.app.mintapis.com';
+const SITE_ROOT = `https://${HOST}`;
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+const KEY_FILE_RE = /^([0-9a-f]{32})\.txt$/i;
+
+async function keyFromPublicFile() {
+  const names = (await readdir(PUBLIC_DIR)).filter((name) => KEY_FILE_RE.test(name));
+  if (names.length !== 1) {
+    throw new Error(`expected one 32-character IndexNow key file in ${PUBLIC_DIR}, found ${names.length}`);
+  }
+
+  const filename = names[0];
+  const key = (await readFile(path.join(PUBLIC_DIR, filename), 'utf8')).trim();
+  if (filename !== `${key}.txt` || !KEY_FILE_RE.test(filename)) {
+    throw new Error(`IndexNow key file ${filename} must contain the same key as its filename`);
+  }
+  if (process.env.INDEXNOW_KEY && process.env.INDEXNOW_KEY !== key) {
+    throw new Error('INDEXNOW_KEY does not match the key file under public/');
+  }
+  return key;
+}
+
+function parseSitemap(xml) {
+  const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
+  if (!urls.length) throw new Error('sitemap contains no <loc> URLs');
+  for (const value of urls) {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.host !== HOST) {
+      throw new Error(`sitemap URL is not on the canonical DocMint host: ${value}`);
+    }
+  }
+  return urls;
+}
 
 async function urlsFromSitemap() {
-  const res = await fetch(`https://${HOST}/sitemap.xml`);
+  const res = await fetch(`${SITE_ROOT}/sitemap.xml`);
   if (!res.ok) throw new Error(`sitemap returned ${res.status}`);
-  const xml = await res.text();
-  return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  return parseSitemap(await res.text());
 }
 
 async function main() {
-  if (!KEY) {
-    console.error('INDEXNOW_KEY is not set. It must match the key file served at the site root.');
-    process.exitCode = 1;
-    return;
-  }
+  const key = await keyFromPublicFile();
 
   // The key file has to be reachable, or every submission is rejected as
   // unverified — check it before sending anything.
-  const probe = await fetch(`https://${HOST}/${KEY}.txt`);
-  if (!probe.ok || (await probe.text()).trim() !== KEY) {
-    console.error(`key file at https://${HOST}/${KEY}.txt is missing or does not contain the key`);
+  const probe = await fetch(`${SITE_ROOT}/${key}.txt`);
+  if (!probe.ok || (await probe.text()).trim() !== key) {
+    console.error(`key file at ${SITE_ROOT}/${key}.txt is missing or does not contain the local key`);
     process.exitCode = 1;
     return;
   }
@@ -47,7 +76,7 @@ async function main() {
   const res = await fetch('https://api.indexnow.org/IndexNow', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=utf-8' },
-    body: JSON.stringify({ host: HOST, key: KEY, keyLocation: `https://${HOST}/${KEY}.txt`, urlList }),
+    body: JSON.stringify({ host: HOST, key, keyLocation: `${SITE_ROOT}/${key}.txt`, urlList }),
   });
 
   // 200 and 202 both mean accepted; 422 usually means the key did not verify.
@@ -58,7 +87,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error('submission failed:', err.message);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('submission failed:', err.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { HOST, SITE_ROOT, keyFromPublicFile, parseSitemap };

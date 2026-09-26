@@ -1,5 +1,6 @@
 # DocMint — https://docmint.app.mintapis.com
 # The API is behind a key; there is nothing there for a crawler.
+# Public product facts for language models are available at /llms.txt.
 
 User-agent: *
 Allow: /

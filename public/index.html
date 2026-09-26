@@ -3,19 +3,34 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DocMint — fill Word, Excel and PowerPoint templates from JSON</title>
-<meta name="description" content="DocMint is a document generation API. POST your data against a .docx, .xlsx or .pptx template and get the Office file, a PDF, or both. It tells you what fields the template needs, and refuses to render one that is missing. 30 documents a month free, no card.">
+<title>DocMint — fill Word, Excel &amp; PowerPoint from JSON</title>
+<meta name="description" content="Document generation API: POST JSON against a .docx, .xlsx or .pptx template, get the Office file, a PDF or both. 30 documents a month free, no card.">
 <link rel="canonical" href="https://docmint.app.mintapis.com/">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="google-site-verification" content="Uo2yXvxWr5xyjBWINwryQSLpDGamKQlQUdfO-k0jz_U">
+<meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
 <meta property="og:url" content="https://docmint.app.mintapis.com/">
 <meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="DocMint — fill Word, Excel &amp; PowerPoint from JSON">
+<meta property="og:description" content="Document generation API: POST JSON against a .docx, .xlsx or .pptx template, get the Office file, a PDF or both. 30 documents a month free, no card.">
 <meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DocMint logo with a JSON-to-document example and a sample API request">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DocMint — fill Word, Excel &amp; PowerPoint from JSON">
+<meta name="twitter:description" content="Document generation API: POST JSON against a .docx, .xlsx or .pptx template, get the Office file, a PDF or both. 30 documents a month free, no card.">
+<meta name="twitter:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:image:alt" content="DocMint logo with a JSON-to-document example and a sample API request">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta property="og:title" content="DocMint — fill Word, Excel and PowerPoint templates from JSON">
-<meta property="og:description" content="One POST, the filled file back. It names the fields your template needs, and refuses to render a document with a missing one — naming the field and the cell, row or slide it is in.">
-<meta property="og:type" content="website">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+<link rel="preload" href="/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/img/invoice-filled-720.webp" as="image" type="image/webp" imagesrcset="/img/invoice-filled-720.webp 720w, /img/invoice-filled-1200.webp 1200w" imagesizes="(min-width:1000px) 340px, 50vw" fetchpriority="high">
+<script>try{var t=localStorage.getItem('mint-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="/app.css?v=2">
+<link rel="stylesheet" href="/landing.css?v=2">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -24,13 +39,20 @@
       "@type": "Organization",
       "@id": "https://docmint.app.mintapis.com/#organization",
       "name": "productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG",
-      "url": "https://docmint.app.mintapis.com/legal"
+      "url": "https://docmint.app.mintapis.com/",
+      "address": { "@type": "PostalAddress", "addressLocality": "Passau", "addressCountry": "DE" },
+      "brand": [
+        { "@type": "Brand", "name": "DocMint", "url": "https://docmint.app.mintapis.com/" },
+        { "@type": "Brand", "name": "PDFMint", "url": "https://pdf.mintapis.com/" },
+        { "@type": "Brand", "name": "MailMint", "url": "https://mailmint.app.mintapis.com/" }
+      ]
     },
     {
       "@type": "WebSite",
       "@id": "https://docmint.app.mintapis.com/#website",
       "url": "https://docmint.app.mintapis.com/",
       "name": "DocMint",
+      "inLanguage": "en",
       "publisher": { "@id": "https://docmint.app.mintapis.com/#organization" }
     },
     {
@@ -42,61 +64,170 @@
       "applicationSubCategory": "Document generation API",
       "operatingSystem": "Cloud",
       "description": "API for filling Word, Excel and PowerPoint templates from JSON and returning the Office file, a PDF, or both.",
+      "image": "https://docmint.app.mintapis.com/img/invoice-filled-1200.webp",
+      "screenshot": "https://docmint.app.mintapis.com/img/invoice-filled-1200.webp",
+      "featureList": [
+        "Fill .docx, .xlsx and .pptx templates from JSON",
+        "Office file, PDF or both per request",
+        "Typed, nested field list of a template with a sample_data skeleton",
+        "HTTP 422 naming the field and location when a placeholder has no data",
+        "Warnings when a loop tag resolves from an outer scope",
+        "43 formatters, images, QR codes and barcodes",
+        "Template versioning and rollback",
+        "Batch rendering, async jobs and webhooks"
+      ],
       "publisher": { "@id": "https://docmint.app.mintapis.com/#organization" },
       "offers": [
-        { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "description": "30 documents per month" },
-        { "@type": "Offer", "name": "Starter", "price": "9", "priceCurrency": "USD", "description": "2,000 documents per month" },
-        { "@type": "Offer", "name": "Pro", "price": "29", "priceCurrency": "USD", "description": "20,000 documents per month" },
-        { "@type": "Offer", "name": "Scale", "price": "99", "priceCurrency": "USD", "description": "100,000 documents per month" }
+        { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "description": "30 documents per month", "url": "https://docmint.app.mintapis.com/#pricing" },
+        { "@type": "Offer", "name": "Starter", "price": "9", "priceCurrency": "USD", "description": "2,000 documents per month", "url": "https://docmint.app.mintapis.com/#pricing" },
+        { "@type": "Offer", "name": "Pro", "price": "29", "priceCurrency": "USD", "description": "20,000 documents per month", "url": "https://docmint.app.mintapis.com/#pricing" },
+        { "@type": "Offer", "name": "Scale", "price": "99", "priceCurrency": "USD", "description": "100,000 documents per month", "url": "https://docmint.app.mintapis.com/#pricing" }
+      ]
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://docmint.app.mintapis.com/#faq",
+      "mainEntity": [
+        { "@type": "Question", "name": "What does a template look like?", "acceptedAnswer": { "@type": "Answer", "text": "A perfectly ordinary .docx, .xlsx or .pptx with placeholders typed into it: {customer.name}, {{invoice_no}}, {#items}…{/items} around a table row, {%logo} where a picture goes. Nothing else changes; the file still opens in Word, and your finance team can keep editing it." } },
+        { "@type": "Question", "name": "Do I have to upload the template?", "acceptedAnswer": { "@type": "Answer", "text": "No. Send it as template_base64 on the render call and nothing is stored. Uploading it once and referring to it by a name you choose is usually nicer, because replacing the letterhead then does not mean editing every workflow that used it." } },
+        { "@type": "Question", "name": "What happens if my data has an extra field the template does not use?", "acceptedAnswer": { "@type": "Answer", "text": "Nothing — extra data is ignored. It is the other direction that is an error: a placeholder with nothing behind it." } },
+        { "@type": "Question", "name": "Does a failed render cost a credit?", "acceptedAnswer": { "@type": "Answer", "text": "No. The credit is reserved before the work and refunded if the work fails, so a 422 on a missing field costs nothing." } },
+        { "@type": "Question", "name": "Are my documents stored?", "acceptedAnswer": { "@type": "Answer", "text": "For a synchronous call, rendered documents are not stored — they are produced in memory and returned in the response. An async job's output is kept as a download link that expires 24 hours after the job finishes. Templates you upload are stored, because that is what uploading them means. The privacy policy lists every row of every table." } },
+        { "@type": "Question", "name": "Why is the PDF so much slower than the Office file?", "acceptedAnswer": { "@type": "Answer", "text": "Because it is a different kind of work. Filling a template is XML surgery in a few milliseconds; converting to PDF is a full LibreOffice process, measured at about 2.7 s on this instance and 219 MB of peak memory. That is also why a PDF costs two credits and why conversions run one at a time." } },
+        { "@type": "Question", "name": "Which brace style should I use?", "acceptedAnswer": { "@type": "Answer", "text": "Whichever you already type. {name} is the docxtemplater and Carbone style; {{name}} is the mustache and n8n style. Both work everywhere, and {{[Field With Spaces]}} works too, because that is the Docupilot form." } },
+        { "@type": "Question", "name": "Is anything in my template or data used to train a model?", "acceptedAnswer": { "@type": "Answer", "text": "No. Nothing is read, mined, sold or used to train anything, and the only email the service sends is a password-reset link, when you ask for one." } }
       ]
     }
   ]
 }
 </script>
-<link rel="stylesheet" href="/app.css?v=1">
-<link rel="stylesheet" href="/landing.css?v=1">
 </head>
 <body>
+<a class="skip-link" href="#main">Skip to content</a>
 
 <header class="l-top">
   <div class="wrap">
-    <a class="logo" href="/">
-      <svg class="l-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <rect x="3.5" y="2.5" width="17" height="19" rx="3" stroke="currentColor" stroke-width="1.7"/>
-        <path d="M7.6 8.6h3.2c2.4 0 4 1.8 4 4.4s-1.6 4.4-4 4.4H7.6V8.6z" stroke="#4b56d6" stroke-width="1.7" stroke-linejoin="round"/>
-      </svg>
+    <a class="logo" href="/" aria-label="DocMint home">
+      <svg class="l-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="2.5" width="17" height="19" rx="3" stroke="currentColor" stroke-width="1.7"/><path class="l-mark-a" d="M7.6 8.6h3.2c2.4 0 4 1.8 4 4.4s-1.6 4.4-4 4.4H7.6V8.6z" stroke-width="1.7" stroke-linejoin="round"/></svg>
       Doc<span>Mint</span>
     </a>
-    <nav class="l-nav">
-      <a href="#fields" class="hide-sm">What it does</a>
-      <a href="#honest" class="hide-sm">Limits</a>
-      <a href="#pricing">Pricing</a>
+    <nav class="l-nav" aria-label="Primary">
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
       <a href="/docs">Docs</a>
-      <a href="/signup" class="l-btn l-btn-primary">Get an API key</a>
+      <a href="/n8n-word-template" class="hide-md">n8n</a>
+      <a href="/#honest" class="hide-md">Limits</a>
     </nav>
+    <div class="l-actions">
+      <button class="l-theme" type="button" id="themeToggle" aria-label="Switch colour theme">
+        <svg class="i-moon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.5 12.3A6.8 6.8 0 0 1 7.7 3.5a6.8 6.8 0 1 0 8.8 8.8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <svg class="i-sun" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M10 1.8v2M10 16.2v2M1.8 10h2M16.2 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <a class="l-signin" href="/login">Sign in</a>
+      <a class="l-btn l-btn-primary l-btn-sm" href="/signup">Get an API key</a>
+    </div>
   </div>
 </header>
 
-<main>
+<main id="main" class="l-main">
 
 <!-- ------------------------------------------------------------------ hero -->
-<section class="hero">
+<section class="hero" aria-labelledby="hero-title">
   <div class="wrap">
     <div class="hero-grid">
       <div>
-        <span class="pill">30 documents a month, free, no card</span>
-        <h1 class="hero-title">Your template, your JSON.<br><em>The filled document out.</em></h1>
-        <p class="hero-sub">DocMint fills <strong>Word, Excel and PowerPoint</strong> templates from a JSON payload and returns the Office file, a PDF, or both — in one request. It will also tell you, before you ever send data, <strong>exactly which fields the template needs</strong>.</p>
+        <p class="l-pill"><span class="dot" aria-hidden="true"></span>30 documents a month, free, no card</p>
+        <h1 class="hero-title" id="hero-title">Fill Word, Excel and PowerPoint templates <em>from JSON</em></h1>
+        <p class="hero-sub">Send a <strong>.docx, .xlsx or .pptx</strong> and your data, and get the filled Office file, a PDF, or both back in one request. DocMint tells you <strong>exactly which fields a template needs</strong> before you send data — and refuses to render a document with one missing.</p>
         <div class="hero-cta">
-          <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get an API key</a>
-          <a class="l-btn l-btn-ghost l-btn-lg" href="/docs">Read the docs</a>
+          <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get an API key <span class="arr" aria-hidden="true">&rarr;</span></a>
+          <a class="l-btn l-btn-ghost l-btn-lg" href="/docs#quickstart">Read the quickstart</a>
         </div>
-        <ul class="fmts">
+        <ul class="hero-trust">
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No card, key over the API</li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>A failed render costs nothing</li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs in the EU</li>
+        </ul>
+        <ul class="fmts" aria-label="Supported template formats">
           <li class="fmt docx"><i></i>.docx .dotx .docm</li>
           <li class="fmt xlsx"><i></i>.xlsx .xltx .xlsm</li>
           <li class="fmt pptx"><i></i>.pptx .potx .ppsx .pptm</li>
         </ul>
-        <p class="hero-note">One syntax across all three. Both <code>{name}</code> and <code>{{name}}</code> work, everywhere, always.</p>
+      </div>
+
+      <figure class="l-stage">
+        <div class="l-stage-inner">
+          <span class="l-label l-label-back"><i style="background:#2b579a"></i>invoice.docx — the template</span>
+          <div class="l-sheet l-sheet-back">
+            <div class="crop"><img src="/img/invoice-template-720.webp" srcset="/img/invoice-template-720.webp 720w, /img/invoice-template-1200.webp 1200w" sizes="(min-width:1000px) 290px, 50vw" width="720" height="1018" alt="The Word invoice template: placeholders such as {company.name}, {customer.name}, a {#items} row loop and {items|sumProduct:qty:unit_price|currency:EUR} for the totals" decoding="async"></div>
+          </div>
+          <span class="l-arrow" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M4 10h11M11 5.5 15.5 10 11 14.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="l-label l-label-front"><i style="background:#c43e1c"></i>invoice.pdf — <span class="ok">200</span> returned</span>
+          <div class="l-sheet l-sheet-front">
+            <div class="crop"><img src="/img/invoice-filled-720.webp" srcset="/img/invoice-filled-720.webp 720w, /img/invoice-filled-1200.webp 1200w" sizes="(min-width:1000px) 340px, 50vw" width="720" height="1018" alt="The filled invoice DocMint returned: Meridian Field Systems B.V. billing Brightline Retail Group B.V., six line items, subtotal €26,854.00, VAT at 21% €5,639.34, amount due €32,493.34" fetchpriority="high"></div>
+          </div>
+          <div class="l-stage-code">
+            <div class="bar"><span class="m">POST</span><b>/v1/render</b><span>application/json</span></div>
+<pre><code>{ <span class="tok-k">"template"</span>: <span class="tok-s">"invoice"</span>,
+  <span class="tok-k">"output"</span>: <span class="tok-s">"pdf"</span>,
+  <span class="tok-k">"data"</span>: {
+    <span class="tok-k">"invoice_no"</span>: <span class="tok-s">"MFS-2026-0417"</span>,
+    <span class="tok-k">"customer"</span>: {
+      <span class="tok-k">"name"</span>: <span class="tok-s">"Brightline Retail Group B.V."</span> },
+    <span class="tok-k">"vat_rate"</span>: <span class="tok-n">0.21</span>, <span class="tok-k">"paid"</span>: <span class="tok-n">false</span>,
+    <span class="tok-k">"items"</span>: [ {
+      <span class="tok-k">"description"</span>:
+        <span class="tok-s">"MFS-220 multi-channel data logger"</span>,
+      <span class="tok-k">"qty"</span>: <span class="tok-n">24</span>, <span class="tok-k">"unit_price"</span>: <span class="tok-n">465</span> },
+      <span class="tok-c">… 5 more items, company, bank, logo</span> ] } }</code></pre>
+          </div>
+        </div>
+        <figcaption>Real output, not a mock-up: <a href="/examples/invoice-template.docx">this template</a> filled with <a href="/examples/invoice.data.json">this data</a> by DocMint's renderer and converted by the service's own LibreOffice image — <a href="/examples/invoice-filled.pdf">the resulting PDF</a>. The totals are not in the data; <code>{items|sumProduct:qty:unit_price|currency:EUR}</code> computes them.</figcaption>
+      </figure>
+    </div>
+
+    <div class="measured">
+      <div>
+        <div class="n">17–27 ms</div>
+        <div class="t">Server-side time to fill a three-line-item Word template, five consecutive live requests.</div>
+      </div>
+      <div>
+        <div class="n">2.7 s</div>
+        <div class="t">Added by the optional PDF step. LibreOffice, half a CPU — this is the number a customer gets.</div>
+      </div>
+      <div>
+        <div class="n">$0.00145</div>
+        <div class="t">Per document on the $29 Pro plan — 20,000 documents a month.</div>
+      </div>
+    </div>
+    <p class="measured-note">Measured on the live service on 25 August 2026, from the <code>stats.stages</code> object the API returns on every render. The first request after an idle period took 53 ms; the PDF path is one instance with a queue of one, so a busy moment queues rather than slows. DocMint is new — these are the only numbers there are, so they are the only ones quoted.</p>
+  </div>
+</section>
+
+<!-- ---------------------------------------------------------------- how ---- -->
+<section class="sec" id="how">
+  <div class="wrap">
+    <div class="split center">
+      <div>
+        <div class="sec-head">
+          <p class="eyebrow">How it works</p>
+          <h2 class="sec-title">Three steps, and the second one is optional</h2>
+          <p>You author the template in Word, Excel or PowerPoint — the tool your finance team already uses — and type placeholders into it. There is no template editor to learn and no proprietary format.</p>
+        </div>
+        <ol class="steps">
+          <li>
+            <b>Upload it once, or send it inline</b>
+            <p><code>POST /v1/templates</code> stores it under a name <em>you</em> choose, and every upload is a new version. Or skip storage entirely and send the file as <code>template_base64</code> on every render.</p>
+          </li>
+          <li>
+            <b>Ask what it needs</b>
+            <p><code>GET /v1/templates/:name/fields</code> returns the placeholder list with locations. Free, and it never throws on a field you have not supplied yet.</p>
+          </li>
+          <li>
+            <b>Render</b>
+            <p><code>POST /v1/render</code> with your data. Ask for <code>document</code>, <code>pdf</code> or <code>both</code> — per request, not per template.</p>
+          </li>
+        </ol>
       </div>
 
       <div class="code-card">
@@ -116,7 +247,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/render \
        "output":"pdf"}'</span> \
   --output quote.pdf</code></pre></div>
 
-        <div class="code-panel" role="tabpanel" id="panel-fields" hidden><pre><code><span class="tok-c"># What does this template actually need? Free, no render.</span>
+        <div class="code-panel" role="tabpanel" id="panel-fields" aria-labelledby="tab-fields" hidden><pre><code><span class="tok-c"># What does this template actually need? Free, no render.</span>
 curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   https://docmint.app.mintapis.com/v1/templates/lines/fields
 
@@ -158,27 +289,36 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         </div>
       </div>
     </div>
+  </div>
+</section>
 
-    <div class="measured">
-      <div>
-        <div class="n">17–27 ms</div>
-        <div class="t">Server-side time to fill a three-line-item Word template, five consecutive live requests.</div>
-      </div>
-      <div>
-        <div class="n">2.7 s</div>
-        <div class="t">Added by the optional PDF step. LibreOffice, half a CPU — this is the number a customer gets.</div>
-      </div>
-      <div>
-        <div class="n">$0.00145</div>
-        <div class="t">Per document on the $29 Pro plan — 20,000 documents a month.</div>
-      </div>
+<!-- --------------------------------------------------------- real output -->
+<section class="sec tinted" id="output">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Real output, three formats</p>
+      <h2 class="sec-title">One syntax across Word, Excel and PowerPoint</h2>
+      <p>Each image below is a template from the <a href="https://github.com/fstandhartinger/docmint/tree/master/examples" rel="noopener">examples folder</a>, filled by DocMint and rendered to PDF. Both <code>{name}</code> and <code>{{name}}</code> work, everywhere, always.</p>
     </div>
-    <p class="measured-note">Measured on the live service on 25 August 2026, from the <code>stats.stages</code> object the API returns on every render. The first request after an idle period took 53 ms; the PDF path is one instance with a queue of one, so a busy moment queues rather than slows. DocMint is new — these are the only numbers there are, so they are the only ones quoted.</p>
+    <div class="l-gallery">
+      <figure class="l-shot">
+        <div class="frame"><img src="/img/invoice-filled-720.webp" width="720" height="1018" loading="lazy" decoding="async" alt="Filled Word invoice with six line items and computed totals"></div>
+        <figcaption><b><span class="fmt docx" style="padding:.1rem .4rem"><i></i>.docx</span>Invoice</b>A row loop over the line items, an image placeholder for the logo, totals computed by formatters, and a PAID / OVERDUE banner chosen by a condition.</figcaption>
+      </figure>
+      <figure class="l-shot">
+        <div class="frame mid"><img src="/img/sales-report-filled.webp" width="880" height="393" loading="lazy" decoding="async" alt="Filled Excel sales report: twelve region rows, units, revenue, prior year, growth and share, with a totals row"></div>
+        <figcaption><b><span class="fmt xlsx" style="padding:.1rem .4rem"><i></i>.xlsx</span>Sales report</b>One template row expanded into twelve. The values are real numbers in their Excel formats, and <code>SUM()</code> still points at the right range afterwards.</figcaption>
+      </figure>
+      <figure class="l-shot">
+        <div class="frame mid"><img src="/img/deck-slide-filled.webp" width="880" height="495" loading="lazy" decoding="async" alt="Filled PowerPoint slide: group performance by region, a six-row table with revenue, change versus Q2 2025 and units"></div>
+        <figcaption><b><span class="fmt pptx" style="padding:.1rem .4rem"><i></i>.pptx</span>Quarterly deck</b>A table whose rows repeat per array element, and a slide loop that turns one template slide into one slide per region — speaker notes and all.</figcaption>
+      </figure>
+    </div>
   </div>
 </section>
 
 <!-- ------------------------------------------------------------- the fields -->
-<section class="sec tinted" id="fields">
+<section class="sec" id="fields">
   <div class="wrap">
     <div class="sec-head">
       <p class="eyebrow">The thing nobody else does</p>
@@ -197,7 +337,6 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Every existing n8n node in this space ships a raw JSON textarea.</b> The official <code>n8n-nodes-carbone</code> declares <code>{name:'data', type:'json', default:'{}'}</code>; so does <code>n8n-nodes-docxtemplater</code>. <code>n8n-nodes-fill-docx</code> is worse — a plain string you must <code>JSON.stringify</code> yourself.</span></li>
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><b>Formstack's management API does return the field list</b> on template create — which proves the demand — but it is not surfaced in any automation UI.</span></li>
         </ul>
-        
       </div>
       <div class="split-media">
         <div class="evidence">
@@ -291,7 +430,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
 </section>
 
 <!-- ------------------------------------------------------------ outer scope -->
-<section class="sec tinted" id="scope">
+<section class="sec" id="scope">
   <div class="wrap">
     <div class="sec-head">
       <p class="eyebrow">The bug that prints the same value on every row</p>
@@ -342,30 +481,14 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
   </div>
 </section>
 
-<!-- ---------------------------------------------------------------- how ---- -->
-<section class="sec" id="how">
+<!-- --------------------------------------------------------------- details -->
+<section class="sec tinted" id="details">
   <div class="wrap">
     <div class="sec-head">
-      <p class="eyebrow">Three steps, and the second one is optional</p>
-      <h2 class="sec-title">How it fits together</h2>
-      <p>You author the template in Word, Excel or PowerPoint — the tool your finance team already uses — and type placeholders into it. There is no template editor to learn and no proprietary format.</p>
+      <p class="eyebrow">The details that decide whether a template survives</p>
+      <h2 class="sec-title">Built for templates people actually edit</h2>
     </div>
-    <ol class="steps">
-      <li>
-        <b>Upload it once, or send it inline</b>
-        <p><code>POST /v1/templates</code> stores it under a name <em>you</em> choose, and every upload is a new version. Or skip storage entirely and send the file as <code>template_base64</code> on every render.</p>
-      </li>
-      <li>
-        <b>Ask what it needs</b>
-        <p><code>GET /v1/templates/:name/fields</code> returns the placeholder list with locations. Free, and it never throws on a field you have not supplied yet.</p>
-      </li>
-      <li>
-        <b>Render</b>
-        <p><code>POST /v1/render</code> with your data. Ask for <code>document</code>, <code>pdf</code> or <code>both</code> — per request, not per template.</p>
-      </li>
-    </ol>
-
-    <div class="grid grid-4" style="margin-top:2.4rem">
+    <div class="grid grid-4">
       <div class="tile">
         <span class="kicker">one syntax</span>
         <h3>Both brace styles</h3>
@@ -390,6 +513,34 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
   </div>
 </section>
 
+<!-- ---------------------------------------------------------- integrations -->
+<section class="sec" id="integrations">
+  <div class="wrap">
+    <div class="sec-head">
+      <p class="eyebrow">Integrations</p>
+      <h2 class="sec-title">From a workflow tool, a script or a month-end run</h2>
+      <p>DocMint returns the file and leaves the delivering to whatever called it. These are the ways in that exist today.</p>
+    </div>
+    <div class="l-integrations">
+      <div>
+        <h3>n8n — the verified community node</h3>
+        <p><code>n8n-nodes-docmint</code> is the official node, built and published by the people who run the API. n8n Cloud and npm both serve 0.2.1; install it from the Nodes panel under <i>More from the community</i>, or from Settings &rarr; Community nodes on self-hosted n8n.</p>
+        <a class="more" href="/n8n-word-template">All three n8n routes &rarr;</a>
+      </div>
+      <div>
+        <h3>Plain HTTP, any language</h3>
+        <p>Everything is one JSON request: sign up, upload a template, ask for its fields, render. Anything that can send an HTTPS POST with a bearer token can use it — curl, a Code node, a backend job. <code>GET /v1/capabilities</code> describes the running service without a key.</p>
+        <a class="more" href="/docs#quickstart">Quickstart &rarr;</a>
+      </div>
+      <div>
+        <h3>Batch, async jobs and webhooks</h3>
+        <p><code>POST /v1/render/batch</code> renders one template against many data sets in one call; <code>POST /v1/jobs</code> queues work that outlives the connection, and a webhook reports the result without being asked.</p>
+        <a class="more" href="/docs#jobs">Batch and jobs &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ------------------------------------------------------------- comparison -->
 <section class="sec tinted" id="compare">
   <div class="wrap">
@@ -402,7 +553,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
     <div class="tablewrap">
       <table class="cmp">
         <thead>
-          <tr><th></th><th class="us">DocMint</th><th>Carbone</th><th>Docupilot</th><th>Formstack Documents</th></tr>
+          <tr><th><span class="sr-only">Behaviour</span></th><th class="us">DocMint</th><th>Carbone</th><th>Docupilot</th><th>Formstack Documents</th></tr>
         </thead>
         <tbody>
           <tr>
@@ -476,7 +627,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         <div class="docs">30 documents a month</div>
         <div class="per">no card, self-serve over the API</div>
         <p class="plan-for">Enough to wire a workflow end to end and see it work before deciding anything.</p>
-        <a class="l-btn l-btn-primary" href="/signup">Get a key</a>
+        <a class="l-btn l-btn-ghost" href="/signup">Get a key</a>
       </div>
       <div class="pcard">
         <div class="pname">Starter</div>
@@ -487,7 +638,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         <a class="l-btn l-btn-ghost" href="/docs#pricing">Start a subscription</a>
       </div>
       <div class="pcard feat">
-        <div class="pname">Pro</div>
+        <div class="pname">Pro <span class="badge">best value</span></div>
         <div class="amt">$29<small> /month</small></div>
         <div class="docs">20,000 documents a month</div>
         <div class="per">$0.00145 per document</div>
@@ -609,32 +760,22 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
   </div>
 </section>
 
-<!-- -------------------------------------------------------------------- cta -->
-<section class="cta">
-  <div class="wrap">
-    <h2>Fill your first template in about a minute</h2>
-    <p>Sign up over the API, upload a <code>.docx</code>, ask it what fields it needs, and render. Thirty documents a month, free, no card.</p>
-    <div class="hero-cta">
-      <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get an API key</a>
-      <a class="l-btn l-btn-ghost l-btn-lg" href="/docs#quickstart">Read the quickstart</a>
-    </div>
-  </div>
-</section>
-
-</main>
-
-<!-- -------------------------------------------------------------- compare -->
+<!-- ---------------------------------------------------------------- reading -->
 <section class="sec tinted" id="reading">
   <div class="wrap">
-    <div class="sec-head center">
+    <div class="sec-head">
       <p class="eyebrow">Before you decide</p>
       <h2 class="sec-title">Written out in full, including the parts against us</h2>
-      <p class="muted">Every competitor price on these pages was read off the vendor&rsquo;s own page on 29&nbsp;August&nbsp;2026, and every DocMint number was measured against this API the same day. Each one names the cases where you should pick the other product.</p>
+      <p>Every competitor price on these pages was read off the vendor&rsquo;s own page on 29&nbsp;August&nbsp;2026, and every DocMint number was measured against this API the same day. Each one names the cases where you should pick the other product.</p>
     </div>
-    <div class="gaps">
+    <div class="gaps links">
       <div class="gap">
         <b><a href="/word-template-api">Word template API &mdash; the whole job, and five products side by side</a></b>
         <span>What filling a template actually involves, the five parts that are hard, when to build it yourself instead, and why the billing units do not compare: Carbone counts a megabyte, Docupilot counts a delivery, Docmosis counts a page.</span>
+      </div>
+      <div class="gap">
+        <b><a href="/invoice-template-api">Invoice generation from a Word template</a></b>
+        <span>The invoice above, taken apart: the row loop, totals computed by <code>sumProduct</code> instead of typed into the data, the PAID / OVERDUE condition, and the request that renders it &mdash; with the template and data to download.</span>
       </div>
       <div class="gap">
         <b><a href="/excel-report-api">Excel report API &mdash; so the formulas still add up</a></b>
@@ -665,31 +806,86 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
 </section>
 
 <!-- ------------------------------------------------------------------- who -->
-<section class="l-who">
+<section class="l-who" aria-labelledby="who-title">
   <div class="wrap">
-    <h2>Who runs this</h2>
-    <p class="muted">DocMint is built and operated by productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG in Passau, Germany. It is new, it is small, and the honest limits are listed above rather than buried in a footnote.</p>
-    <p class="muted">The document fill engine has no third-party dependencies — no docxtemplater, no Carbone, no JSZip. The only external program is LibreOffice, run as a separate process for the optional PDF step. The full list is in <a href="https://github.com/fstandhartinger/docmint/blob/master/THIRD-PARTY-NOTICES.md" rel="noopener">THIRD-PARTY-NOTICES.md</a>.</p>
+    <h2 id="who-title">Who runs this</h2>
+    <div>
+      <p>DocMint is built and operated by productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG in Passau, Germany. It is new, it is small, and the honest limits are listed above rather than buried in a footnote.</p>
+      <p>The document fill engine has no third-party dependencies — no docxtemplater, no Carbone, no JSZip. The only external program is LibreOffice, run as a separate process for the optional PDF step. The full list is in <a href="https://github.com/fstandhartinger/docmint/blob/master/THIRD-PARTY-NOTICES.md" rel="noopener">THIRD-PARTY-NOTICES.md</a>.</p>
+    </div>
   </div>
 </section>
 
+<!-- -------------------------------------------------------------------- cta -->
+<section class="cta" aria-labelledby="cta-title">
+  <div class="wrap">
+    <h2 id="cta-title">Fill your first template in about a minute</h2>
+    <p>Sign up over the API, upload a <code>.docx</code>, ask it what fields it needs, and render. Thirty documents a month, free, no card.</p>
+    <div class="hero-cta">
+      <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get an API key <span class="arr" aria-hidden="true">&rarr;</span></a>
+      <a class="l-btn l-btn-ghost l-btn-lg" href="/docs#quickstart">Read the quickstart</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
 <footer class="l-foot">
   <div class="wrap">
-    <span>DocMint · productivity-boost.com Betriebs UG (haftungsbeschränkt) &amp; Co. KG</span>
-    <nav>
-      <a href="/docs">Docs</a>
-      <a href="/word-template-api">Word template API</a>
-      <a href="/excel-report-api">Excel report API</a>
-      <a href="/powerpoint-generation-api">PowerPoint API</a>
-      <a href="/n8n-word-template">n8n</a>
-      <a href="/carbone-alternative">vs Carbone</a>
-      <a href="/docupilot-alternative">vs Docupilot</a>
-      <a href="/docxtemplater-alternative">vs docxtemplater</a>
-      <a href="/legal">Imprint</a>
-      <a href="/privacy">Privacy</a>
-      <a href="/terms">Terms</a>
-      <a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a>
-    </nav>
+    <div class="l-foot-grid">
+      <div class="l-foot-brand">
+        <a class="logo" href="/" aria-label="DocMint home">Doc<span>Mint</span></a>
+        <p>Fill Word, Excel and PowerPoint templates from JSON. The Office file, a PDF, or both.</p>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="/docs">API reference</a></li>
+          <li><a href="/docs#quickstart">Quickstart</a></li>
+          <li><a href="/#pricing">Pricing</a></li>
+          <li><a href="/signup">Create an account</a></li>
+          <li><a href="/login">Sign in</a></li>
+          <li><a href="/status">Service status</a></li>
+          <li><a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Guides">
+        <h2>Guides</h2>
+        <ul>
+          <li><a href="/word-template-api">Word template API</a></li>
+          <li><a href="/invoice-template-api">Invoices from a Word template</a></li>
+          <li><a href="/excel-report-api">Excel report API</a></li>
+          <li><a href="/powerpoint-generation-api">PowerPoint generation API</a></li>
+          <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Compare">
+        <h2>Compare</h2>
+        <ul>
+          <li><a href="/carbone-alternative">Carbone alternative</a></li>
+          <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+          <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
+        </ul>
+        <h2 style="margin-top:1.8rem">Legal</h2>
+        <ul>
+          <li><a href="/legal">Imprint / Impressum</a></li>
+          <li><a href="/privacy">Privacy</a></li>
+          <li><a href="/terms">Terms</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Mint APIs family" class="fam">
+        <h2>Mint APIs family</h2>
+        <ul>
+          <li><a href="https://pdf.mintapis.com/">PDFMint</a><span>HTML, Markdown or a URL to PDF</span></li>
+          <li><a href="https://mailmint.app.mintapis.com/">MailMint</a><span>Inbound email to structured JSON</span></li>
+          <li><a href="/">DocMint</a><span>Office templates filled from JSON</span></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="l-foot-base">
+      <span>&copy; 2026 productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG, Passau, Germany</span>
+      <span><a href="/llms.txt">llms.txt</a> &middot; <a href="/sitemap.xml">Sitemap</a></span>
+    </div>
   </div>
 </footer>
 
@@ -716,6 +912,6 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
   });
 })();
 </script>
-
+<script src="/site.js?v=2" defer></script>
 </body>
 </html>

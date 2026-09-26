@@ -4,29 +4,25 @@
   --docs-maxw:1420px;
   --sidebar-w:250px;
   --get:#1668c9; --post:#3a43ae; --put:#a1690b; --del:#c0392b;
-  --tint:#eef0fc;
+  --tint:#eeeffb;
   --warn-bg:#fdf6e3; --warn-rule:#e8d9a8; --warn-ink:#6b5310;
 }
 @media (prefers-color-scheme:dark){
-  :root{
+  :root:not([data-theme="light"]){
     --get:#6aa9f0; --post:#8f97f5; --put:#dfae5a; --del:#e8776a;
-    --tint:#191b2e;
+    --tint:#1b1c2e;
     --warn-bg:#241f12; --warn-rule:#4a3f22; --warn-ink:#e2cd94;
   }
+}
+:root[data-theme="dark"]{
+  --get:#6aa9f0; --post:#8f97f5; --put:#dfae5a; --del:#e8776a;
+    --tint:#1b1c2e;
+    --warn-bg:#241f12; --warn-rule:#4a3f22; --warn-ink:#e2cd94;
 }
 
 /* ------------------------------------------------------------------ shell */
 
 body.docs{overflow-x:hidden}
-
-.docs-top{
-  display:flex;align-items:center;justify-content:space-between;gap:1rem;
-  padding:.85rem 1.25rem;border-bottom:1px solid var(--rule);
-  position:sticky;top:0;background:var(--bg);z-index:30;
-}
-.docs-top nav{display:flex;gap:1.1rem;align-items:center;font-size:.9rem;flex-wrap:wrap;justify-content:flex-end}
-.docs-top .cta{background:var(--accent);color:#fff;padding:.4rem .8rem;border-radius:8px;font-weight:600}
-.docs-top .cta:hover{background:var(--accent-ink);text-decoration:none}
 
 .layout{
   max-width:var(--docs-maxw);margin:0 auto;
@@ -36,7 +32,7 @@ body.docs{overflow-x:hidden}
 
 /* --------------------------------------------------------------- sidebar */
 
-.toc{position:sticky;top:57px;align-self:start;max-height:calc(100vh - 57px);overflow-y:auto;
+.toc{position:sticky;top:var(--l-top-h,64px);align-self:start;max-height:calc(100vh - var(--l-top-h,64px));overflow-y:auto;
   padding:1.5rem .5rem 3rem 0;font-size:.875rem;line-height:1.45}
 .toc h2{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
   margin:1.4rem 0 .45rem;font-weight:700}
@@ -53,15 +49,15 @@ body.docs{overflow-x:hidden}
 /* --------------------------------------------------------------- content */
 
 .content{min-width:0;width:100%;max-width:none;margin:0;padding:1.75rem 0 6rem}
-.content > section{scroll-margin-top:72px}
-.content h1{font-size:2.1rem;margin:0 0 .3rem}
-.content h2{font-size:1.5rem;margin:3.2rem 0 .7rem;padding-top:.4rem;scroll-margin-top:72px}
+.content > section{scroll-margin-top:80px}
+.content h1{font-size:clamp(1.8rem,1.3rem + 1.6vw,2.5rem);letter-spacing:-.032em;line-height:1.1;margin:0 0 .6rem;text-wrap:balance}
+.content h2{font-size:1.5rem;letter-spacing:-.022em;margin:3.2rem 0 .7rem;padding-top:.4rem;scroll-margin-top:80px}
 .content h3{font-size:1.1rem;margin:2rem 0 .5rem;scroll-margin-top:72px}
 .content h4{font-size:.95rem;margin:1.5rem 0 .4rem;scroll-margin-top:72px}
 .content p{margin:.7rem 0}
 .content ul,.content ol{margin:.7rem 0;padding-left:1.3rem}
 .content li{margin:.3rem 0}
-.lede{font-size:1.1rem;color:var(--muted);margin-top:.2rem}
+.lede{font-size:1.1rem;color:var(--muted);margin-top:.2rem;line-height:1.65;max-width:46rem}
 
 .anchor{color:var(--muted);opacity:0;font-weight:400;margin-left:.4rem;font-size:.8em;text-decoration:none}
 h2:hover .anchor,h3:hover .anchor,h4:hover .anchor{opacity:.55}
@@ -139,12 +135,6 @@ h2:hover .anchor,h3:hover .anchor,h4:hover .anchor{opacity:.55}
   .content h2{font-size:1.3rem;margin-top:2.6rem}
 }
 @media (max-width:520px){
-  .docs-top{padding:.7rem .9rem}
-  .docs-top .logo{font-size:1.05rem}
-  /* One row, always: the section links live in the TOC right below anyway. */
-  .docs-top nav{gap:.75rem;font-size:.83rem;flex-wrap:nowrap}
-  .docs-top nav a:not(.cta){display:none}
-  .docs-top nav a[href="/dashboard"]{display:inline}
   .layout{padding:0 .9rem}
   .content h1{font-size:1.45rem}
   .lede{font-size:1rem}
@@ -169,3 +159,20 @@ h2:hover .anchor,h3:hover .anchor,h4:hover .anchor{opacity:.55}
 /* A long inline snippet in a paragraph is the one thing that can push the page
    sideways on a phone; block code has its own scroller, inline code does not. */
 .content p code, .note code, .legal p code { overflow-wrap: anywhere; }
+
+/* Content column reading width and a two-up figure pair (guides). */
+.docs:not(.ref) .content{max-width:52rem}
+.l-pair{display:grid;gap:1.25rem;margin:1.4rem 0}
+@media (min-width:700px){.l-pair{grid-template-columns:1fr 1fr}}
+.l-pair figure{margin:0;border:1px solid var(--rule);border-radius:12px;overflow:hidden;background:var(--panel)}
+.l-pair img{display:block;width:100%;height:auto;border-bottom:1px solid var(--rule);background:#fff}
+.l-pair figcaption{padding:.7rem .9rem;font-size:.84rem;color:var(--muted)}
+.l-pair figcaption b{color:var(--ink)}
+.content .l-crumbs{margin-top:.2rem}
+body.docs .l-foot{margin-top:2rem}
+/* Align the docs grid with the shared header: guides use the site width, the
+   API reference keeps its wider grid and widens the header to match. */
+.docs:not(.ref) .layout{max-width:var(--l-maxw,1160px);padding:0 1.5rem;gap:3rem}
+.docs.ref .l-top .wrap{max-width:var(--docs-maxw);padding:0 1.25rem}
+@media (max-width:960px){.docs:not(.ref) .layout{padding:0 1rem;gap:0}}
+@media (max-width:520px){.docs:not(.ref) .layout{padding:0 .9rem}}
