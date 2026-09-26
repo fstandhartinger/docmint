@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invoice generation API — invoices from a Word template</title>
+<meta name="description" content="Generate invoices from a .docx template and JSON: a row loop, totals computed by formatters, a paid/overdue condition, PDF out. Template and data included.">
+<link rel="canonical" href="https://docmint.app.mintapis.com/invoice-template-api">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:url" content="https://docmint.app.mintapis.com/invoice-template-api">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="DocMint">
+<meta property="og:title" content="Invoice generation API — invoices from a Word template">
+<meta property="og:description" content="Generate invoices from a .docx template and JSON: a row loop, totals computed by formatters, a paid/overdue condition, PDF out. Template and data included.">
+<meta property="og:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="DocMint logo with a JSON-to-document example and a sample API request">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Invoice generation API — invoices from a Word template">
+<meta name="twitter:description" content="Generate invoices from a .docx template and JSON: a row loop, totals computed by formatters, a paid/overdue condition, PDF out. Template and data included.">
+<meta name="twitter:image" content="https://docmint.app.mintapis.com/og-image.png">
+<meta name="twitter:image:alt" content="DocMint logo with a JSON-to-document example and a sample API request">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#fbfaf8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
+<link rel="preload" href="/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin>
+<script>try{var t=localStorage.getItem('mint-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="/app.css?v=2">
+<link rel="stylesheet" href="/landing.css?v=2">
+<link rel="stylesheet" href="/docs.css?v=2">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "BreadcrumbList",
+   "itemListElement": [
+    {
+     "@type": "ListItem",
+     "position": 1,
+     "name": "DocMint",
+     "item": "https://docmint.app.mintapis.com/"
+    },
+    {
+     "@type": "ListItem",
+     "position": 2,
+     "name": "Invoices from a Word template",
+     "item": "https://docmint.app.mintapis.com/invoice-template-api"
+    }
+   ]
+  },
+  {
+   "@type": "TechArticle",
+   "headline": "Generating invoices from a Word template",
+   "description": "Generate invoices from a .docx template and JSON: a row loop, totals computed by formatters, a paid/overdue condition, PDF out. Template and data included.",
+   "url": "https://docmint.app.mintapis.com/invoice-template-api",
+   "inLanguage": "en",
+   "image": "https://docmint.app.mintapis.com/og-image.png",
+   "about": {
+    "@id": "https://docmint.app.mintapis.com/#software"
+   },
+   "publisher": {
+    "@type": "Organization",
+    "@id": "https://docmint.app.mintapis.com/#organization",
+    "name": "productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG"
+   }
+  }
+ ]
+}
+</script>
+</head>
+<body class="docs">
+
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="l-top">
+  <div class="wrap">
+    <a class="logo" href="/" aria-label="DocMint home">
+      <svg class="l-mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="2.5" width="17" height="19" rx="3" stroke="currentColor" stroke-width="1.7"/><path class="l-mark-a" d="M7.6 8.6h3.2c2.4 0 4 1.8 4 4.4s-1.6 4.4-4 4.4H7.6V8.6z" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      Doc<span>Mint</span>
+    </a>
+    <nav class="l-nav" aria-label="Primary">
+      <a href="/#how">How it works</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="/n8n-word-template" class="hide-md">n8n</a>
+      <a href="/#honest" class="hide-md">Limits</a>
+    </nav>
+    <div class="l-actions">
+      <button class="l-theme" type="button" id="themeToggle" aria-label="Switch colour theme">
+        <svg class="i-moon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.5 12.3A6.8 6.8 0 0 1 7.7 3.5a6.8 6.8 0 1 0 8.8 8.8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <svg class="i-sun" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="3.4" stroke="currentColor" stroke-width="1.6"/><path d="M10 1.8v2M10 16.2v2M1.8 10h2M16.2 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <a class="l-signin" href="/login">Sign in</a>
+      <a class="l-btn l-btn-primary l-btn-sm" href="/signup">Get an API key</a>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+<aside class="toc">
+  <button class="toc-toggle" id="tocToggle" aria-expanded="false" aria-controls="tocBody">Contents</button>
+  <div class="toc-body" id="tocBody">
+    <h2>On this page</h2>
+    <ul>
+      <li><a href="#result">The template and the result</a></li>
+      <li><a href="#template">What is written in the template</a></li>
+      <li><a href="#totals">Totals the template computes</a></li>
+      <li><a href="#request">The request</a></li>
+      <li><a href="#fields">Asking what it needs</a></li>
+      <li><a href="#missing">When a line item is incomplete</a></li>
+      <li><a href="#payment">A payment QR code</a></li>
+      <li><a href="#cost">What a run of invoices costs</a></li>
+      <li><a href="#cannot">What it does not do</a></li>
+    </ul>
+    <h2>Related</h2>
+    <ul>
+      <li><a href="/word-template-api">Word template API</a></li>
+      <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+      <li><a href="/excel-report-api">Excel report API</a></li>
+      <li><a href="/docs">API reference</a></li>
+    </ul>
+  </div>
+</aside>
+
+<main class="content" id="main">
+<nav class="l-crumbs" aria-label="Breadcrumb"><ol><li><a href="/">DocMint</a></li><li aria-current="page">Invoices from a Word template</li></ol></nav>
+
+<h1>Generating invoices from a Word template</h1>
+<p class="lede">An invoice is the document most people first try to generate, and the one where a silent mistake costs the most: a total that does not match its lines, a blank VAT number, a banner that says OVERDUE on a paid bill. This page takes one real invoice template apart — what is written in it, the JSON that fills it, the request that renders it, and what DocMint says when the data is incomplete.</p>
+
+<p>Everything here uses <code>examples/invoice.docx</code> and <code>examples/invoice.data.json</code> from the <a href="https://github.com/fstandhartinger/docmint/tree/master/examples" rel="noopener">DocMint repository</a>. The images were produced on 26&nbsp;September&nbsp;2026 by DocMint's own renderer and converted to PDF by the service's LibreOffice image. You can download all three files and repeat it.</p>
+
+<section id="result">
+<h2>The template and the result<a class="anchor" href="#result">#</a></h2>
+
+<div class="l-pair">
+  <figure>
+    <img src="/img/invoice-template-720.webp" srcset="/img/invoice-template-720.webp 720w, /img/invoice-template-1200.webp 1200w" sizes="(min-width:960px) 420px, 92vw" width="720" height="1018" loading="lazy" decoding="async" alt="The invoice template in Word: placeholders for the company, the customer, a {#items} row loop in the line-item table, sumProduct totals and the PAID / OVERDUE sections">
+    <figcaption><b>invoice.docx</b> — the template, as LibreOffice renders it with the placeholders still in. <a href="/examples/invoice-template.docx">Download (8&nbsp;KB)</a></figcaption>
+  </figure>
+  <figure>
+    <img src="/img/invoice-filled-720.webp" srcset="/img/invoice-filled-720.webp 720w, /img/invoice-filled-1200.webp 1200w" sizes="(min-width:960px) 420px, 92vw" width="720" height="1018" loading="lazy" decoding="async" alt="The filled invoice: six line items, subtotal €26,854.00, VAT at 21% €5,639.34, amount due €32,493.34, an OVERDUE banner, bank details and terms">
+    <figcaption><b>invoice.pdf</b> — what came back: one A4 page. <a href="/examples/invoice-filled.pdf">Download the PDF (44&nbsp;KB)</a> · <a href="/examples/invoice.data.json">the data (5&nbsp;KB)</a></figcaption>
+  </figure>
+</div>
+</section>
+
+<section id="template">
+<h2>What is written in the template<a class="anchor" href="#template">#</a></h2>
+<p>The template is an ordinary Word document. Nothing in it is DocMint-specific except the text in braces, and it still opens and edits in Word. It uses 47 tags, which boil down to these patterns:</p>
+
+<div class="tw"><table>
+<thead><tr><th>In the template</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>{company.name}</code>, <code>{customer.address}</code></td><td class="wrap">A value, reached by dotted path. <code>customer.address</code> is one string with newlines in it; they become line breaks inside the paragraph.</td></tr>
+<tr><td><code>{%logo}</code></td><td class="wrap">An image: the data carries a base64 PNG with a width, and the renderer places it.</td></tr>
+<tr><td><code>{#items}</code> … <code>{/items}</code></td><td class="wrap">A row loop. The opening tag sits in the first cell of the line row and the closing tag in the last, so the whole table row repeats once per line item.</td></tr>
+<tr><td><code>{$index1}</code>, <code>{items|count}</code></td><td class="wrap">The line number, counting from 1, and "6 line items" in the heading.</td></tr>
+<tr><td><code>{issued|date:DD MMMM YYYY}</code></td><td class="wrap">An ISO date in the data, printed as "14 July 2026".</td></tr>
+<tr><td><code>{unit_price|currency:EUR}</code></td><td class="wrap">A number in the data, printed as "€465.00" in the request's locale.</td></tr>
+<tr><td><code>{#paid}</code> … <code>{/paid}</code> and <code>{^paid}</code> … <code>{/paid}</code></td><td class="wrap">A condition and its inverse. With <code>"paid": false</code> the red OVERDUE banner is rendered and the green PAID IN FULL one is removed, leaving no empty coloured bar behind.</td></tr>
+<tr><td>header and footer</td><td class="wrap"><code>Invoice {invoice_no}</code> in the running header and again in the footer, next to Word's own page field.</td></tr>
+</tbody></table></div>
+
+<p>Both brace styles work: <code>{invoice_no}</code> and <code>{{invoice_no}}</code> mean the same thing. The full syntax is in the <a href="/docs#syntax">template syntax reference</a>.</p>
+</section>
+
+<section id="totals">
+<h2>Totals the template computes<a class="anchor" href="#totals">#</a></h2>
+<p>None of the three totals is in the data, and none is typed into the template. They are computed from the line items when the document is filled:</p>
+
+<div class="code"><pre><code>Subtotal (net)   {items|sumProduct:qty:unit_price|currency:EUR}
+VAT at {vat_rate|percent}   {items|sumProduct:qty:unit_price:vat_rate|currency:EUR}
+Amount due   {items|sumProduct:qty:unit_price:vat_factor|currency:EUR}</code></pre></div>
+
+<p>With the sample data that is €26,854.00 net, €5,639.34 VAT at 21% and €32,493.34 due. Change a quantity in the data and all three move; an invoice whose total is sent in separately is an invoice that is wrong the first time someone edits a line and forgets the total.</p>
+<p>One honest detail: each line item carries <code>vat_factor</code> (1.21) next to <code>vat_rate</code> (0.21). The formatter pipeline can multiply a running total by a field, but it cannot add the output of one pipeline to another, so the gross total is a third <code>sumProduct</code> rather than <code>subtotal + VAT</code>. The example's <code>verify.js</code> checks that <code>vat_factor</code> is exactly <code>1 + vat_rate</code> on every line, and recomputes every printed figure independently.</p>
+</section>
+
+<section id="request">
+<h2>The request<a class="anchor" href="#request">#</a></h2>
+<p>Send the template with the data, and ask for a PDF. Nothing is stored:</p>
+
+<div class="code"><div class="cap">one request, template inline</div><pre><code>jq -n \
+  --arg t "$(base64 -w0 invoice-template.docx)" \
+  --slurpfile d invoice.data.json \
+  '{template_base64:$t, data:$d[0], output:"pdf",
+    locale:"en-GB", currency:"EUR", filename:"invoice-{invoice_no}.pdf"}' \
+| curl -sS -X POST https://docmint.app.mintapis.com/v1/render \
+    -H "Authorization: Bearer $DOCMINT_KEY" \
+    -H 'Content-Type: application/json' \
+    --data-binary @- --output invoice.pdf</code></pre><button class="copy" type="button">Copy</button></div>
+
+<p><code>filename</code> is itself a template, filled from the same data, so the download is named <code>invoice-MFS-2026-0417.pdf</code>. Ask for <code>"output": "document"</code> to get the filled <code>.docx</code> instead, or <code>"both"</code> for a JSON envelope carrying the two base64-encoded (two credits, like a PDF). <code>pdf_password</code> adds an open password to the PDF.</p>
+
+<p>For anything recurring, upload the template once and render it by name. Replacing the letterhead then means uploading a new version, not editing every workflow that sends invoices:</p>
+
+<div class="code"><div class="cap">upload once, render by name</div><pre><code>jq -n --arg f "$(base64 -w0 invoice-template.docx)" \
+  '{name:"invoice", file_base64:$f}' \
+| curl -sS -X POST https://docmint.app.mintapis.com/v1/templates \
+    -H "Authorization: Bearer $DOCMINT_KEY" \
+    -H 'Content-Type: application/json' --data-binary @-
+
+jq -n --slurpfile d invoice.data.json '{template:"invoice", data:$d[0], output:"pdf"}' \
+| curl -sS -X POST https://docmint.app.mintapis.com/v1/render \
+    -H "Authorization: Bearer $DOCMINT_KEY" \
+    -H 'Content-Type: application/json' \
+    --data-binary @- --output invoice.pdf</code></pre><button class="copy" type="button">Copy</button></div>
+<p>Every upload under the same name becomes a new version, and a render can pin one with <code>template_version</code> — see <a href="/docs#template-versions">versions and rollback</a>.</p>
+</section>
+
+<section id="fields">
+<h2>Asking what it needs<a class="anchor" href="#fields">#</a></h2>
+<p>Before sending any data, <code>GET /v1/templates/invoice/fields</code> (or <code>POST /v1/inspect</code> with the file inline) lists what the template reads. For this invoice that is 35 fields from 47 tags. It is free and renders nothing. Two entries from the answer:</p>
+
+<div class="code"><div class="cap">abridged — produced by DocMint's inspect on this template</div><pre><code>{ "name": "items", "scope": "", "type": "array",
+  "repeating": true, "required": true,
+  "formatters": ["count", "sumProduct", "currency"], "used": 11,
+  "locations": ["word/document.xml, table 3 row 2", …] },
+{ "name": "qty", "scope": "items", "type": "number",
+  "repeating": false, "required": true,
+  "locations": ["word/document.xml, table 3 row 2, paragraph 45"] }</code></pre></div>
+
+<p><code>scope</code> is what makes it a tree: <code>qty</code> lives inside <code>items</code>. The same answer carries a <code>sample_data</code> skeleton you can POST straight back. One limit worth knowing: the probe reports <code>paid</code> as a repeating section, because <code>{#paid}</code> is written the same way as a loop and the template alone cannot say which one was meant. Sending <code>true</code> or <code>false</code> works exactly as a condition.</p>
+</section>
+
+<section id="missing">
+<h2>When a line item is incomplete<a class="anchor" href="#missing">#</a></h2>
+<p>Delete <code>unit_price</code> from the third line item and render again. DocMint does not print an empty cell or the word <code>undefined</code>; it refuses, with HTTP 422, and the credit is refunded:</p>
+
+<div class="code"><div class="cap">the renderer's error for this template, reproduced on 26 September 2026 (the available list is abridged)</div><pre><code>{
+  "code": "placeholder_unresolved",
+  "message": "The template uses {unit_price|currency:EUR} but the data has no \"unit_price\".",
+  "hint": "Add \"unit_price\" to the data, or write {unit_price|default:} to allow it to be absent.",
+  "details": {
+    "field": "unit_price",
+    "location": "word/document.xml, table 3 row 2, paragraph 47",
+    "available": ["invoice_no", "issued", "due", …, "description", "detail", "qty", "unit", "line_total", "vat_factor"],
+    "format": "docx"
+  }
+}</code></pre></div>
+<p>The location is the line-item row of the table, and <code>available</code> lists what the data <em>does</em> have at that point — including the item's own fields. For an optional field, <code>{detail|default:}</code> is the sanctioned way to allow it to be absent. The full contract is in <a href="/docs#missing">missing fields</a>.</p>
+</section>
+
+<section id="payment">
+<h2>A payment QR code<a class="anchor" href="#payment">#</a></h2>
+<p>The example invoice prints the bank details as text. A European invoice often also carries a SEPA payment QR code ("Girocode", EPC069-12) that banking apps read into a transfer form. DocMint draws it itself from an image tag — put <code>{%pay}</code> in the template and send:</p>
+<div class="code"><pre><code>"pay": { "epc": { "name": "Meridian Field Systems B.V.",
+                  "iban": "NL91 INGB 0002 4455 88", "bic": "INGBNL2A",
+                  "amount": 32493.34, "text": "MFS-2026-0417" } }</code></pre></div>
+<p>The IBAN is validated including its check digits and never echoed in an error. No network request is made. QR codes, Code 128 and EAN-13 barcodes are documented under <a href="/docs#images">images</a>.</p>
+</section>
+
+<section id="cost">
+<h2>What a run of invoices costs<a class="anchor" href="#cost">#</a></h2>
+<p>A filled <code>.docx</code> is one credit; a PDF is two, because the LibreOffice conversion costs far more CPU than the fill. So the free plan's 30 credits a month are 15 PDF invoices, Starter ($9, 2,000 credits) is 1,000, and Pro ($29, 20,000 credits) is 10,000. A render that fails — like the 422 above — costs nothing.</p>
+<p>Timing, as measured on the live service in August 2026: the fill itself takes milliseconds; the PDF step adds about 2.7&nbsp;s and conversions run one at a time. A month-end run of hundreds of invoices is what <a href="/docs#batch"><code>POST /v1/render/batch</code></a> (one template, many data sets, one call) and <a href="/docs#async"><code>POST /v1/jobs</code></a> with a <a href="/docs#webhooks">webhook</a> exist for.</p>
+</section>
+
+<section id="cannot">
+<h2>What it does not do<a class="anchor" href="#cannot">#</a></h2>
+<ul>
+  <li><b>No structured e-invoices.</b> DocMint produces the visual invoice — the Office file or a PDF. It does not produce XRechnung, ZUGFeRD or Factur-X data, and its PDF is not PDF/A. If you are legally required to send a structured e-invoice, you need a tool that produces one.</li>
+  <li><b>No numbering, no ledger.</b> The invoice number, dates and amounts are whatever your data says. DocMint does not allocate numbers, store invoices or track payment.</li>
+  <li><b>No delivery.</b> It returns the file; sending it by email or filing it in Drive is your workflow's job.</li>
+  <li><b>No SLA.</b> One region, one instance, restarted on every deploy — the full list is under <a href="/#honest">what DocMint does not do yet</a>.</li>
+</ul>
+<p>Next: the same template inside a workflow in <a href="/n8n-word-template">n8n</a>, or how DocMint compares on price and behaviour in <a href="/word-template-api">the Word template API overview</a>.</p>
+</section>
+
+
+<aside class="l-related" aria-labelledby="rel-title"><h2 id="rel-title">Related pages</h2><ul><li><a href="/word-template-api"><b>Word template API</b><span>What filling a template involves, the hard parts, and five products side by side.</span></a></li><li><a href="/n8n-word-template"><b>Word templates in n8n</b><span>The verified community node, an HTTP Request node, or a Code node with docxtemplater.</span></a></li><li><a href="/excel-report-api"><b>Excel report API</b><span>Numbers that stay numbers, and SUM() ranges that still add up after the rows expand.</span></a></li><li><a href="/docupilot-alternative"><b>Docupilot alternative</b><span>$29 buys 100 documents there and 20,000 here; their price includes an editor and eSignatures.</span></a></li></ul></aside>
+</main>
+</div>
+
+<footer class="l-foot">
+  <div class="wrap">
+    <div class="l-foot-grid">
+      <div class="l-foot-brand">
+        <a class="logo" href="/" aria-label="DocMint home">Doc<span>Mint</span></a>
+        <p>Fill Word, Excel and PowerPoint templates from JSON. The Office file, a PDF, or both.</p>
+      </div>
+      <nav aria-label="Product">
+        <h2>Product</h2>
+        <ul>
+          <li><a href="/docs">API reference</a></li>
+          <li><a href="/docs#quickstart">Quickstart</a></li>
+          <li><a href="/#pricing">Pricing</a></li>
+          <li><a href="/signup">Create an account</a></li>
+          <li><a href="/login">Sign in</a></li>
+          <li><a href="/status">Service status</a></li>
+          <li><a href="https://github.com/fstandhartinger/docmint" rel="noopener">Source</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Guides">
+        <h2>Guides</h2>
+        <ul>
+          <li><a href="/word-template-api">Word template API</a></li>
+          <li><a href="/invoice-template-api">Invoices from a Word template</a></li>
+          <li><a href="/excel-report-api">Excel report API</a></li>
+          <li><a href="/powerpoint-generation-api">PowerPoint generation API</a></li>
+          <li><a href="/n8n-word-template">Word templates in n8n</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Compare">
+        <h2>Compare</h2>
+        <ul>
+          <li><a href="/carbone-alternative">Carbone alternative</a></li>
+          <li><a href="/docupilot-alternative">Docupilot alternative</a></li>
+          <li><a href="/docxtemplater-alternative">docxtemplater alternative</a></li>
+        </ul>
+        <h2 style="margin-top:1.8rem">Legal</h2>
+        <ul>
+          <li><a href="/legal">Imprint / Impressum</a></li>
+          <li><a href="/privacy">Privacy</a></li>
+          <li><a href="/terms">Terms</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Mint APIs family" class="fam">
+        <h2>Mint APIs family</h2>
+        <ul>
+          <li><a href="https://pdf.mintapis.com/">PDFMint</a><span>HTML, Markdown or a URL to PDF</span></li>
+          <li><a href="https://mailmint.app.mintapis.com/">MailMint</a><span>Inbound email to structured JSON</span></li>
+          <li><a href="/">DocMint</a><span>Office templates filled from JSON</span></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="l-foot-base">
+      <span>&copy; 2026 productivity-boost.com Betriebs UG (haftungsbeschr&auml;nkt) &amp; Co. KG, Passau, Germany</span>
+      <span><a href="/llms.txt">llms.txt</a> &middot; <a href="/sitemap.xml">Sitemap</a></span>
+    </div>
+  </div>
+</footer>
+
+<script src="/docs.js?v=2"></script>
+
+<script src="/site.js?v=2" defer></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# DocMint
+
+> Fill Word, Excel and PowerPoint templates from JSON through one document-generation API. Get the Office file, a PDF, or both.
+
+DocMint is operated by productivity-boost.com Betriebs UG (haftungsbeschränkt) & Co. KG in Passau, Germany.
+
+## Product and API
+
+- [Product overview](https://docmint.app.mintapis.com/): supported formats, sample outputs, plans, limitations and FAQs.
+- [API reference](https://docmint.app.mintapis.com/docs): signup, authentication, template syntax, fields, rendering, PDF output, batch jobs, webhooks, errors and billing.
+- [Quickstart](https://docmint.app.mintapis.com/docs#quickstart): make a first API request.
+- [Source code](https://github.com/fstandhartinger/docmint): implementation and examples.
+
+## Guides for common tasks
+
+- [Word template API](https://docmint.app.mintapis.com/word-template-api): fill an Office template from JSON and compare implementation approaches.
+- [Invoice generation API](https://docmint.app.mintapis.com/invoice-template-api): a worked invoice example with a downloadable template and data.
+- [Excel report API](https://docmint.app.mintapis.com/excel-report-api): preserve numeric cells, formulas and totals when expanding rows.
+- [PowerPoint generation API](https://docmint.app.mintapis.com/powerpoint-generation-api): repeat slides from a PowerPoint template.
+- [Word templates in n8n](https://docmint.app.mintapis.com/n8n-word-template): use the community node, an HTTP Request node, or a Code node.
+
+## Comparisons
+
+- [Carbone alternative](https://docmint.app.mintapis.com/carbone-alternative)
+- [Docupilot alternative](https://docmint.app.mintapis.com/docupilot-alternative)
+- [docxtemplater alternative](https://docmint.app.mintapis.com/docxtemplater-alternative)
+
+## Product facts
+
+- Templates are `.docx`, `.xlsx` or `.pptx` files with placeholders; the API accepts JSON data.
+- A template's typed field list and sample-data skeleton can be inspected before rendering.
+- A render can return the Office document, a PDF, or both.
+- Missing template fields produce a validation error that identifies the field and its location.
+- The free plan includes 30 documents per month without a payment card. Paid monthly plans are listed on the product page.
+- Synchronous render outputs are returned in the response. Async job outputs are available by expiring download link; uploaded templates are stored.
+- The service has no SLA. Current capabilities and limits are described in the API reference and on the product page.
+
+## Policies and service status
+
+- [Live service status](https://docmint.app.mintapis.com/status): the API response and PDF conversion availability reported by `/healthz`; this is not an incident history or uptime guarantee.
+- [Privacy policy](https://docmint.app.mintapis.com/privacy)
+- [Terms of service](https://docmint.app.mintapis.com/terms)
+- [Imprint](https://docmint.app.mintapis.com/legal)
+- [Health endpoint](https://docmint.app.mintapis.com/healthz)
