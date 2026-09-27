@@ -14,6 +14,7 @@ const jobs = require('./jobs');
 const pdf = require('./pdf');
 const billing = require('./billing');
 const web = require('./web');
+const openapi = require('./openapi');
 const analytics = require('./analytics');
 const visitStats = require('./visit-stats');
 const log = require('./log');
@@ -204,6 +205,17 @@ app.get('/f/:token', async (req, res, next) => {
 app.use('/dashboard/api/v1', dashboardBridge);
 app.use('/v1', api.router);
 app.use(web.router);
+
+/**
+ * The machine-readable API description at the canonical URL. Client
+ * generators, launch directories and registries expect it at the site root,
+ * not behind /v1 — and MailMint already serves /openapi.json here, so this
+ * keeps the two products in the portfolio consistent.
+ */
+app.get('/openapi.json', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=600');
+  res.json(openapi);
+});
 
 /**
  * AT9 — first-party site analytics, and beside it the per-page and
