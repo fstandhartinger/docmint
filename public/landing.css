@@ -94,6 +94,7 @@ img,svg{max-width:100%}
 img{height:auto;display:block}
 a{color:var(--l-accent-ink);text-decoration:none;text-underline-offset:.18em}
 a:hover{text-decoration:underline}
+p a:not(.l-btn):not(.pill),.checks a{text-decoration:underline}
 h1,h2,h3{color:var(--l-ink);text-wrap:balance}
 p{text-wrap:pretty}
 code,pre,kbd{font-family:var(--l-mono)}

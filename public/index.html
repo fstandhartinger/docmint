@@ -168,7 +168,7 @@
           </div>
           <div class="l-stage-code">
             <div class="bar"><span class="m">POST</span><b>/v1/render</b><span>application/json</span></div>
-<pre><code>{ <span class="tok-k">"template"</span>: <span class="tok-s">"invoice"</span>,
+<pre tabindex="0"><code>{ <span class="tok-k">"template"</span>: <span class="tok-s">"invoice"</span>,
   <span class="tok-k">"output"</span>: <span class="tok-s">"pdf"</span>,
   <span class="tok-k">"data"</span>: {
     <span class="tok-k">"invoice_no"</span>: <span class="tok-s">"MFS-2026-0417"</span>,
@@ -240,7 +240,7 @@
           <button class="code-copy" type="button" id="copyBtn">Copy</button>
         </div>
 
-        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre><code><span class="tok-c"># A saved .docx and your data. The PDF comes straight back.</span>
+        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre tabindex="0"><code><span class="tok-c"># A saved .docx and your data. The PDF comes straight back.</span>
 curl -X POST https://docmint.app.mintapis.com/v1/render \
   -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
@@ -249,7 +249,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/render \
        "output":"pdf"}'</span> \
   --output quote.pdf</code></pre></div>
 
-        <div class="code-panel" role="tabpanel" id="panel-fields" aria-labelledby="tab-fields" hidden><pre><code><span class="tok-c"># What does this template actually need? Free, no render.</span>
+        <div class="code-panel" role="tabpanel" id="panel-fields" aria-labelledby="tab-fields" hidden><pre tabindex="0"><code><span class="tok-c"># What does this template actually need? Free, no render.</span>
 curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   https://docmint.app.mintapis.com/v1/templates/lines/fields
 
@@ -269,7 +269,7 @@ curl -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
 <span class="tok-c">    "items": [{ "description": "description",</span>
 <span class="tok-c">                "qty": 0, "price": 0 }] } }</span></code></pre></div>
 
-        <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre><code><span class="tok-c"># No dashboard to click through. The key is in the response.</span>
+        <div class="code-panel" role="tabpanel" id="panel-signup" aria-labelledby="tab-signup" hidden><pre tabindex="0"><code><span class="tok-c"># No dashboard to click through. The key is in the response.</span>
 curl -X POST https://docmint.app.mintapis.com/v1/signup \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
   -d <span class="tok-s">'{"email":"you@example.com",
@@ -343,7 +343,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       <div class="split-media">
         <div class="evidence">
           <div class="head"><span>POST <b>/v1/inspect</b></span><span>a .pptx, uploaded inline</span><span>0 credits</span></div>
-<pre><code>{
+<pre tabindex="0"><code>{
   "format": "pptx",
   "fields": [
     { "name": "client.name", "scope": "", "type": "string",
@@ -396,7 +396,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       <div class="split-media">
         <div class="evidence">
           <div class="head"><span>POST <b>/v1/render</b></span><span>HTTP <b>422</b></span><span>0 credits — the reservation is refunded</span></div>
-<pre><code>{
+<pre tabindex="0"><code>{
   "error": {
     "code": "placeholder_unresolved",
     "message": "The template uses {price|currency} but
@@ -451,7 +451,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       <div class="split-media">
         <div class="evidence">
           <div class="head"><span>POST <b>/v1/render</b></span><span>HTTP <b>200</b> — the file is returned</span><span>x-docmint-warnings: <b>1</b></span></div>
-<pre><code>"warnings": [
+<pre tabindex="0"><code>"warnings": [
   {
     "code": "resolved_from_outer_scope",
     "field": "currency",
@@ -466,7 +466,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
         </div>
         <div class="evidence">
           <div class="head"><span>the same request with <b>"strictScope": true</b></span><span>HTTP <b>422</b></span></div>
-<pre><code>{
+<pre tabindex="0"><code>{
   "code": "placeholder_outside_loop",
   "message": "{currency} is not a field of the loop item.",
   "hint": "strictScope is on, so a tag inside a loop must
@@ -552,7 +552,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       <p>Everything in this table was read off the vendors' own documentation and pricing pages, and everything in the DocMint column is verifiable against the live API on this domain.</p>
     </div>
 
-    <div class="tablewrap">
+    <div class="tablewrap" tabindex="0">
       <table class="cmp">
         <thead>
           <tr><th><span class="sr-only">Behaviour</span></th><th class="us">DocMint</th><th>Carbone</th><th>Docupilot</th><th>Formstack Documents</th></tr>
