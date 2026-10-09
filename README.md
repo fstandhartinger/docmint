@@ -108,7 +108,10 @@ LibreOffice peaks at **219 MB** per conversion, measured — which is why
 ## Running it yourself
 
 A plain Express app, a Postgres database, and `soffice` on the PATH for PDF output.
-The Dockerfile installs `libreoffice-core` and `libreoffice-writer`.
+The Dockerfile installs `libreoffice-writer`, `libreoffice-calc` and
+`libreoffice-impress`, one per input format: the `.xlsx` import and `calc_pdf_Export`
+ship in the Calc package and the `.pptx` ones in Impress, so a host with Writer alone
+can turn only Word templates into PDFs.
 
 ```bash
 npm install
