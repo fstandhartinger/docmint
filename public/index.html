@@ -30,7 +30,7 @@
 <link rel="preload" href="/img/invoice-filled-720.webp" as="image" type="image/webp" imagesrcset="/img/invoice-filled-720.webp 720w, /img/invoice-filled-1200.webp 1200w" imagesizes="(min-width:1000px) 340px, 50vw" fetchpriority="high">
 <script>try{var t=localStorage.getItem('mint-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="stylesheet" href="/app.css?v=2">
-<link rel="stylesheet" href="/landing.css?v=2">
+<link rel="stylesheet" href="/landing.css?v=4">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -93,7 +93,7 @@
         { "@type": "Question", "name": "What happens if my data has an extra field the template does not use?", "acceptedAnswer": { "@type": "Answer", "text": "Nothing — extra data is ignored. It is the other direction that is an error: a placeholder with nothing behind it." } },
         { "@type": "Question", "name": "Does a failed render cost a credit?", "acceptedAnswer": { "@type": "Answer", "text": "No. The credit is reserved before the work and refunded if the work fails, so a 422 on a missing field costs nothing." } },
         { "@type": "Question", "name": "Are my documents stored?", "acceptedAnswer": { "@type": "Answer", "text": "For a synchronous call, rendered documents are not stored — they are produced in memory and returned in the response. An async job's output is kept as a download link that expires 24 hours after the job finishes. Templates you upload are stored, because that is what uploading them means. The privacy policy lists every row of every table." } },
-        { "@type": "Question", "name": "Why is the PDF so much slower than the Office file?", "acceptedAnswer": { "@type": "Answer", "text": "Because it is a different kind of work. Filling a template is XML surgery in a few milliseconds; converting to PDF is a full LibreOffice process, measured at about 2.7 s on this instance and 219 MB of peak memory. That is also why a PDF costs two credits and why conversions run one at a time." } },
+        { "@type": "Question", "name": "Why is the PDF so much slower than the Office file?", "acceptedAnswer": { "@type": "Answer", "text": "Because it is a different kind of work. Filling a template is XML surgery in a few milliseconds; converting to PDF is a full LibreOffice process, measured at 0.7–0.9 s for the sample invoice on 9 November 2026. That is also why a PDF costs two credits and why conversions run one at a time." } },
         { "@type": "Question", "name": "Which brace style should I use?", "acceptedAnswer": { "@type": "Answer", "text": "Whichever you already type. {name} is the docxtemplater and Carbone style; {{name}} is the mustache and n8n style. Both work everywhere, and {{[Field With Spaces]}} works too, because that is the Docupilot form." } },
         { "@type": "Question", "name": "Is anything in my template or data used to train a model?", "acceptedAnswer": { "@type": "Answer", "text": "No. Nothing is read, mined, sold or used to train anything, and the only email the service sends is a password-reset link, when you ask for one." } }
       ]
@@ -138,13 +138,13 @@
       <div>
         <p class="l-pill"><span class="dot" aria-hidden="true"></span>30 documents a month, free, no card</p>
         <h1 class="hero-title" id="hero-title">Fill Word, Excel and PowerPoint templates <em>from JSON</em></h1>
-        <p class="hero-sub">Send a <strong>.docx, .xlsx or .pptx</strong> and your data, and get the filled Office file, a PDF, or both back in one request. DocMint tells you <strong>exactly which fields a template needs</strong> before you send data — and refuses to render a document with one missing.</p>
+        <p class="hero-sub">Send a <strong>.docx, .xlsx or .pptx</strong> template and JSON; get the filled Office file, a PDF, or both back in one request. For developers and n8n workflows that produce invoices, reports and decks. It tells you <strong>which fields a template needs</strong> and refuses to render with one missing.</p>
         <div class="hero-cta">
-          <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get an API key <span class="arr" aria-hidden="true">&rarr;</span></a>
-          <a class="l-btn l-btn-ghost l-btn-lg" href="/docs#quickstart">Read the quickstart</a>
+          <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get a free API key <span class="arr" aria-hidden="true">&rarr;</span></a>
+          <a class="hero-alt" href="#try">or see the copy-paste example <span aria-hidden="true">&darr;</span></a>
         </div>
         <ul class="hero-trust">
-          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>No card, key over the API</li>
+          <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><a href="#pricing">Paid plans from $9 a month for 2,000 documents</a></li>
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>A failed render costs nothing</li>
           <li><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 10.5l4 4 8-9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Runs in the EU</li>
         </ul>
@@ -188,19 +188,19 @@
 
     <div class="measured">
       <div>
-        <div class="n">17–27 ms</div>
-        <div class="t">Server-side time to fill a three-line-item Word template, five consecutive live requests.</div>
+        <div class="n">7–8 ms</div>
+        <div class="t">Server-side time to fill the invoice above (47 tags, six line items, a logo), five consecutive live requests.</div>
       </div>
       <div>
-        <div class="n">2.7 s</div>
-        <div class="t">Added by the optional PDF step. LibreOffice, half a CPU — this is the number a customer gets.</div>
+        <div class="n">0.7–0.9 s</div>
+        <div class="t">Added by the optional PDF step for the same invoice. LibreOffice, one conversion at a time.</div>
       </div>
       <div>
-        <div class="n">$0.00145</div>
-        <div class="t">Per document on the $29 Pro plan — 20,000 documents a month.</div>
+        <div class="n">$9 for 2,000</div>
+        <div class="t">Documents a month on Starter, after 30 a month free; the PDF step costs one more credit. <a href="#pricing">All four plans</a>.</div>
       </div>
     </div>
-    <p class="measured-note">Measured on the live service on 25 August 2026, from the <code>stats.stages</code> object the API returns on every render. The first request after an idle period took 53 ms; the PDF path is one instance with a queue of one, so a busy moment queues rather than slows. DocMint is new — these are the only numbers there are, so they are the only ones quoted.</p>
+    <p class="measured-note">Measured on the live service on 9 November 2026, from the <code>stats.stages</code> object the API returns on a render with <code>"output": "both"</code>. Other templates will differ; the PDF path is one instance with a queue of one, so a busy moment queues rather than slows. DocMint is new — these are the only numbers there are, so they are the only ones quoted.</p>
   </div>
 </section>
 
@@ -211,8 +211,8 @@
       <div>
         <div class="sec-head">
           <p class="eyebrow">How it works</p>
-          <h2 class="sec-title">Three steps, and the second one is optional</h2>
-          <p>You author the template in Word, Excel or PowerPoint — the tool your finance team already uses — and type placeholders into it. There is no template editor to learn and no proprietary format.</p>
+          <h2 class="sec-title">Copy, paste, get a PDF</h2>
+          <p>The <b>try it</b> example needs a key and a Unix shell with curl: no SDK, no Office installation. For your own documents you author the template in Word, Excel or PowerPoint — the tool your finance team already uses — and type placeholders into it. There is no template editor to learn and no proprietary format. Then it is three steps, and the second one is optional:</p>
         </div>
         <ol class="steps">
           <li>
@@ -230,17 +230,29 @@
         </ol>
       </div>
 
-      <div class="code-card">
+      <div class="code-card" id="try">
         <div class="code-toolbar">
           <div class="code-tabs" role="tablist" aria-label="Example requests">
-            <button role="tab" id="tab-render" aria-controls="panel-render" aria-selected="true" tabindex="0">render</button>
+            <button role="tab" id="tab-try" aria-controls="panel-try" aria-selected="true" tabindex="0">try it</button>
+            <button role="tab" id="tab-render" aria-controls="panel-render" aria-selected="false" tabindex="-1">render</button>
             <button role="tab" id="tab-fields" aria-controls="panel-fields" aria-selected="false" tabindex="-1">fields</button>
             <button role="tab" id="tab-signup" aria-controls="panel-signup" aria-selected="false" tabindex="-1">sign up</button>
           </div>
           <button class="code-copy" type="button" id="copyBtn">Copy</button>
         </div>
 
-        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render"><pre tabindex="0"><code><span class="tok-c"># A saved .docx and your data. The PDF comes straight back.</span>
+        <div class="code-panel" role="tabpanel" id="panel-try" aria-labelledby="tab-try"><pre tabindex="0"><code><span class="tok-c"># Needs your key and curl. The invoice shown above, as a PDF.</span>
+B=https://docmint.app.mintapis.com
+curl -sO $B/examples/invoice-template.docx
+curl -sO $B/examples/invoice.data.json
+printf <span class="tok-s">'{"output":"pdf","template_base64":"%s","data":%s}'</span> \
+  <span class="tok-s">"$(base64 &lt; invoice-template.docx | tr -d '\n')"</span> \
+  <span class="tok-s">"$(cat invoice.data.json)"</span> &gt; request.json
+curl $B/v1/render -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
+  -H <span class="tok-s">"Content-Type: application/json"</span> \
+  --data-binary @request.json --output invoice.pdf</code></pre></div>
+
+        <div class="code-panel" role="tabpanel" id="panel-render" aria-labelledby="tab-render" hidden><pre tabindex="0"><code><span class="tok-c"># A saved .docx and your data. The PDF comes straight back.</span>
 curl -X POST https://docmint.app.mintapis.com/v1/render \
   -H <span class="tok-s">"Authorization: Bearer dm_live_xxx"</span> \
   -H <span class="tok-s">"Content-Type: application/json"</span> \
@@ -284,10 +296,9 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
 <span class="tok-c">}</span></code></pre></div>
 
         <div class="code-foot">
-          <span>HTTP <b>200</b></span>
+          <span>A render answers HTTP <b>200</b></span>
           <span>content-type: <b>application/pdf</b></span>
-          <span>content-length: <b>13660</b></span>
-          <span>x-docmint-credits-remaining: <b>28</b></span>
+          <span>with <b>x-docmint-credits-remaining</b> in the headers</span>
         </div>
       </div>
     </div>
@@ -526,7 +537,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
     <div class="l-integrations">
       <div>
         <h3>n8n — the verified community node</h3>
-        <p><code>n8n-nodes-docmint</code> is the official node, built and published by the people who run the API. n8n Cloud and npm both serve 0.2.1; install it from the Nodes panel under <i>More from the community</i>, or from Settings &rarr; Community nodes on self-hosted n8n.</p>
+        <p><code>n8n-nodes-docmint</code> is the official node, built and published by the people who run the API. n8n Cloud and npm both serve 0.2.3; install it from the Nodes panel under <i>More from the community</i>, or from Settings &rarr; Community nodes on self-hosted n8n.</p>
         <a class="more" href="/n8n-word-template">All three n8n routes &rarr;</a>
       </div>
       <div>
@@ -684,7 +695,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </div>
       <div class="gap">
         <b>LibreOffice is the only PDF converter</b>
-        <span>Carbone lets you choose between LibreOffice, OnlyOffice, Chromium and their own engine, and offers PDF/A, watermarking and PDF encryption with permission restrictions. DocMint has one converter and one PDF profile, ~2.7 s per conversion, one at a time per instance; the PDF it produces can carry an open password, but no PDF/A, watermark or copy/print restrictions.</span>
+        <span>Carbone lets you choose between LibreOffice, OnlyOffice, Chromium and their own engine, and offers PDF/A, watermarking and PDF encryption with permission restrictions. DocMint has one converter and one PDF profile, 0.7–0.9 s for the sample invoice (9 November 2026), one conversion at a time per instance; the PDF it produces can carry an open password, but no PDF/A, watermark or copy/print restrictions.</span>
       </div>
       <div class="gap">
         <b>No delivery integrations</b>
@@ -705,10 +716,6 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       <div class="gap">
         <b>The dashboard is small</b>
         <span>Signed-in users can view usage and plan, manage templates, test a render, manage API keys, and delete their account in the browser. There are no team seats — every account is one login.</span>
-      </div>
-      <div class="gap">
-        <b>The verified n8n node works on Cloud and self-hosted n8n</b>
-        <span><a href="https://www.npmjs.com/package/n8n-nodes-docmint" rel="noopener"><code>n8n-nodes-docmint</code></a> is the official node for this service: we build and run DocMint and publish the package, so the node and the API it calls are maintained by the same people. <b>n8n Cloud serves version 0.2.1; npm serves 0.2.1</b>; find DocMint in the Nodes panel under <i>More from the community</i> and install it as an owner or admin. Self-hosted n8n can install the same release from Settings &rarr; Community nodes. The plain HTTP Request route remains available when your organisation does not allow community nodes &mdash; <a href="/n8n-word-template">all three routes are written out here</a>.</span>
       </div>
       <div class="gap">
         <b>No SLA, one region, one instance</b>
@@ -748,7 +755,7 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
       </details>
       <details>
         <summary>Why is the PDF so much slower than the Office file?</summary>
-        <p>Because it is a different kind of work. Filling a template is XML surgery in a few milliseconds; converting to PDF is a full LibreOffice process, measured at about 2.7 s on this instance and 219 MB of peak memory. That is also why a PDF costs two credits and why conversions run one at a time.</p>
+        <p>Because it is a different kind of work. Filling a template is XML surgery in a few milliseconds; converting to PDF is a full LibreOffice process, measured at 0.7–0.9 s for the sample invoice on 9 November 2026. That is also why a PDF costs two credits and why conversions run one at a time.</p>
       </details>
       <details>
         <summary>Which brace style should I use?</summary>
@@ -822,9 +829,9 @@ curl -X POST https://docmint.app.mintapis.com/v1/signup \
 <section class="cta" aria-labelledby="cta-title">
   <div class="wrap">
     <h2 id="cta-title">Fill your first template in about a minute</h2>
-    <p>Sign up over the API, upload a <code>.docx</code>, ask it what fields it needs, and render. Thirty documents a month, free, no card.</p>
+    <p>Sign up, paste the example, open the PDF. Thirty documents a month, free, no card; paid plans start at $9 a month.</p>
     <div class="hero-cta">
-      <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get an API key <span class="arr" aria-hidden="true">&rarr;</span></a>
+      <a class="l-btn l-btn-primary l-btn-lg" href="/signup">Get a free API key <span class="arr" aria-hidden="true">&rarr;</span></a>
       <a class="l-btn l-btn-ghost l-btn-lg" href="/docs#quickstart">Read the quickstart</a>
     </div>
   </div>
