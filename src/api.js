@@ -621,7 +621,7 @@ router.get('/usage', withAuth, asyncRoute(async (req, res) => {
   const { rows } = await query(
     `SELECT kind, format, output, ok, count(*)::int AS n, sum(credits)::int AS credits,
             round(avg(duration_ms))::int AS avg_ms
-     FROM usage_events WHERE account_id = $1 AND created_at >= date_trunc('month', now())
+     FROM usage_events WHERE account_id = $1 AND created_at >= date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
      GROUP BY kind, format, output, ok ORDER BY n DESC`, [a.id],
   );
   const plan = PLANS[a.plan] || PLANS.free;
