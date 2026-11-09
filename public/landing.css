@@ -190,6 +190,11 @@ h1.hero-title em{font-style:normal;color:var(--l-accent-ink)}
 .hero-note span{display:inline-flex;align-items:center;gap:7px}
 .hero-note svg{width:14px;height:14px;color:var(--l-accent)}
 @media (max-width:520px){.hero-cta .l-btn{flex:1 1 100%}}
+.hero-alt{font-size:.98rem;font-weight:500;color:var(--l-ink-2);text-decoration:underline;text-underline-offset:3px;padding:10px 4px}
+.hero-alt:hover{color:var(--l-ink)}
+@media (max-width:520px){.hero-alt{flex:1 1 100%;text-align:center}}
+.hero-trust a,.measured .t a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+.hero-trust a:hover,.measured .t a:hover{color:var(--l-ink)}
 
 /* the product visual: request panel + the real PDF page it returned */
 .hero-visual{position:relative;min-width:0}
