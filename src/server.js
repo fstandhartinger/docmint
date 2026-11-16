@@ -292,7 +292,15 @@ app.use((err, req, res, next) => {
 
 async function start() {
   if (config.databaseUrl) {
-    await migrate();
+    // A short database outage at boot used to exit at once, so Render restarted
+    // us into the same outage several times (8 and 14 Nov 2026). Retry for ~2 min first.
+    for (let attempt = 1; ; attempt++) {
+      try { await migrate(); break; } catch (e) {
+        if (attempt >= 8) throw e;
+        log.warn('start.migrate_retry', { attempt, err: e });
+        await new Promise((r) => setTimeout(r, Math.min(30000, 2000 * 2 ** (attempt - 1))));
+      }
+    }
   } else {
     log.warn('start.no_database', { note: 'DATABASE_URL is unset; authenticated endpoints will fail.' });
   }
