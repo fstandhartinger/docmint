@@ -21,6 +21,13 @@ const query = (text, params) => pool.query(text, params);
 
 async function tx(fn) {
   const client = await pool.connect();
+  // A checked-out client has no listener of the pool's, so a connection that
+  // drops mid-transaction (pgbouncer/Postgres restart) would emit an unhandled
+  // 'error' and crash the process. Seen on Render 14 Nov 2026 04:32Z. Swallow
+  // and log here; the pending query rejects and the catch below rolls back.
+  let broken = null;
+  const onError = (err) => { broken = err; console.error('[db] checked-out client error', err.message); };
+  client.on('error', onError);
   try {
     await client.query('BEGIN');
     const out = await fn(client);
@@ -30,7 +37,9 @@ async function tx(fn) {
     try { await client.query('ROLLBACK'); } catch { /* ignore */ }
     throw e;
   } finally {
-    client.release();
+    client.removeListener('error', onError);
+    // Passing the error destroys the dead connection instead of returning it to the pool.
+    client.release(broken || undefined);
   }
 }
 
