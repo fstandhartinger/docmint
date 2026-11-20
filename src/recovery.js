@@ -61,7 +61,7 @@ async function forgot(email, { product, sendMail } = {}) {
       if (!account || (account.reset_requested_at && Date.now() - new Date(account.reset_requested_at).getTime() < 60000)) return;
       const link = `${config.publicUrl}/reset-password#token=${token}`;
       const mail = {
-        from: `${product} <noreply@mail.mintapis.com>`,
+        from: `${product} <noreply@docmint.app.mintapis.com>`,
         to: account.email,
         subject: `Reset your ${product} password`,
         text: `A password reset was requested for your ${product} account.\n\nOpen this link within 30 minutes:\n${link}\n\nThis link works once. If you did not request it, ignore this email. Your password has not changed.`,

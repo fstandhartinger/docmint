@@ -46,7 +46,7 @@ test('recovery: expiry, one use, races, unknown email, session invalidation, bra
       else process.env.MINT_RECOVERY_RESEND_API_KEY = configuredKey;
     }
     assert.deepEqual(known, fresh);
-    assert.equal(mail.from, 'Mint QA <noreply@mail.mintapis.com>');
+    assert.equal(mail.from, 'Mint QA <noreply@docmint.app.mintapis.com>');
     assert.equal(mail.to, email);
     const secret = token();
     const { rows } = await db.query('SELECT reset_token_hash, reset_expires_at FROM accounts WHERE id=$1', [account.id]);
